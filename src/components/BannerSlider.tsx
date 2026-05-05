@@ -19,6 +19,8 @@ const banners = [
   { src: banner3, alt: "Rahasia Sukses Seleksi ASN" },
 ];
 
+const repeatedBanners = Array.from({ length: 4 }, () => banners).flat();
+
 export const BannerSlider = () => {
   const autoplay = useRef(
     Autoplay({ delay: 3500, stopOnInteraction: false, stopOnMouseEnter: true })
@@ -26,14 +28,32 @@ export const BannerSlider = () => {
   const [api, setApi] = useState<CarouselApi>();
   const [selected, setSelected] = useState(0);
 
+  const updateSelected = (carouselApi: CarouselApi) => {
+    setSelected(carouselApi.selectedScrollSnap() % banners.length);
+  };
+
+  const scrollToBanner = (index: number) => {
+    if (!api) return;
+    const current = api.selectedScrollSnap();
+    const targets = api
+      .scrollSnapList()
+      .map((_, snapIndex) => snapIndex)
+      .filter((snapIndex) => snapIndex % banners.length === index);
+    const nearest = targets.reduce((closest, snapIndex) =>
+      Math.abs(snapIndex - current) < Math.abs(closest - current) ? snapIndex : closest
+    );
+    api.scrollTo(nearest);
+  };
+
   useEffect(() => {
     if (!api) return;
-    setSelected(api.selectedScrollSnap());
-    const onSelect = () => setSelected(api.selectedScrollSnap());
+    updateSelected(api);
+    const onSelect = () => updateSelected(api);
     api.on("select", onSelect);
     api.on("reInit", onSelect);
     return () => {
       api.off("select", onSelect);
+      api.off("reInit", onSelect);
     };
   }, [api]);
 
@@ -45,14 +65,14 @@ export const BannerSlider = () => {
 
       <Carousel
         setApi={setApi}
-        opts={{ loop: true, align: "center", direction: "rtl" }}
+        opts={{ loop: true, align: "center" }}
         plugins={[autoplay.current]}
         className="w-full"
       >
         <CarouselContent className="-ml-4">
-          {banners.map((b, i) => (
+          {repeatedBanners.map((b, i) => (
             <CarouselItem
-              key={i}
+              key={`${b.alt}-${i}`}
               className="pl-4 basis-[85%] sm:basis-[75%] md:basis-[70%] lg:basis-[65%]"
             >
               <div className="overflow-hidden rounded-2xl shadow-elegant">
@@ -78,7 +98,7 @@ export const BannerSlider = () => {
             key={i}
             type="button"
             aria-label={`Slide ${i + 1}`}
-            onClick={() => api?.scrollTo(i)}
+            onClick={() => scrollToBanner(i)}
             className={cn(
               "h-2 rounded-full transition-all",
               selected === i
