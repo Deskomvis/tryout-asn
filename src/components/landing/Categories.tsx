@@ -1,11 +1,10 @@
-import { Briefcase, Globe, MonitorSmartphone, ClipboardList, Send, Luggage, UserPlus, HeartHandshake, BookOpen } from "lucide-react";
+import { Briefcase, Globe, MonitorSmartphone, ClipboardList, Luggage, UserPlus, HeartHandshake, BookOpen } from "lucide-react";
 
 const categories = [
   { icon: Briefcase, label: "CPNS" },
   { icon: Globe, label: "BUMN" },
   { icon: MonitorSmartphone, label: "PPPK Guru/Dosen" },
   { icon: ClipboardList, label: "Sekolah Kedinasan" },
-  { icon: Send, label: "Telegram" },
   { icon: Luggage, label: "PPPK Teknis" },
   { icon: UserPlus, label: "Paket SKB" },
   { icon: HeartHandshake, label: "PPPK Kesehatan" },

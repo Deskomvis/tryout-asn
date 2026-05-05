@@ -1,63 +1,26 @@
-## Landing Page — Tryout Online Platform
+## Update Pricing, Testimonials & Categories
 
-A clean, professional blue-themed landing page built with Shadcn/UI components, based on the PRD.
+### 1. Pricing (`src/components/landing/Pricing.tsx`)
+Replace the 3-tier package with 2 packages matching the reference:
+- **Tryout CAT** — Mulai Rp99.000 (popular): Latihan Soal CAT, Hasil & Pembahasan, Berlatih Manajemen Waktu, Akses Belajar Fleksibel, Tampilan Simpel, Akses Smartphone/Laptop/Komputer, Full Akses 6 Bulan.
+- **Ebook Soal PDF** — Mulai Rp129.000: Latihan Soal CAT, Hasil & Pembahasan, Akses multi-device, Full Akses 6 Bulan, PDF Bisa di Print, Soal UPDATE & HOTS, Bisa di Download.
+- Layout: 2-column grid, badge-style title, "Pesan Layanan" button → WhatsApp.
+- Heading copy: "Pilih Paket Terbaik Untuk Anda".
 
-### Sections
+### 2. Testimonials (`src/components/landing/Testimonials.tsx`)
+Re-target audience from siswa → orang dewasa / pelamar kerja. Heading: **"Dipercaya Ribuan Orang"**. Replace 3 dummies with alumni-lulus stories:
+- **Rina Marlina** — Lulus CPNS Kemenkeu 2025: "Soal-soalnya 80% mirip ujian asli. Saya passing grade di percobaan pertama!"
+- **Ahmad Fauzi** — Lulus PPPK Guru 2025: "Latihan CAT-nya bikin saya nggak grogi pas ujian beneran. Worth every rupiah."
+- **Siti Nurhaliza** — Lulus BUMN Pertamina 2025: "Pembahasannya detail. Dari yang awalnya pesimis, sekarang sudah jadi pegawai BUMN."
+- Optional 4th: **Dedi Kurniawan** — Lulus Sekolah Kedinasan STAN 2024.
 
-1. **Navbar (sticky)**
-   - Logo "TryoutPro" (left)
-   - Nav links: Beranda, Paket, Testimoni, Kontak
-   - CTA buttons: "Masuk" (ghost) + "Daftar Gratis" (primary blue)
-   - Mobile: hamburger menu (Sheet)
+### 3. Categories (`src/components/landing/Categories.tsx`)
+Remove the **Telegram** category card from the grid.
 
-2. **Hero Section**
-   - Headline: "Persiapan Ujian Lebih Mudah dengan Tryout Online"
-   - Subheadline explaining the platform value (latihan soal, simulasi ujian real-time, ranking nasional)
-   - Primary CTA: "Mulai Tryout" → scrolls to pricing
-   - Secondary CTA: "Lihat Paket"
-   - Trust indicators row (e.g., 10,000+ siswa, 500+ soal, 50+ paket)
-   - Hero illustration/mockup placeholder on the right
-
-3. **Features Section** (3–4 cards)
-   - Timer Otomatis (countdown sync)
-   - Bank Soal Lengkap
-   - Leaderboard Real-time
-   - Statistik Skor Pribadi
-
-4. **Pricing Table — Tryout Packages** (3 tiers)
-   - **Paket Basic** — Rp 49.000: 5 tryout, durasi 90 menit, pembahasan
-   - **Paket Premium** (highlighted/popular) — Rp 99.000: 15 tryout, leaderboard, video pembahasan
-   - **Paket Ultimate** — Rp 199.000: tryout unlimited, mentoring, garansi
-   - Each card: title, price, feature list with check icons, "Beli Paket" button → WhatsApp redirect with pre-filled message per PRD
-
-5. **Testimonials Section**
-   - 3 testimonial cards with avatar, name, role, quote, star rating
-
-6. **CTA Banner**
-   - "Siap memulai persiapan ujianmu?" with "Daftar Sekarang" button
-
-7. **Footer**
-   - Logo + tagline, link columns (Produk, Perusahaan, Bantuan), social icons, copyright
-
-8. **Floating WhatsApp Button** (bottom-right, persistent)
-   - Per PRD widget chat requirement
-
-### Design System
-
-- Blue primary theme. Update `src/index.css` HSL tokens:
-  - `--primary`: deep blue (e.g., 217 91% 50%)
-  - `--accent`: light blue tint
-  - Clean white background, slate foreground
-- Subtle gradient on hero (blue-50 → white)
-- Generous spacing, rounded-xl cards, soft shadows
-- Inter-style typography, semibold headings
+### 4. Hero copy (`src/components/landing/Hero.tsx`)
+Adjust trust indicator to "10.000+ Alumni Lulus" (from "Peserta Lulus") to reinforce adult/professional audience.
 
 ### Technical Notes
-
-- Single-page route updates `src/pages/Index.tsx`
-- New components in `src/components/landing/`: `Navbar`, `Hero`, `Features`, `Pricing`, `Testimonials`, `CtaBanner`, `Footer`, `WhatsAppButton`
-- Pricing "Beli" button opens `https://wa.me/<ADMIN_NUMBER>?text=...` with the PRD's exact message template (admin number set as a constant placeholder)
-- Use existing Shadcn `Button`, `Card`, `Badge`, `Sheet`, `Avatar` components
-- Smooth scroll for in-page anchor nav
-- Fully responsive (mobile-first)
-- Auth, dashboard, exam logic, and Supabase integration are out of scope for this task (landing page only)
+- All edits use existing semantic tokens (no new colors).
+- WhatsApp link template updated to: `Halo Admin, saya ingin memesan layanan {paket}.`
+- No new dependencies.
