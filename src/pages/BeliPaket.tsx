@@ -61,7 +61,7 @@ const BeliPaket = () => {
           <Card><CardContent className="p-6 text-sm text-muted-foreground">Belum ada paket pada kategori ini.</CardContent></Card>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((e, i) => <ExamCard key={e.id} exam={e} index={i} ctaLabel="Beli / Mulai" />)}
+            {filtered.map((e, i) => <ExamCard key={e.id} exam={e} index={i} mode="buy" />)}
           </div>
         )}
       </section>
