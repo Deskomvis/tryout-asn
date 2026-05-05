@@ -16,6 +16,8 @@ export type ExamLite = {
   duration: number;
   total_questions: number;
   price: number;
+  category?: string | null;
+  subcategory?: string | null;
 };
 
 type Mode = "buy" | "play";
