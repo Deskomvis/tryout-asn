@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Timer } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 type Q = { id: string; question_text: string; options: string[] };
 
