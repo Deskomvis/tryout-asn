@@ -178,17 +178,17 @@ const Admin = () => {
 
           <TabsContent value="exams">
             <Card><CardHeader><h2 className="font-semibold">Buat Tryout Baru</h2></CardHeader><CardContent className="space-y-3">
-              <div><Label>Judul</Label><Input value={newExam.title} onChange={(e) => setNewExam({ ...newExam, title: e.target.value })} /></div>
-              <div><Label>Deskripsi</Label><Textarea value={newExam.description} onChange={(e) => setNewExam({ ...newExam, description: e.target.value })} /></div>
+              <div><Label>Judul *</Label><Input placeholder="cth: SKB Bidan Ahli - Paket 1" value={newExam.title} onChange={(e) => setNewExam({ ...newExam, title: e.target.value })} /></div>
+              <div><Label>Deskripsi</Label><Textarea placeholder="Ringkasan singkat paket tryout" value={newExam.description} onChange={(e) => setNewExam({ ...newExam, description: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Durasi (detik)</Label><Input type="number" value={newExam.duration} onChange={(e) => setNewExam({ ...newExam, duration: +e.target.value })} /></div>
-                <div><Label>Harga (pts)</Label><Input type="number" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
+                <div><Label>Durasi (detik)</Label><Input type="number" placeholder="600" value={newExam.duration} onChange={(e) => setNewExam({ ...newExam, duration: +e.target.value })} /></div>
+                <div><Label>Harga (pts)</Label><Input type="number" placeholder="0 = gratis" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Kategori</Label>
+                  <Label>Kategori Utama *</Label>
                   <Select value={newExam.category} onValueChange={(v) => setNewExam({ ...newExam, category: v })}>
-                    <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Wajib pilih kategori" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="koperasi">Koperasi Desa/Kelurahan Merah Putih</SelectItem>
                       <SelectItem value="skb">PAKET SKB CPNS</SelectItem>
@@ -200,7 +200,12 @@ const Admin = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Subkategori</Label><Input placeholder="cth: SKB Bidan Ahli" value={newExam.subcategory} onChange={(e) => setNewExam({ ...newExam, subcategory: e.target.value })} /></div>
+                <div>
+                  <Label>Subkategori *</Label>
+                  <Input placeholder="cth: SKB Bidan Ahli" maxLength={80} value={newExam.subcategory} onChange={(e) => setNewExam({ ...newExam, subcategory: e.target.value })} />
+                  <p className="mt-1 text-xs text-muted-foreground">Wajib diisi, maksimal 80 karakter.</p>
+                </div>
+              </div>
               </div>
               <Button onClick={addExam}>Buat Tryout</Button>
             </CardContent></Card>
