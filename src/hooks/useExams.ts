@@ -6,11 +6,11 @@ export const useExams = () => {
   const [exams, setExams] = useState<ExamLite[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    supabase
-      .from("exams")
-      .select("id,title,description,duration,total_questions,price,category,subcategory,original_price,bundle_size") as any
+    (supabase
+      .from("exams") as any)
+      .select("id,title,description,duration,total_questions,price,category,subcategory,original_price,bundle_size")
       .order("created_at")
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         setExams((data as ExamLite[]) ?? []);
         setLoading(false);
       });
