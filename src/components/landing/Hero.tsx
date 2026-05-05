@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { motion } from "framer-motion";
 import heroTeam from "@/assets/hero-team.webp";
 
 export const Hero = () => {
