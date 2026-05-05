@@ -12,6 +12,11 @@ import Dashboard from "./pages/Dashboard.tsx";
 import Exam from "./pages/Exam.tsx";
 import Leaderboard from "./pages/Leaderboard.tsx";
 import Admin from "./pages/Admin.tsx";
+import BeliPaket from "./pages/BeliPaket.tsx";
+import Pembelian from "./pages/Pembelian.tsx";
+import PaketSaya from "./pages/PaketSaya.tsx";
+import TryOutAkbar from "./pages/TryOutAkbar.tsx";
+import AkunSaya from "./pages/AkunSaya.tsx";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +31,11 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/beli-paket" element={<ProtectedRoute><BeliPaket /></ProtectedRoute>} />
+            <Route path="/pembelian" element={<ProtectedRoute><Pembelian /></ProtectedRoute>} />
+            <Route path="/paket-saya" element={<ProtectedRoute><PaketSaya /></ProtectedRoute>} />
+            <Route path="/try-out-akbar" element={<ProtectedRoute><TryOutAkbar /></ProtectedRoute>} />
+            <Route path="/akun-saya" element={<ProtectedRoute><AkunSaya /></ProtectedRoute>} />
             <Route path="/exam/:examId" element={<ProtectedRoute><Exam /></ProtectedRoute>} />
             <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute adminOnly><Admin /></ProtectedRoute>} />
