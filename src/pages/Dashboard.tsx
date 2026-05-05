@@ -1,15 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ClipboardCheck, Package, Trophy, ArrowUpRight, Sparkles } from "lucide-react";
+import { Package, Trophy, ArrowUpRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ExamCard } from "@/components/ExamCard";
-import { useExams } from "@/hooks/useExams";
 import { BannerSlider } from "@/components/BannerSlider";
 
 type LeaderRow = {
@@ -22,7 +18,6 @@ type LeaderRow = {
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const { exams } = useExams();
   const [scoreCount, setScoreCount] = useState(0);
   const [leaders, setLeaders] = useState<LeaderRow[]>([]);
 
@@ -45,7 +40,6 @@ const Dashboard = () => {
   }, []);
 
   const stats = [
-    { label: "Paket Tersedia", value: exams.length, icon: ClipboardCheck, gradient: "from-rose-500 to-rose-600" },
     { label: "Paket Saya", value: scoreCount, icon: Package, gradient: "from-blue-500 to-indigo-600" },
     { label: "Leaderboard", value: leaders.length, icon: Trophy, gradient: "from-amber-500 to-orange-600", to: "/leaderboard" as const },
   ];
@@ -62,7 +56,7 @@ const Dashboard = () => {
 
       <h2 className="mt-8 text-lg font-semibold text-foreground">Home</h2>
 
-      <div className="mt-3 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-3 grid gap-5 sm:grid-cols-2">
         {stats.map((s, i) => {
           const inner = (
             <div className={`relative rounded-2xl bg-gradient-to-br ${s.gradient} p-5 text-white shadow-lg`}>
@@ -129,18 +123,6 @@ const Dashboard = () => {
         </Card>
       </section>
 
-      <section className="mt-10">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-foreground">Tryout Tersedia</h3>
-          <Link to="/beli-paket" className="flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-            Lihat semua <ArrowUpRight className="h-4 w-4" />
-          </Link>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {exams.map((e, i) => <ExamCard key={e.id} exam={e} index={i} />)}
-          {exams.length === 0 && <p className="text-sm text-muted-foreground">Belum ada tryout.</p>}
-        </div>
-      </section>
     </AppLayout>
   );
 };
