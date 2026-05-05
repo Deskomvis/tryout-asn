@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      exam_purchases: {
+        Row: {
+          exam_id: string
+          id: string
+          price_paid: number
+          purchased_at: string
+          used: boolean
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          exam_id: string
+          id?: string
+          price_paid?: number
+          purchased_at?: string
+          used?: boolean
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          exam_id?: string
+          id?: string
+          price_paid?: number
+          purchased_at?: string
+          used?: boolean
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_purchases_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exams: {
         Row: {
           created_at: string
@@ -103,6 +141,57 @@ export type Database = {
           },
         ]
       }
+      topup_requests: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          note: string | null
+          processed_at: string | null
+          processed_by: string | null
+          status: Database["public"]["Enums"]["topup_status"]
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          status?: Database["public"]["Enums"]["topup_status"]
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          status?: Database["public"]["Enums"]["topup_status"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_balances: {
+        Row: {
+          balance: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -161,6 +250,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_adjust_balance: {
+        Args: {
+          _amount: number
+          _approve?: boolean
+          _topup_id?: string
+          _user_id: string
+        }
+        Returns: number
+      }
       get_exam_questions: {
         Args: { _exam_id: string }
         Returns: {
@@ -176,6 +274,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      purchase_exam: { Args: { _exam_id: string }; Returns: string }
       submit_exam: {
         Args: { _answers: Json; _exam_id: string; _time_spent: number }
         Returns: number
@@ -183,6 +282,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      topup_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -311,6 +411,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      topup_status: ["pending", "approved", "rejected"],
     },
   },
 } as const
