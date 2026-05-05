@@ -39,7 +39,7 @@ export const Hero = () => {
 
           <div className="mt-4 flex flex-wrap gap-6 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-primary" /> 10.000+ Peserta Lulus
+              <CheckCircle2 className="h-4 w-4 text-primary" /> 10.000+ Alumni Lulus
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-primary" /> 5.000+ Soal Asli
