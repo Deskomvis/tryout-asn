@@ -42,20 +42,20 @@ const Admin = () => {
     setScores((s as any) ?? []);
 
     const { data: t } = await supabase.from("topup_requests")
-      .select("id,user_id,amount,status,created_at,profiles!topup_requests_user_id_fkey(full_name,email)")
+      .select("id,user_id,amount,status,created_at")
       .order("created_at", { ascending: false }).limit(100);
-    // fallback: ambil profil terpisah jika join tidak tersedia
-    if (t) {
-      setTopups(t as any);
-    } else {
-      const { data: t2 } = await supabase.from("topup_requests").select("*").order("created_at", { ascending: false }).limit(100);
-      setTopups((t2 as any) ?? []);
-    }
-
     const { data: b } = await supabase.from("user_balances")
-      .select("user_id,balance,profiles!user_balances_user_id_fkey(full_name,email)")
+      .select("user_id,balance")
       .order("balance", { ascending: false }).limit(200);
-    setBalances((b as any) ?? []);
+
+    const ids = Array.from(new Set([...(t ?? []).map((x: any) => x.user_id), ...(b ?? []).map((x: any) => x.user_id)]));
+    let profileMap: Record<string, { full_name: string | null; email: string | null }> = {};
+    if (ids.length) {
+      const { data: profs } = await supabase.from("profiles").select("id,full_name,email").in("id", ids);
+      profileMap = Object.fromEntries((profs ?? []).map((p: any) => [p.id, { full_name: p.full_name, email: p.email }]));
+    }
+    setTopups(((t as any) ?? []).map((x: any) => ({ ...x, profiles: profileMap[x.user_id] ?? null })));
+    setBalances(((b as any) ?? []).map((x: any) => ({ ...x, profiles: profileMap[x.user_id] ?? null })));
   };
 
   useEffect(() => { refresh(); }, [selectedExam]);
