@@ -94,7 +94,7 @@ const Admin = () => {
     if (!newExam.title) return toast.error("Judul wajib");
     const { error } = await supabase.from("exams").insert({ ...newExam, total_questions: 0 });
     if (error) return toast.error(error.message);
-    toast.success("Tryout dibuat"); setNewExam({ title: "", description: "", duration: 600, price: 0 }); refresh();
+    toast.success("Tryout dibuat"); setNewExam({ title: "", description: "", duration: 600, price: 0, category: "", subcategory: "" }); refresh();
   };
 
   const addQuestion = async () => {
