@@ -1,4 +1,5 @@
 import { Briefcase, Globe, MonitorSmartphone, ClipboardList, Luggage, UserPlus, HeartHandshake, BookOpen } from "lucide-react";
+import { motion } from "framer-motion";
 
 const categories = [
   { icon: Briefcase, label: "CPNS" },
@@ -13,9 +14,9 @@ const categories = [
 
 export const Categories = () => {
   return (
-    <section id="kategori" className="border-y border-border bg-secondary/40 py-20">
+    <section id="kategori" className="border-y border-border bg-secondary/40 py-16 md:py-20">
       <div className="container">
-        <div className="mx-auto mb-12 max-w-2xl text-center">
+        <div className="mx-auto mb-10 max-w-2xl text-center md:mb-12">
           <span className="inline-block rounded-full bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground">
             Kategori Tryout
           </span>
@@ -30,23 +31,29 @@ export const Categories = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {categories.map(({ icon: Icon, label }) => (
-            <div
+        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-4 sm:gap-5 md:grid-cols-4">
+          {categories.map(({ icon: Icon, label }, i) => (
+            <motion.div
               key={label}
-              className="group flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5 transition hover:-translate-y-1 hover:border-primary/40"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.4, delay: i * 0.05 }}
+              whileHover={{ y: -4 }}
+              className="group flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5 transition hover:border-primary/40"
               style={{ boxShadow: "var(--shadow-card)" }}
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
-                <Icon className="h-6 w-6" />
+                <Icon className="h-6 w-6" aria-hidden="true" />
               </div>
               <span className="w-full rounded-lg bg-primary px-3 py-2 text-center text-xs font-bold uppercase tracking-wide text-primary-foreground">
                 {label}
               </span>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>
     </section>
   );
 };
+
