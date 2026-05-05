@@ -23,6 +23,13 @@ const items = [
   { title: "Akun Saya", url: "/akun-saya", icon: User },
 ];
 
+const itemClass = ({ isActive }: { isActive: boolean }) =>
+  `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+    isActive
+      ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground shadow-sm"
+      : "bg-sidebar-accent text-sidebar-foreground hover:bg-secondary hover:text-foreground"
+  }`;
+
 export const AppSidebar = () => {
   const { signOut, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -44,21 +51,11 @@ export const AppSidebar = () => {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1.5">
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={item.title}>
-                    <NavLink
-                      to={item.url}
-                      end
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                          isActive
-                            ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-                            : "text-sidebar-foreground hover:bg-sidebar-accent"
-                        }`
-                      }
-                    >
+                    <NavLink to={item.url} end={item.url === "/dashboard"} className={itemClass}>
                       <item.icon className="h-4 w-4" aria-hidden="true" />
                       <span>{item.title}</span>
                     </NavLink>
@@ -68,14 +65,7 @@ export const AppSidebar = () => {
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Admin">
-                    <NavLink
-                      to="/admin"
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                          isActive ? "bg-primary text-primary-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent"
-                        }`
-                      }
-                    >
+                    <NavLink to="/admin" className={itemClass}>
                       <Shield className="h-4 w-4" aria-hidden="true" />
                       <span>Admin</span>
                     </NavLink>
