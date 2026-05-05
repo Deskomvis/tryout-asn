@@ -175,7 +175,25 @@ const Admin = () => {
               <div><Label>Deskripsi</Label><Textarea value={newExam.description} onChange={(e) => setNewExam({ ...newExam, description: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Durasi (detik)</Label><Input type="number" value={newExam.duration} onChange={(e) => setNewExam({ ...newExam, duration: +e.target.value })} /></div>
-                <div><Label>Harga (Rp)</Label><Input type="number" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
+                <div><Label>Harga (pts)</Label><Input type="number" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Kategori</Label>
+                  <Select value={newExam.category} onValueChange={(v) => setNewExam({ ...newExam, category: v })}>
+                    <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="koperasi">Koperasi Desa/Kelurahan Merah Putih</SelectItem>
+                      <SelectItem value="skb">PAKET SKB CPNS</SelectItem>
+                      <SelectItem value="skd">PAKET SKD (TWK,TIU,TKP)</SelectItem>
+                      <SelectItem value="guru">PPPK GURU/DOSEN</SelectItem>
+                      <SelectItem value="kesehatan">PPPK KESEHATAN</SelectItem>
+                      <SelectItem value="teknis">PPPK TEKNIS</SelectItem>
+                      <SelectItem value="sekdin">SEKOLAH KEDINASAN</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Subkategori</Label><Input placeholder="cth: SKB Bidan Ahli" value={newExam.subcategory} onChange={(e) => setNewExam({ ...newExam, subcategory: e.target.value })} /></div>
               </div>
               <Button onClick={addExam}>Buat Tryout</Button>
             </CardContent></Card>
