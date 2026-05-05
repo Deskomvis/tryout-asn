@@ -27,7 +27,7 @@ const Admin = () => {
   const [adjustAmount, setAdjustAmount] = useState<Record<string, number>>({});
   const [selectedExam, setSelectedExam] = useState<string>("");
   const [newQ, setNewQ] = useState({ question_text: "", a: "", b: "", c: "", d: "", correct: "" });
-  const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0 });
+  const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, category: "", subcategory: "" });
 
   const refresh = async () => {
     const { data: e } = await supabase.from("exams").select("id,title,total_questions").order("created_at");
