@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Home, LayoutGrid, ShoppingBag, FolderOpen, Monitor, User, LogOut, GraduationCap, Shield, Wallet } from "lucide-react";
+import { Home, LayoutGrid, FolderOpen, Monitor, LogOut, GraduationCap, Shield, Wallet } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
