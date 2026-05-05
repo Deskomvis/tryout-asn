@@ -203,6 +203,94 @@ const Admin = () => {
               </div>
             </CardContent></Card>
           </TabsContent>
+
+          <TabsContent value="topups">
+            <Card><CardContent className="pt-6">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead className="bg-secondary text-left">
+                    <tr>
+                      <th className="px-3 py-2">Tanggal</th>
+                      <th className="px-3 py-2">User</th>
+                      <th className="px-3 py-2">Nominal</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {topups.map((t) => (
+                      <tr key={t.id}>
+                        <td className="px-3 py-2 text-muted-foreground">{new Date(t.created_at).toLocaleString("id-ID")}</td>
+                        <td className="px-3 py-2">
+                          <div className="font-medium">{t.profiles?.full_name ?? "-"}</div>
+                          <div className="text-xs text-muted-foreground">{t.profiles?.email}</div>
+                        </td>
+                        <td className="px-3 py-2 font-semibold">{t.amount.toLocaleString("id-ID")} pts</td>
+                        <td className="px-3 py-2">
+                          <Badge variant={t.status === "approved" ? "default" : t.status === "rejected" ? "destructive" : "secondary"}>
+                            {t.status}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2">
+                          {t.status === "pending" && (
+                            <div className="flex justify-end gap-2">
+                              <Button size="sm" onClick={() => approveTopup(t)} className="gap-1"><Check className="h-3.5 w-3.5" /> Setujui</Button>
+                              <Button size="sm" variant="outline" onClick={() => rejectTopup(t)} className="gap-1"><X className="h-3.5 w-3.5" /> Tolak</Button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {topups.length === 0 && (
+                      <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Belum ada topup.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent></Card>
+          </TabsContent>
+
+          <TabsContent value="balances">
+            <Card><CardContent className="pt-6">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead className="bg-secondary text-left">
+                    <tr>
+                      <th className="px-3 py-2">User</th>
+                      <th className="px-3 py-2">Saldo</th>
+                      <th className="px-3 py-2">Adjust (point, bisa negatif)</th>
+                      <th className="px-3 py-2 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {balances.map((b) => (
+                      <tr key={b.user_id}>
+                        <td className="px-3 py-2">
+                          <div className="font-medium">{b.profiles?.full_name ?? "-"}</div>
+                          <div className="text-xs text-muted-foreground">{b.profiles?.email}</div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="inline-flex items-center gap-1 font-semibold"><Wallet className="h-3.5 w-3.5 text-primary" />{b.balance.toLocaleString("id-ID")}</span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input
+                            type="number"
+                            value={adjustAmount[b.user_id] ?? ""}
+                            onChange={(e) => setAdjustAmount({ ...adjustAmount, [b.user_id]: Number(e.target.value) })}
+                            placeholder="contoh: 50000 atau -10000"
+                            className="max-w-[200px]"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <Button size="sm" onClick={() => adjustBalance(b.user_id)} className="gap-1"><Plus className="h-3.5 w-3.5" /> Terapkan</Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent></Card>
+          </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
