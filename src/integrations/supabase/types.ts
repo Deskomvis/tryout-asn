@@ -89,6 +89,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          username: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -96,6 +97,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          username?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -103,6 +105,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          username?: string | null
         }
         Relationships: []
       }
@@ -259,6 +262,7 @@ export type Database = {
         }
         Returns: number
       }
+      get_email_by_username: { Args: { _username: string }; Returns: string }
       get_exam_questions: {
         Args: { _exam_id: string }
         Returns: {
@@ -274,6 +278,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_username_available: { Args: { _username: string }; Returns: boolean }
       purchase_exam: { Args: { _exam_id: string }; Returns: string }
       submit_exam: {
         Args: { _answers: Json; _exam_id: string; _time_spent: number }
