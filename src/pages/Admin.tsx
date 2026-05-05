@@ -130,22 +130,24 @@ const Admin = () => {
 
           <TabsContent value="scores">
             <Card><CardContent className="pt-6">
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-muted-foreground">
-                  <th className="pb-2">Nama</th><th>Email</th><th>Tryout</th><th>Skor</th><th>Tanggal</th>
-                </tr></thead>
-                <tbody className="divide-y divide-border">
-                  {scores.map((s) => (
-                    <tr key={s.id}>
-                      <td className="py-2">{s.profiles?.full_name}</td>
-                      <td>{s.profiles?.email}</td>
-                      <td>{s.exams?.title}</td>
-                      <td className="font-bold text-primary">{s.score}</td>
-                      <td>{new Date(s.completed_at).toLocaleDateString("id-ID")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead><tr className="text-left text-muted-foreground">
+                    <th className="pb-2">Nama</th><th>Email</th><th>Tryout</th><th>Skor</th><th>Tanggal</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-border">
+                    {scores.map((s) => (
+                      <tr key={s.id}>
+                        <td className="py-2">{s.profiles?.full_name}</td>
+                        <td>{s.profiles?.email}</td>
+                        <td>{s.exams?.title}</td>
+                        <td className="font-bold text-primary">{s.score}</td>
+                        <td>{new Date(s.completed_at).toLocaleDateString("id-ID")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </CardContent></Card>
           </TabsContent>
         </Tabs>
