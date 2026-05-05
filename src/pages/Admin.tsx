@@ -206,7 +206,6 @@ const Admin = () => {
                   <p className="mt-1 text-xs text-muted-foreground">Wajib diisi, maksimal 80 karakter.</p>
                 </div>
               </div>
-              </div>
               <Button onClick={addExam}>Buat Tryout</Button>
             </CardContent></Card>
           </TabsContent>
