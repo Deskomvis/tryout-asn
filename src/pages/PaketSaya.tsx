@@ -34,7 +34,6 @@ const PaketSaya = () => {
   }, [user]);
 
   const active = rows.filter((r) => !r.used);
-  const finished = rows.filter((r) => r.used);
 
   return (
     <AppLayout>
@@ -74,30 +73,37 @@ const PaketSaya = () => {
       </section>
 
       <section className="mt-10">
-        <h2 className="mb-3 text-base font-semibold text-foreground">Riwayat Selesai</h2>
-        {finished.length === 0 ? (
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">Belum ada paket yang dikerjakan.</CardContent></Card>
+        <h2 className="mb-3 text-base font-semibold text-foreground">Riwayat Pembelian</h2>
+        {rows.length === 0 ? (
+          <Card><CardContent className="p-6 text-sm text-muted-foreground">Belum ada transaksi.</CardContent></Card>
         ) : (
           <Card><CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] text-sm">
+              <table className="w-full min-w-[600px] text-sm">
                 <thead className="bg-secondary text-left text-foreground">
                   <tr>
                     <th className="px-4 py-3">Paket</th>
+                    <th className="px-4 py-3">Tanggal Beli</th>
                     <th className="px-4 py-3">Selesai</th>
                     <th className="px-4 py-3">Harga</th>
+                    <th className="px-4 py-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {finished.map((p) => (
-                    <tr key={p.id}>
+                  {rows.map((p) => (
+                    <tr key={p.id} className="hover:bg-secondary/50">
                       <td className="px-4 py-3 font-medium text-foreground">
                         <span className="inline-flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-primary" /> {p.exams?.title ?? "-"}
+                          {p.used && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                          {p.exams?.title ?? "-"}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-muted-foreground">{new Date(p.purchased_at).toLocaleString("id-ID")}</td>
                       <td className="px-4 py-3 text-muted-foreground">{p.used_at ? new Date(p.used_at).toLocaleString("id-ID") : "-"}</td>
                       <td className="px-4 py-3">Rp {p.price_paid.toLocaleString("id-ID")}</td>
+                      <td className="px-4 py-3">
+                        {p.used ? <Badge variant="secondary">Selesai</Badge> : <Badge>Aktif</Badge>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
