@@ -91,8 +91,15 @@ const Admin = () => {
   };
 
   const addExam = async () => {
-    if (!newExam.title) return toast.error("Judul wajib");
-    const { error } = await supabase.from("exams").insert({ ...newExam, total_questions: 0 });
+    const title = newExam.title.trim();
+    const subcategory = newExam.subcategory.trim();
+    if (!title) return toast.error("Judul wajib");
+    if (!newExam.category) return toast.error("Kategori utama wajib dipilih");
+    if (!subcategory) return toast.error("Subkategori wajib diisi");
+    if (subcategory.length > 80) return toast.error("Subkategori maksimal 80 karakter");
+    const { error } = await supabase.from("exams").insert({
+      ...newExam, title, subcategory, total_questions: 0,
+    });
     if (error) return toast.error(error.message);
     toast.success("Tryout dibuat"); setNewExam({ title: "", description: "", duration: 600, price: 0, category: "", subcategory: "" }); refresh();
   };
