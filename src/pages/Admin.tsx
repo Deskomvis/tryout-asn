@@ -86,7 +86,6 @@ const Admin = () => {
     });
     if (error) return toast.error(error.message);
     toast.success(`Saldo diperbarui (${amt > 0 ? "+" : ""}${amt} pts)`);
-    setAdjustBalance((s: any) => ({ ...s, [userId]: 0 }));
     setAdjustAmount({ ...adjustAmount, [userId]: 0 });
     refresh();
   };
