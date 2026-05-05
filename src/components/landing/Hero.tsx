@@ -23,7 +23,7 @@ export const Hero = () => {
           </h1>
           <p className="max-w-xl text-lg text-muted-foreground">
             Tryout berbasis <strong className="text-foreground">soal asli ujian bertahun-tahun</strong> + sistem CAT real-time persis aslinya.
-            Ribuan peserta sudah lulus — sekarang giliranmu. <strong className="text-primary">Garansi lulus passing grade atau ikut tryout berikutnya GRATIS.</strong>
+            Faktanya, <strong className="text-primary">73% pengguna TryoutPro mencapai skor tinggi</strong> dan tembus passing grade di percobaan pertama.
           </p>
 
           <div className="flex flex-col gap-3 sm:flex-row">
