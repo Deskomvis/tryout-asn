@@ -65,7 +65,7 @@ const Admin = () => {
       _user_id: t.user_id, _amount: t.amount, _topup_id: t.id, _approve: true,
     });
     if (error) return toast.error(error.message);
-    toast.success(`Topup ${t.amount.toLocaleString("id-ID")} pts disetujui`);
+    toast.success(`Topup Rp ${t.amount.toLocaleString("id-ID")} disetujui`);
     refresh();
   };
 
@@ -85,7 +85,7 @@ const Admin = () => {
       _user_id: userId, _amount: amt, _topup_id: null, _approve: true,
     });
     if (error) return toast.error(error.message);
-    toast.success(`Saldo diperbarui (${amt > 0 ? "+" : ""}${amt} pts)`);
+    toast.success(`Saldo diperbarui (${amt > 0 ? "+" : ""}Rp ${amt.toLocaleString("id-ID")})`);
     setAdjustAmount({ ...adjustAmount, [userId]: 0 });
     refresh();
   };
@@ -185,7 +185,7 @@ const Admin = () => {
                 <div><Label>Jumlah Paket / Bundling</Label><Input type="number" min={1} placeholder="1" value={newExam.bundle_size} onChange={(e) => setNewExam({ ...newExam, bundle_size: Math.max(1, +e.target.value) })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Harga (pts / Rp)</Label><Input type="number" placeholder="0 = gratis" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
+                <div><Label>Harga (Rp)</Label><Input type="number" placeholder="0 = gratis" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
                 <div><Label>Harga Asli (coret, opsional)</Label><Input type="number" placeholder="cth: 182850" value={newExam.original_price} onChange={(e) => setNewExam({ ...newExam, original_price: +e.target.value })} /><p className="mt-1 text-xs text-muted-foreground">Isi jika ingin menampilkan harga coret + badge diskon.</p></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -258,7 +258,7 @@ const Admin = () => {
                           <div className="font-medium">{t.profiles?.full_name ?? "-"}</div>
                           <div className="text-xs text-muted-foreground">{t.profiles?.email}</div>
                         </td>
-                        <td className="px-3 py-2 font-semibold">{t.amount.toLocaleString("id-ID")} pts</td>
+                        <td className="px-3 py-2 font-semibold">Rp {t.amount.toLocaleString("id-ID")}</td>
                         <td className="px-3 py-2">
                           <Badge variant={t.status === "approved" ? "default" : t.status === "rejected" ? "destructive" : "secondary"}>
                             {t.status}

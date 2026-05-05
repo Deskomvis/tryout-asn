@@ -51,7 +51,7 @@ const Pembelian = () => {
                     <tr key={r.id} className="hover:bg-secondary/50">
                       <td className="px-4 py-3 font-medium text-foreground">{r.exams?.title ?? "-"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{new Date(r.purchased_at).toLocaleString("id-ID")}</td>
-                      <td className="px-4 py-3">{r.price_paid.toLocaleString("id-ID")} pts</td>
+                      <td className="px-4 py-3">Rp {r.price_paid.toLocaleString("id-ID")}</td>
                       <td className="px-4 py-3">
                         {r.used ? <Badge variant="secondary">Selesai</Badge> : <Badge>Aktif</Badge>}
                       </td>

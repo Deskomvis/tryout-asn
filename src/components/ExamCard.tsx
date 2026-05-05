@@ -54,7 +54,7 @@ export const ExamCard = ({
     try {
       await purchaseExam(exam.id);
       await refresh();
-      toast.success(isFree ? "Paket diaktifkan." : `Berhasil! ${exam.price.toLocaleString("id-ID")} pts terpotong.`);
+      toast.success(isFree ? "Paket diaktifkan." : `Berhasil! Rp ${exam.price.toLocaleString("id-ID")} terpotong.`);
       onPurchased?.();
       navigate("/paket-saya");
     } catch (e) {
@@ -121,7 +121,7 @@ export const ExamCard = ({
             ) : (
               <Button onClick={handleBuy} disabled={busy} className="w-full gap-2 rounded-full">
                 {busy ? "Memproses..." : isFree ? "Aktifkan Gratis" : (
-                  <><Wallet className="h-4 w-4" /> Beli {exam.price.toLocaleString("id-ID")} pts</>
+                  <><Wallet className="h-4 w-4" /> Beli Rp {exam.price.toLocaleString("id-ID")}</>
                 )}
               </Button>
             )}

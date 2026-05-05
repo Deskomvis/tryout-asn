@@ -60,7 +60,7 @@ const PaketSaya = () => {
                       {p.exams ? `${Math.round(p.exams.duration / 60)} menit · ${p.exams.total_questions} soal` : ""}
                     </p>
                     <div className="mt-auto space-y-2">
-                      <p className="text-xs text-muted-foreground">Akses 1x — saldo terpotong: {p.price_paid.toLocaleString("id-ID")} pts</p>
+                      <p className="text-xs text-muted-foreground">Akses 1x — saldo terpotong: Rp {p.price_paid.toLocaleString("id-ID")}</p>
                       <Button asChild className="w-full rounded-full">
                         <Link to={`/exam/${p.exams?.id}`}>Mulai Tryout</Link>
                       </Button>
@@ -97,7 +97,7 @@ const PaketSaya = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{p.used_at ? new Date(p.used_at).toLocaleString("id-ID") : "-"}</td>
-                      <td className="px-4 py-3">{p.price_paid.toLocaleString("id-ID")} pts</td>
+                      <td className="px-4 py-3">Rp {p.price_paid.toLocaleString("id-ID")}</td>
                     </tr>
                   ))}
                 </tbody>
