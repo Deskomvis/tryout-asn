@@ -1,26 +1,46 @@
-## Update Pricing, Testimonials & Categories
+## Goal
 
-### 1. Pricing (`src/components/landing/Pricing.tsx`)
-Replace the 3-tier package with 2 packages matching the reference:
-- **Tryout CAT** — Mulai Rp99.000 (popular): Latihan Soal CAT, Hasil & Pembahasan, Berlatih Manajemen Waktu, Akses Belajar Fleksibel, Tampilan Simpel, Akses Smartphone/Laptop/Komputer, Full Akses 6 Bulan.
-- **Ebook Soal PDF** — Mulai Rp129.000: Latihan Soal CAT, Hasil & Pembahasan, Akses multi-device, Full Akses 6 Bulan, PDF Bisa di Print, Soal UPDATE & HOTS, Bisa di Download.
-- Layout: 2-column grid, badge-style title, "Pesan Layanan" button → WhatsApp.
-- Heading copy: "Pilih Paket Terbaik Untuk Anda".
+Selesaikan refactor visual: grid kategori 4×2 (sudah), palet putih–abu–biru WCAG AA, layout simetris responsif, dan animasi framer-motion yang halus di seluruh halaman.
 
-### 2. Testimonials (`src/components/landing/Testimonials.tsx`)
-Re-target audience from siswa → orang dewasa / pelamar kerja. Heading: **"Dipercaya Ribuan Orang"**. Replace 3 dummies with alumni-lulus stories:
-- **Rina Marlina** — Lulus CPNS Kemenkeu 2025: "Soal-soalnya 80% mirip ujian asli. Saya passing grade di percobaan pertama!"
-- **Ahmad Fauzi** — Lulus PPPK Guru 2025: "Latihan CAT-nya bikin saya nggak grogi pas ujian beneran. Worth every rupiah."
-- **Siti Nurhaliza** — Lulus BUMN Pertamina 2025: "Pembahasannya detail. Dari yang awalnya pesimis, sekarang sudah jadi pegawai BUMN."
-- Optional 4th: **Dedi Kurniawan** — Lulus Sekolah Kedinasan STAN 2024.
+## Sudah dikerjakan
+- Install `framer-motion`.
+- Naikkan kontras `--muted-foreground` & `--accent-foreground` agar lolos WCAG AA.
+- `Categories.tsx`: grid 4 kolom × 2 baris, animasi stagger fade-up.
+- `Hero.tsx`: import motion (animasi belum dipasang).
 
-### 3. Categories (`src/components/landing/Categories.tsx`)
-Remove the **Telegram** category card from the grid.
+## Yang akan diselesaikan
 
-### 4. Hero copy (`src/components/landing/Hero.tsx`)
-Adjust trust indicator to "10.000+ Alumni Lulus" (from "Peserta Lulus") to reinforce adult/professional audience.
+### 1. Animasi & polish landing
+- `Hero.tsx`: stagger fade-in pada badge, heading, paragraf, CTA, trust indicators; gambar slide-in dari kanan dengan `whileInView`.
+- `Features.tsx`: ubah grid jadi `sm:grid-cols-2 lg:grid-cols-4` (sudah simetris), tambahkan motion stagger + hover lift.
+- `AvailablePaket.tsx`, `Pricing.tsx`, `Testimonials.tsx`, `CtaBanner.tsx`: bungkus kartu dengan `motion.div` (`initial opacity 0 y 20` → `whileInView`), grid simetris (`md:grid-cols-2`/`lg:grid-cols-3`), pastikan padding container konsisten.
+- `Navbar.tsx`: pastikan menu mobile rapi, tombol focus ring biru (a11y).
 
-### Technical Notes
-- All edits use existing semantic tokens (no new colors).
-- WhatsApp link template updated to: `Halo Admin, saya ingin memesan layanan {paket}.`
-- No new dependencies.
+### 2. WCAG & palet
+- Pastikan semua teks abu memakai `text-muted-foreground` baru (kontras ≥ 4.5:1 di atas putih/abu muda).
+- Tambahkan `focus-visible:ring-2 ring-primary` pada link/tombol custom yang belum punya.
+- Gunakan token `bg-background`, `bg-secondary/40`, `bg-card`, `text-foreground`, `text-primary` — tanpa warna hex langsung.
+- Tambahkan `aria-hidden` pada ikon dekoratif, `aria-label` pada tombol ikon (WhatsApp button, dll).
+
+### 3. Dashboard & app pages
+- `Dashboard.tsx`:
+  - Kartu statistik: animasi stagger fade-up, hover lift, gradient halus di ikon.
+  - Grid tryout: `sm:grid-cols-2 lg:grid-cols-3`, kartu motion + `transition-shadow`.
+  - Heading & subjudul kontras tinggi.
+- `Admin.tsx`: rapikan tabs, tabel responsif (wrap di `overflow-x-auto`), tombol & input full width di mobile.
+- `Exam.tsx` & `Leaderboard.tsx`: container `max-w-3xl mx-auto`, padding mobile, animasi fade-in pada perubahan soal.
+- `AppHeader.tsx`: pastikan navigasi simetris & menu mobile (drawer/sheet sederhana bila perlu).
+
+### 4. Responsif
+- Semua section: `py-16 md:py-24`, `container` (sudah punya padding 2rem).
+- Grid breakpoint konsisten: 1 kol mobile → 2 kol tablet → 3/4 kol desktop.
+- Cek viewport 375px, 768px, 1280px setelah perubahan.
+
+### 5. Helper kecil
+- Tambahkan utility `motion-safe` agar animasi dimatikan untuk `prefers-reduced-motion` (gunakan opsi default framer-motion `useReducedMotion` di hero).
+
+## Catatan teknis
+- Tidak menambah dependency baru selain `framer-motion`.
+- Tidak mengubah skema database / Supabase.
+- Tidak mengubah `client.ts`, `types.ts`, `.env`.
+- Pola animasi reusable: `initial={{opacity:0,y:20}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{duration:0.4, delay:i*0.07}}`.

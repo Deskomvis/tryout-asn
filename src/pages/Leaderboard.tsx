@@ -27,12 +27,16 @@ const Leaderboard = () => {
           {rows.length === 0 ? <p className="text-muted-foreground">Belum ada skor.</p> : (
             <ol className="divide-y divide-border">
               {rows.map((r, i) => (
-                <li key={r.id} className="flex items-center justify-between py-3">
-                  <div className="flex items-center gap-3">
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${i < 3 ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>{i + 1}</span>
-                    <div>
-                      <p className="font-medium">{r.profiles?.full_name ?? "Anonim"}</p>
-                      <p className="text-xs text-muted-foreground">{r.exams?.title}</p>
+                <li
+                  key={r.id}
+                  className="flex animate-fade-in items-center justify-between gap-3 py-3"
+                  style={{ animationDelay: `${i * 30}ms` }}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${i < 3 ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>{i + 1}</span>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{r.profiles?.full_name ?? "Anonim"}</p>
+                      <p className="truncate text-xs text-muted-foreground">{r.exams?.title}</p>
                     </div>
                   </div>
                   <span className="font-bold text-primary">{r.score}</span>
