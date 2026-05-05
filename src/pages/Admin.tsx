@@ -22,6 +22,9 @@ const Admin = () => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
+  const [topups, setTopups] = useState<Topup[]>([]);
+  const [balances, setBalances] = useState<UserBalance[]>([]);
+  const [adjustAmount, setAdjustAmount] = useState<Record<string, number>>({});
   const [selectedExam, setSelectedExam] = useState<string>("");
   const [newQ, setNewQ] = useState({ question_text: "", a: "", b: "", c: "", d: "", correct: "" });
   const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0 });
@@ -37,9 +40,56 @@ const Admin = () => {
       .select("id, score, completed_at, profiles(full_name,email), exams(title)")
       .order("completed_at", { ascending: false }).limit(100);
     setScores((s as any) ?? []);
+
+    const { data: t } = await supabase.from("topup_requests")
+      .select("id,user_id,amount,status,created_at,profiles!topup_requests_user_id_fkey(full_name,email)")
+      .order("created_at", { ascending: false }).limit(100);
+    // fallback: ambil profil terpisah jika join tidak tersedia
+    if (t) {
+      setTopups(t as any);
+    } else {
+      const { data: t2 } = await supabase.from("topup_requests").select("*").order("created_at", { ascending: false }).limit(100);
+      setTopups((t2 as any) ?? []);
+    }
+
+    const { data: b } = await supabase.from("user_balances")
+      .select("user_id,balance,profiles!user_balances_user_id_fkey(full_name,email)")
+      .order("balance", { ascending: false }).limit(200);
+    setBalances((b as any) ?? []);
   };
 
   useEffect(() => { refresh(); }, [selectedExam]);
+
+  const approveTopup = async (t: Topup) => {
+    const { error } = await supabase.rpc("admin_adjust_balance", {
+      _user_id: t.user_id, _amount: t.amount, _topup_id: t.id, _approve: true,
+    });
+    if (error) return toast.error(error.message);
+    toast.success(`Topup ${t.amount.toLocaleString("id-ID")} pts disetujui`);
+    refresh();
+  };
+
+  const rejectTopup = async (t: Topup) => {
+    const { error } = await supabase.rpc("admin_adjust_balance", {
+      _user_id: t.user_id, _amount: 0, _topup_id: t.id, _approve: false,
+    });
+    if (error) return toast.error(error.message);
+    toast.success("Topup ditolak");
+    refresh();
+  };
+
+  const adjustBalance = async (userId: string) => {
+    const amt = adjustAmount[userId];
+    if (!amt || isNaN(amt)) return toast.error("Masukkan nominal");
+    const { error } = await supabase.rpc("admin_adjust_balance", {
+      _user_id: userId, _amount: amt, _topup_id: null, _approve: true,
+    });
+    if (error) return toast.error(error.message);
+    toast.success(`Saldo diperbarui (${amt > 0 ? "+" : ""}${amt} pts)`);
+    setAdjustBalance((s: any) => ({ ...s, [userId]: 0 }));
+    setAdjustAmount({ ...adjustAmount, [userId]: 0 });
+    refresh();
+  };
 
   const addExam = async () => {
     if (!newExam.title) return toast.error("Judul wajib");
