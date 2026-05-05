@@ -35,4 +35,5 @@ export const useBalance = () => {
   return { balance, loading, refresh };
 };
 
-export const formatPoint = (v: number) => `${v.toLocaleString("id-ID")} pts`;
+export const formatPoint = (v: number) => `Rp ${v.toLocaleString("id-ID")}`;
+export const formatRp = (v: number) => `Rp ${v.toLocaleString("id-ID")}`;
