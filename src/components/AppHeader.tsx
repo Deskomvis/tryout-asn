@@ -37,7 +37,7 @@ export const AppHeader = () => {
         </nav>
 
         <div className="flex items-center gap-2 md:gap-3">
-          <span className="hidden max-w-[180px] truncate text-sm text-muted-foreground lg:inline">{user?.email}</span>
+          <Link to="/akun-saya" className="hidden max-w-[180px] truncate text-sm text-muted-foreground hover:text-primary hover:underline lg:inline" title="Pengaturan Akun">{user?.email}</Link>
           <Button variant="outline" size="sm" className="hidden md:inline-flex" onClick={async () => { await signOut(); navigate("/"); }}>
             <LogOut className="mr-1 h-4 w-4" aria-hidden="true" /> Keluar
           </Button>
@@ -52,7 +52,7 @@ export const AppHeader = () => {
               <div className="mt-8 flex flex-col gap-5">
                 {navLinks}
                 <div className="mt-2 border-t border-border pt-4">
-                  <p className="mb-3 truncate text-xs text-muted-foreground">{user?.email}</p>
+                  <Link to="/akun-saya" onClick={() => setOpen(false)} className="mb-3 block truncate text-xs text-muted-foreground hover:text-primary hover:underline">{user?.email}</Link>
                   <Button variant="outline" size="sm" className="w-full" onClick={async () => { setOpen(false); await signOut(); navigate("/"); }}>
                     <LogOut className="mr-1 h-4 w-4" aria-hidden="true" /> Keluar
                   </Button>
