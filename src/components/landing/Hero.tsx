@@ -47,37 +47,12 @@ export const Hero = () => {
 
         <div className="relative">
           <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/20 to-primary-glow/10 blur-2xl" />
-          <div
-            className="relative rounded-2xl border border-border/60 bg-card p-6"
-            style={{ boxShadow: "var(--shadow-elegant)" }}
-          >
-            <div className="mb-6 flex items-center justify-between border-b border-border pb-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Tryout UTBK 2026</p>
-                <p className="font-semibold">Tes Potensi Skolastik</p>
-              </div>
-              <div className="rounded-lg bg-primary px-3 py-1.5 font-mono text-sm font-bold text-primary-foreground">
-                01:24:36
-              </div>
-            </div>
-            <div className="space-y-3">
-              {[
-                { icon: Timer, label: "Timer Otomatis", value: "Sinkron Real-time" },
-                { icon: BookOpen, label: "Bank Soal", value: "500+ Pertanyaan" },
-                { icon: Trophy, label: "Leaderboard", value: "Peringkat #128" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between rounded-lg bg-secondary p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
-                      <item.icon className="h-4 w-4" />
-                    </div>
-                    <span className="text-sm font-medium">{item.label}</span>
-                  </div>
-                  <span className="text-sm text-muted-foreground">{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <img
+            src={heroTeam}
+            alt="Tim siswa Indonesia siap menghadapi tryout online"
+            className="relative w-full h-auto"
+            loading="eager"
+          />
         </div>
       </div>
     </section>
