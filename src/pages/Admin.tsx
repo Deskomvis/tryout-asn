@@ -9,11 +9,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Trash2, Wallet, Check, X, Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 type Exam = { id: string; title: string; total_questions: number };
 type Question = { id: string; exam_id: string; question_text: string; options: string[]; correct_answer: string };
 type Score = { id: string; score: number; completed_at: string; profiles: { full_name: string | null; email: string | null } | null; exams: { title: string } | null };
+type Topup = { id: string; user_id: string; amount: number; status: "pending" | "approved" | "rejected"; created_at: string; profiles: { full_name: string | null; email: string | null } | null };
+type UserBalance = { user_id: string; balance: number; profiles: { full_name: string | null; email: string | null } | null };
 
 const Admin = () => {
   const [exams, setExams] = useState<Exam[]>([]);
