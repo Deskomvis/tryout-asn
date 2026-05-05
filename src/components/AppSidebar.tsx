@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Home, LayoutGrid, ShoppingBag, FolderOpen, Monitor, User, LogOut, GraduationCap, Shield } from "lucide-react";
+import { Home, LayoutGrid, ShoppingBag, FolderOpen, Monitor, User, LogOut, GraduationCap, Shield, Wallet } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 const items = [
   { title: "Home", url: "/dashboard", icon: Home },
   { title: "Beli Paket", url: "/beli-paket", icon: LayoutGrid },
+  { title: "Topup Saldo", url: "/topup", icon: Wallet },
   { title: "Pembelian", url: "/pembelian", icon: ShoppingBag },
   { title: "Paket Saya", url: "/paket-saya", icon: FolderOpen },
   { title: "Try Out Akbar", url: "/try-out-akbar", icon: Monitor },

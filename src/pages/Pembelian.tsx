@@ -6,7 +6,13 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-type Row = { id: string; score: number; completed_at: string; exams: { title: string; price: number } | null };
+type Row = {
+  id: string;
+  purchased_at: string;
+  used: boolean;
+  price_paid: number;
+  exams: { title: string } | null;
+};
 
 const Pembelian = () => {
   const { user } = useAuth();
@@ -15,10 +21,10 @@ const Pembelian = () => {
   useEffect(() => {
     if (!user) return;
     supabase
-      .from("user_scores")
-      .select("id, score, completed_at, exams(title, price)")
+      .from("exam_purchases")
+      .select("id, purchased_at, used, price_paid, exams(title)")
       .eq("user_id", user.id)
-      .order("completed_at", { ascending: false })
+      .order("purchased_at", { ascending: false })
       .then(({ data }) => setRows((data as any) ?? []));
   }, [user]);
 
@@ -44,9 +50,11 @@ const Pembelian = () => {
                   {rows.map((r) => (
                     <tr key={r.id} className="hover:bg-secondary/50">
                       <td className="px-4 py-3 font-medium text-foreground">{r.exams?.title ?? "-"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{new Date(r.completed_at).toLocaleDateString("id-ID")}</td>
-                      <td className="px-4 py-3">{r.exams?.price ? `Rp ${r.exams.price.toLocaleString("id-ID")}` : "Gratis"}</td>
-                      <td className="px-4 py-3"><Badge variant="secondary">Selesai</Badge></td>
+                      <td className="px-4 py-3 text-muted-foreground">{new Date(r.purchased_at).toLocaleString("id-ID")}</td>
+                      <td className="px-4 py-3">{r.price_paid.toLocaleString("id-ID")} pts</td>
+                      <td className="px-4 py-3">
+                        {r.used ? <Badge variant="secondary">Selesai</Badge> : <Badge>Aktif</Badge>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
