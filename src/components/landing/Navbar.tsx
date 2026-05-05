@@ -31,8 +31,8 @@ export const Navbar = () => {
         </div>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Button variant="ghost">Masuk</Button>
-          <Button>Daftar Gratis</Button>
+          <Button variant="ghost" asChild><a href="/auth">Masuk</a></Button>
+          <Button asChild><a href="/auth">Daftar Gratis</a></Button>
         </div>
 
         <Sheet open={open} onOpenChange={setOpen}>
@@ -49,8 +49,8 @@ export const Navbar = () => {
                 </a>
               ))}
               <div className="mt-4 flex flex-col gap-2">
-                <Button variant="outline">Masuk</Button>
-                <Button>Daftar Gratis</Button>
+                <Button variant="outline" asChild><a href="/auth">Masuk</a></Button>
+                <Button asChild><a href="/auth">Daftar Gratis</a></Button>
               </div>
             </div>
           </SheetContent>
