@@ -8,10 +8,10 @@ export const useExams = () => {
   useEffect(() => {
     supabase
       .from("exams")
-      .select("id,title,description,duration,total_questions,price")
+      .select("id,title,description,duration,total_questions,price,category,subcategory")
       .order("created_at")
       .then(({ data }) => {
-        setExams(data ?? []);
+        setExams((data as ExamLite[]) ?? []);
         setLoading(false);
       });
   }, []);
