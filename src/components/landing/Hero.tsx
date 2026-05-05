@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CheckCircle2, Trophy, Timer, BookOpen } from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
+import heroTeam from "@/assets/hero-team.webp";
 
 export const Hero = () => {
   return (
