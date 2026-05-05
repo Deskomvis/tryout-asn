@@ -84,30 +84,40 @@ const Exam = () => {
 
         <Progress value={questions.length ? ((current + 1) / questions.length) * 100 : 0} className="mb-6" />
 
-        {q && (
-          <Card>
-            <CardHeader><h2 className="text-lg font-semibold">{q.question_text}</h2></CardHeader>
-            <CardContent>
-              <RadioGroup value={answers[q.id] ?? ""} onValueChange={(v) => setAnswers({ ...answers, [q.id]: v })}>
-                {q.options.map((opt) => (
-                  <div key={opt} className="flex items-center space-x-2 rounded-md border border-border p-3 hover:bg-accent">
-                    <RadioGroupItem value={opt} id={`${q.id}-${opt}`} />
-                    <Label htmlFor={`${q.id}-${opt}`} className="flex-1 cursor-pointer">{opt}</Label>
-                  </div>
-                ))}
-              </RadioGroup>
+        <AnimatePresence mode="wait">
+          {q && (
+            <motion.div
+              key={q.id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.25 }}
+            >
+              <Card>
+                <CardHeader><h2 className="text-lg font-semibold">{q.question_text}</h2></CardHeader>
+                <CardContent>
+                  <RadioGroup value={answers[q.id] ?? ""} onValueChange={(v) => setAnswers({ ...answers, [q.id]: v })}>
+                    {q.options.map((opt) => (
+                      <div key={opt} className="flex items-center space-x-2 rounded-md border border-border p-3 transition-colors hover:bg-accent">
+                        <RadioGroupItem value={opt} id={`${q.id}-${opt}`} />
+                        <Label htmlFor={`${q.id}-${opt}`} className="flex-1 cursor-pointer">{opt}</Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
 
-              <div className="mt-6 flex justify-between">
-                <Button variant="outline" onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0}>Sebelumnya</Button>
-                {current < questions.length - 1 ? (
-                  <Button onClick={() => setCurrent((c) => c + 1)}>Berikutnya</Button>
-                ) : (
-                  <Button onClick={() => submit(false)} disabled={submitting}>{submitting ? "Mengirim..." : "Selesai & Submit"}</Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  <div className="mt-6 flex justify-between gap-3">
+                    <Button variant="outline" onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0}>Sebelumnya</Button>
+                    {current < questions.length - 1 ? (
+                      <Button onClick={() => setCurrent((c) => c + 1)}>Berikutnya</Button>
+                    ) : (
+                      <Button onClick={() => submit(false)} disabled={submitting}>{submitting ? "Mengirim..." : "Selesai & Submit"}</Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );
