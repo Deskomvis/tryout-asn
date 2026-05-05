@@ -17,6 +17,7 @@ import Pembelian from "./pages/Pembelian.tsx";
 import PaketSaya from "./pages/PaketSaya.tsx";
 import TryOutAkbar from "./pages/TryOutAkbar.tsx";
 import AkunSaya from "./pages/AkunSaya.tsx";
+import Topup from "./pages/Topup.tsx";
 
 const queryClient = new QueryClient();
 
