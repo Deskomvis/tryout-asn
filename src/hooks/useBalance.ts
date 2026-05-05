@@ -22,7 +22,7 @@ export const useBalance = () => {
     refresh();
     if (!user) return;
     const channel = supabase
-      .channel(`balance-${user.id}`)
+      .channel(`balance-${user.id}-${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "user_balances", filter: `user_id=eq.${user.id}` },
