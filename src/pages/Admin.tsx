@@ -122,10 +122,12 @@ const Admin = () => {
       <div>
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
         <Tabs defaultValue="questions" className="mt-6">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="questions">Manajemen Soal</TabsTrigger>
             <TabsTrigger value="exams">Tryout</TabsTrigger>
             <TabsTrigger value="scores">Skor User</TabsTrigger>
+            <TabsTrigger value="topups">Topup</TabsTrigger>
+            <TabsTrigger value="balances">Saldo User</TabsTrigger>
           </TabsList>
 
           <TabsContent value="questions" className="space-y-6">
