@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Wallet } from "lucide-react";
+import { Wallet, GraduationCap, HelpCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ export type ExamLite = {
   price: number;
   category?: string | null;
   subcategory?: string | null;
+  original_price?: number | null;
+  bundle_size?: number | null;
 };
 
 type Mode = "buy" | "play";
@@ -37,6 +39,10 @@ export const ExamCard = ({
   const { balance, refresh } = useBalance();
   const [busy, setBusy] = useState(false);
   const isFree = exam.price === 0;
+  const original = exam.original_price ?? 0;
+  const hasDiscount = original > exam.price && exam.price > 0;
+  const discountPct = hasDiscount ? Math.round(((original - exam.price) / original) * 100) : 0;
+  const bundle = exam.bundle_size ?? 1;
 
   const handleBuy = async () => {
     if (!isFree && balance < exam.price) {
@@ -66,36 +72,57 @@ export const ExamCard = ({
       transition={{ duration: 0.35, delay: index * 0.05 }}
       whileHover={{ y: -3 }}
     >
-      <Card className="h-full transition-shadow hover:shadow-lg">
-        <CardContent className="flex h-full flex-col p-5">
-          <div className="mb-2 flex items-start justify-between gap-2">
-            <h4 className="font-semibold text-foreground">{exam.title}</h4>
-            {isFree ? (
-              <Badge variant="secondary">Gratis</Badge>
-            ) : (
-              <Badge className="gap-1"><Wallet className="h-3 w-3" />{exam.price.toLocaleString("id-ID")} pts</Badge>
-            )}
-          </div>
-          {(exam.category || exam.subcategory) && (
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {exam.category && <Badge variant="outline" className="text-[10px] uppercase tracking-wide">{exam.category}</Badge>}
-              {exam.subcategory && <Badge variant="secondary" className="text-[10px]">{exam.subcategory}</Badge>}
+      <Card className="h-full overflow-hidden rounded-2xl border-border/60 transition-shadow hover:shadow-lg">
+        <CardContent className="flex h-full flex-col p-4">
+          {/* Hero block */}
+          <div className="relative mb-4 rounded-xl bg-secondary/50 p-4">
+            <span className="absolute left-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-background text-muted-foreground shadow">
+              <HelpCircle className="h-4 w-4" />
+            </span>
+            <div className="mx-auto flex max-w-[180px] flex-col items-center rounded-xl bg-card p-4 shadow-sm">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <GraduationCap className="h-7 w-7" />
+              </div>
+              <span className="mt-2 text-xs font-bold tracking-wider text-foreground">TRYOUT ASN</span>
+              <span className="mt-3 w-full rounded-full bg-muted px-3 py-1.5 text-center text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                {exam.subcategory?.split(" ").slice(-1)[0] ?? exam.category ?? "PAKET"}
+              </span>
             </div>
-          )}
-          <p className="mb-4 line-clamp-2 text-sm text-muted-foreground">{exam.description}</p>
-          <div className="mb-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <span>{Math.round(exam.duration / 60)} menit</span>
-            <span>·</span>
-            <span>{exam.total_questions} soal</span>
           </div>
+
+          {/* Title */}
+          <h4 className="mb-1 line-clamp-2 text-base font-bold leading-snug text-foreground">{exam.title}</h4>
+          <p className="mb-3 text-xs text-muted-foreground">{bundle} Paket</p>
+
+          {/* Pricing row */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {hasDiscount && (
+                <Badge className="rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-bold">
+                  Diskon {discountPct}%
+                </Badge>
+              )}
+              {hasDiscount && (
+                <span className="text-xs text-destructive line-through">
+                  Rp{original.toLocaleString("id-ID")}
+                </span>
+              )}
+            </div>
+            <span className="text-base font-bold text-foreground">
+              {isFree ? "Gratis" : `Rp${exam.price.toLocaleString("id-ID")}`}
+            </span>
+          </div>
+
           <div className="mt-auto">
             {mode === "play" ? (
               <Button asChild className="w-full rounded-full">
                 <Link to={`/exam/${exam.id}`}>Mulai Tryout</Link>
               </Button>
             ) : (
-              <Button onClick={handleBuy} disabled={busy} className="w-full rounded-full">
-                {busy ? "Memproses..." : isFree ? "Aktifkan Gratis" : `Beli ${exam.price.toLocaleString("id-ID")} pts`}
+              <Button onClick={handleBuy} disabled={busy} className="w-full gap-2 rounded-full">
+                {busy ? "Memproses..." : isFree ? "Aktifkan Gratis" : (
+                  <><Wallet className="h-4 w-4" /> Beli {exam.price.toLocaleString("id-ID")} pts</>
+                )}
               </Button>
             )}
           </div>

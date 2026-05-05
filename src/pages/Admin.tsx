@@ -27,7 +27,7 @@ const Admin = () => {
   const [adjustAmount, setAdjustAmount] = useState<Record<string, number>>({});
   const [selectedExam, setSelectedExam] = useState<string>("");
   const [newQ, setNewQ] = useState({ question_text: "", a: "", b: "", c: "", d: "", correct: "" });
-  const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, category: "", subcategory: "" });
+  const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "" });
 
   const refresh = async () => {
     const { data: e } = await supabase.from("exams").select("id,title,total_questions").order("created_at");
@@ -101,7 +101,7 @@ const Admin = () => {
       ...newExam, title, subcategory, total_questions: 0,
     });
     if (error) return toast.error(error.message);
-    toast.success("Tryout dibuat"); setNewExam({ title: "", description: "", duration: 600, price: 0, category: "", subcategory: "" }); refresh();
+    toast.success("Tryout dibuat"); setNewExam({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "" }); refresh();
   };
 
   const addQuestion = async () => {
@@ -182,7 +182,11 @@ const Admin = () => {
               <div><Label>Deskripsi</Label><Textarea placeholder="Ringkasan singkat paket tryout" value={newExam.description} onChange={(e) => setNewExam({ ...newExam, description: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Durasi (detik)</Label><Input type="number" placeholder="600" value={newExam.duration} onChange={(e) => setNewExam({ ...newExam, duration: +e.target.value })} /></div>
-                <div><Label>Harga (pts)</Label><Input type="number" placeholder="0 = gratis" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
+                <div><Label>Jumlah Paket / Bundling</Label><Input type="number" min={1} placeholder="1" value={newExam.bundle_size} onChange={(e) => setNewExam({ ...newExam, bundle_size: Math.max(1, +e.target.value) })} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Harga (pts / Rp)</Label><Input type="number" placeholder="0 = gratis" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
+                <div><Label>Harga Asli (coret, opsional)</Label><Input type="number" placeholder="cth: 182850" value={newExam.original_price} onChange={(e) => setNewExam({ ...newExam, original_price: +e.target.value })} /><p className="mt-1 text-xs text-muted-foreground">Isi jika ingin menampilkan harga coret + badge diskon.</p></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

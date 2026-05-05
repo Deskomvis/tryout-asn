@@ -54,33 +54,42 @@ export type Database = {
       }
       exams: {
         Row: {
+          bundle_size: number
           category: string | null
           created_at: string
           description: string | null
           duration: number
           id: string
+          image_url: string | null
+          original_price: number | null
           price: number
           subcategory: string | null
           title: string
           total_questions: number
         }
         Insert: {
+          bundle_size?: number
           category?: string | null
           created_at?: string
           description?: string | null
           duration?: number
           id?: string
+          image_url?: string | null
+          original_price?: number | null
           price?: number
           subcategory?: string | null
           title: string
           total_questions?: number
         }
         Update: {
+          bundle_size?: number
           category?: string | null
           created_at?: string
           description?: string | null
           duration?: number
           id?: string
+          image_url?: string | null
+          original_price?: number | null
           price?: number
           subcategory?: string | null
           title?: string
