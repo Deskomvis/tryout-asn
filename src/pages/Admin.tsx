@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { AppHeader } from "@/components/AppHeader";
+import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,9 +66,8 @@ const Admin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-secondary/30">
-      <AppHeader />
-      <main className="container py-10">
+    <AppLayout>
+      <div>
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
         <Tabs defaultValue="questions" className="mt-6">
           <TabsList>
@@ -151,8 +150,8 @@ const Admin = () => {
             </CardContent></Card>
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 

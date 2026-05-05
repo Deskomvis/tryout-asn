@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { AppHeader } from "@/components/AppHeader";
+import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Trophy } from "lucide-react";
 
@@ -16,9 +16,8 @@ const Leaderboard = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-secondary/30">
-      <AppHeader />
-      <main className="container max-w-3xl py-10">
+    <AppLayout>
+      <div className="mx-auto max-w-3xl">
         <div className="mb-6 flex items-center gap-3">
           <Trophy className="h-7 w-7 text-primary" />
           <h1 className="text-3xl font-bold">Leaderboard</h1>
@@ -45,8 +44,8 @@ const Leaderboard = () => {
             </ol>
           )}
         </CardContent></Card>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 
