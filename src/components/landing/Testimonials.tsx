@@ -3,17 +3,32 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Star } from "lucide-react";
 
 const items = [
-  { name: "Aulia Rahmawati", role: "Siswa SMA, lolos UI", quote: "Latihan soalnya mirip banget dengan ujian asli. Skor UTBK saya naik 120 poin!", initials: "AR" },
-  { name: "Budi Santoso", role: "Mahasiswa, lolos CPNS", quote: "Leaderboard-nya bikin saya semangat belajar setiap hari. Pembahasannya juga jelas.", initials: "BS" },
-  { name: "Citra Lestari", role: "Siswa SMA, lolos ITB", quote: "Dashboard statistiknya membantu saya tahu materi mana yang masih lemah. Recommended!", initials: "CL" },
+  {
+    name: "Rina Marlina",
+    role: "Lulus CPNS Kemenkeu 2025",
+    quote: "Soal-soalnya 80% mirip ujian asli. Saya tembus passing grade di percobaan pertama. Investasi terbaik tahun ini!",
+    initials: "RM",
+  },
+  {
+    name: "Ahmad Fauzi",
+    role: "Lulus PPPK Guru 2025",
+    quote: "Latihan CAT-nya bikin saya nggak grogi pas ujian beneran. Bank soalnya update terus. Worth every rupiah.",
+    initials: "AF",
+  },
+  {
+    name: "Siti Nurhaliza",
+    role: "Lulus BUMN Pertamina 2025",
+    quote: "Pembahasannya super detail. Dari yang awalnya pesimis berkali-kali gagal, sekarang sudah jadi pegawai BUMN.",
+    initials: "SN",
+  },
 ];
 
 export const Testimonials = () => {
   return (
     <section id="testimoni" className="container py-20 md:py-24">
       <div className="mx-auto mb-12 max-w-2xl text-center">
-        <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Dipercaya ribuan siswa</h2>
-        <p className="mt-4 text-muted-foreground">Cerita nyata dari mereka yang sudah lolos ujian impian.</p>
+        <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Dipercaya Ribuan Orang</h2>
+        <p className="mt-4 text-muted-foreground">Cerita nyata alumni yang berhasil lulus ujian impian mereka.</p>
       </div>
       <div className="grid gap-6 md:grid-cols-3">
         {items.map((t) => (
