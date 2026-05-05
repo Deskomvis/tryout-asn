@@ -76,6 +76,12 @@ export const ExamCard = ({
               <Badge className="gap-1"><Wallet className="h-3 w-3" />{exam.price.toLocaleString("id-ID")} pts</Badge>
             )}
           </div>
+          {(exam.category || exam.subcategory) && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {exam.category && <Badge variant="outline" className="text-[10px] uppercase tracking-wide">{exam.category}</Badge>}
+              {exam.subcategory && <Badge variant="secondary" className="text-[10px]">{exam.subcategory}</Badge>}
+            </div>
+          )}
           <p className="mb-4 line-clamp-2 text-sm text-muted-foreground">{exam.description}</p>
           <div className="mb-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
             <span>{Math.round(exam.duration / 60)} menit</span>
