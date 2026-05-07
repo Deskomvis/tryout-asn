@@ -17,6 +17,7 @@ import BeliPaket from "./pages/BeliPaket.tsx";
 import PaketSaya from "./pages/PaketSaya.tsx";
 import AkunSaya from "./pages/AkunSaya.tsx";
 import Topup from "./pages/Topup.tsx";
+import ExamResults from "./pages/ExamResults.tsx";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/akun-saya" element={<ProtectedRoute><AkunSaya /></ProtectedRoute>} />
             <Route path="/topup" element={<ProtectedRoute><Topup /></ProtectedRoute>} />
             <Route path="/exam/:examId" element={<ProtectedRoute><Exam /></ProtectedRoute>} />
+            <Route path="/exam-results/:examId" element={<ProtectedRoute><ExamResults /></ProtectedRoute>} />
             <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute adminOnly><Admin /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

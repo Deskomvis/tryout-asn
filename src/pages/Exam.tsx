@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Timer, CheckCircle2, Circle } from "lucide-react";
+import { Timer, CheckCircle2, Circle, Flag } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,15 @@ const formatTime = (s: number) => {
   const sec = s % 60;
   if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
+};
+
+const getSubtestLabel = (subtest?: string) => {
+  const labels: Record<string, string> = {
+    TWK: "Tes Wawasan Kebangsaan",
+    TIU: "Tes Intelegensia Umum",
+    TKP: "Tes Karakteristik Pribadi",
+  };
+  return labels[subtest || ""] || "Soal";
 };
 
 const Exam = () => {
@@ -45,7 +54,7 @@ const Exam = () => {
     if (error) { toast.error(error.message); submittedRef.current = false; return; }
     localStorage.removeItem(`exam-end-${examId}`);
     toast.success(auto ? `Waktu habis! Skor: ${data}` : `Selesai. Skor: ${data}`);
-    navigate("/paket-saya");
+    navigate(`/exam-results/${examId}`);
   }, [examId, answers, navigate]);
 
   useEffect(() => {
@@ -95,18 +104,20 @@ const Exam = () => {
   return (
     <AppLayout>
       <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">{exam.title}</h1>
-            <p className="text-sm text-muted-foreground">
-              Soal {current + 1} dari {questions.length} · Terjawab {answeredCount}/{questions.length}
-            </p>
-          </div>
-          <div className={cn(
-            "flex items-center gap-2 rounded-lg px-4 py-2 font-mono text-lg font-bold",
-            timeLeft < 60 ? "bg-destructive text-destructive-foreground animate-pulse" : "bg-primary text-primary-foreground"
-          )}>
-            <Timer className="h-5 w-5" /> {formatTime(timeLeft)}
+        <div className="mb-6">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">{exam.title}</h1>
+              <p className="text-sm text-muted-foreground">
+                Soal {current + 1} dari {questions.length} · Terjawab {answeredCount}/{questions.length}
+              </p>
+            </div>
+            <div className={cn(
+              "flex items-center gap-2 rounded-lg px-4 py-2 font-mono text-lg font-bold",
+              timeLeft < 60 ? "bg-destructive text-destructive-foreground animate-pulse" : "bg-primary text-primary-foreground"
+            )}>
+              <Timer className="h-5 w-5" /> {formatTime(timeLeft)}
+            </div>
           </div>
         </div>
 
@@ -124,8 +135,20 @@ const Exam = () => {
               >
                 <Card>
                   <CardHeader>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Soal {current + 1}</div>
-                    <h2 className="text-lg font-semibold">{q.question_text}</h2>
+                    <div className="mb-3 flex items-center justify-between">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Soal {current + 1} · {getSubtestLabel(q.subtest)}</div>
+                        <h2 className="mt-2 text-lg font-semibold">{q.question_text}</h2>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toast.info("Fitur laporkan soal sedang dalam pengembangan")}
+                        className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      >
+                        <Flag className="h-4 w-4" />
+                        <span className="hidden sm:inline">Laporkan</span>
+                      </button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
@@ -155,12 +178,12 @@ const Exam = () => {
                       })}
                     </div>
 
-                    <div className="mt-6 flex justify-between gap-3">
-                      <Button variant="outline" onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0}>Sebelumnya</Button>
+                    <div className="mt-8 flex justify-between gap-3">
+                      <Button variant="outline" size="lg" onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0}>← Sebelumnya</Button>
                       {current < questions.length - 1 ? (
-                        <Button onClick={() => setCurrent((c) => c + 1)}>Berikutnya</Button>
+                        <Button size="lg" onClick={() => setCurrent((c) => c + 1)}>Selanjutnya →</Button>
                       ) : (
-                        <Button onClick={() => submit(false)} disabled={submitting}>{submitting ? "Mengirim..." : "Selesai & Submit"}</Button>
+                        <Button size="lg" onClick={() => submit(false)} disabled={submitting}>{submitting ? "Mengirim..." : "Selesai & Submit"}</Button>
                       )}
                     </div>
                   </CardContent>
@@ -171,13 +194,13 @@ const Exam = () => {
 
           <Card className="h-fit lg:sticky lg:top-20">
             <CardHeader>
-              <h3 className="text-sm font-semibold">Nomor Soal</h3>
-              <p className="text-xs text-muted-foreground">
+              <h3 className="font-semibold">Nomor Soal</h3>
+              <p className="mt-2 text-xs text-muted-foreground">
                 <CheckCircle2 className="mr-1 inline h-3 w-3 text-primary" /> Terjawab
                 <Circle className="ml-3 mr-1 inline h-3 w-3 text-muted-foreground" /> Belum
               </p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="grid grid-cols-5 gap-2">
                 {questions.map((qq, i) => {
                   const answered = !!answers[qq.id];
@@ -187,10 +210,10 @@ const Exam = () => {
                       key={qq.id}
                       onClick={() => setCurrent(i)}
                       className={cn(
-                        "flex h-9 items-center justify-center rounded-md border text-sm font-medium transition-colors",
+                        "flex h-10 items-center justify-center rounded border text-sm font-semibold transition-all",
                         isCurrent && "ring-2 ring-primary ring-offset-1",
                         answered
-                          ? "border-primary bg-primary text-primary-foreground"
+                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
                           : "border-border bg-background text-foreground hover:bg-accent"
                       )}
                       aria-label={`Soal ${i + 1}${answered ? " (terjawab)" : ""}`}
@@ -201,8 +224,8 @@ const Exam = () => {
                 })}
               </div>
               <Button
-                className="mt-4 w-full"
-                variant="default"
+                className="w-full"
+                size="lg"
                 onClick={() => submit(false)}
                 disabled={submitting}
               >
