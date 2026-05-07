@@ -1,12 +1,12 @@
 import { motion } from "framer-motion";
 
 const pakets = [
-  { num: "01", title: "SKD CPNS", desc: "TWK, TIU, TKP — sesuai kisi-kisi resmi BKN terbaru" },
-  { num: "02", title: "BUMN", desc: "TKD, TBI, AKHLAK — soal dari rekrutmen BUMN bertahun-tahun" },
-  { num: "03", title: "SKB / PPPK Teknis", desc: "Kompetensi teknis spesifik per formasi jabatan" },
-  { num: "04", title: "SKB / PPPK Kesehatan", desc: "Soal khusus tenaga kesehatan: dokter, perawat, bidan, dll" },
-  { num: "05", title: "Sekolah Kedinasan", desc: "STAN, IPDN, Poltekim, Poltekip — full materi tes" },
-  { num: "06", title: "Ebook & Materi", desc: "Rangkuman, tips lulus, dan pembahasan soal lengkap" },
+  { num: "01", title: "Akses Try Out Gratis", desc: "Coba simulasi tes tanpa biaya untuk mengenal pola soal." },
+  { num: "02", title: "Try Out Premium SKD Sistem CAT", desc: "Simulasi penuh berbasis CAT mirip ujian resmi BKN." },
+  { num: "03", title: "Kunci dan Pembahasan Try Out Lengkap", desc: "Pembahasan rinci setiap soal untuk mempertajam pemahaman." },
+  { num: "04", title: "Latihan Soal SKD / Mini Try Out", desc: "Latihan terfokus per subtes: TWK, TIU, dan TKP." },
+  { num: "05", title: "Materi SKD Terupdate", desc: "Rangkuman materi sesuai kisi-kisi terbaru." },
+  { num: "06", title: "Ranking Try Out Leaderboard Nasional", desc: "Pantau peringkatmu di antara peserta seluruh Indonesia." },
 ];
 
 export const AvailablePaket = () => {
