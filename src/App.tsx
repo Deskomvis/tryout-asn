@@ -15,7 +15,6 @@ import Admin from "./pages/Admin.tsx";
 import BeliPaket from "./pages/BeliPaket.tsx";
 
 import PaketSaya from "./pages/PaketSaya.tsx";
-import TryOutAkbar from "./pages/TryOutAkbar.tsx";
 import AkunSaya from "./pages/AkunSaya.tsx";
 import Topup from "./pages/Topup.tsx";
 
@@ -35,7 +34,6 @@ const App = () => (
             <Route path="/beli-paket" element={<ProtectedRoute><BeliPaket /></ProtectedRoute>} />
             
             <Route path="/paket-saya" element={<ProtectedRoute><PaketSaya /></ProtectedRoute>} />
-            <Route path="/try-out-akbar" element={<ProtectedRoute><TryOutAkbar /></ProtectedRoute>} />
             <Route path="/akun-saya" element={<ProtectedRoute><AkunSaya /></ProtectedRoute>} />
             <Route path="/topup" element={<ProtectedRoute><Topup /></ProtectedRoute>} />
             <Route path="/exam/:examId" element={<ProtectedRoute><Exam /></ProtectedRoute>} />

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Home, LayoutGrid, FolderOpen, Monitor, LogOut, GraduationCap, Shield, Wallet } from "lucide-react";
+import { Home, LayoutGrid, FolderOpen, LogOut, GraduationCap, Shield, Wallet } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -17,7 +17,6 @@ import { useBalance } from "@/hooks/useBalance";
 
 const items = [
   { title: "Home", url: "/dashboard", icon: Home },
-  { title: "Try Out", url: "/try-out-akbar", icon: Monitor },
   { title: "Beli Paket", url: "/beli-paket", icon: LayoutGrid },
   { title: "Topup Saldo", url: "/topup", icon: Wallet },
   { title: "Paket Saya", url: "/paket-saya", icon: FolderOpen },
