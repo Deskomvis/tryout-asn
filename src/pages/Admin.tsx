@@ -106,16 +106,31 @@ const Admin = () => {
 
   const addQuestion = async () => {
     if (!selectedExam) return toast.error("Pilih tryout dulu");
-    if (!newQ.question_text || !newQ.correct) return toast.error("Lengkapi soal & jawaban");
-    const options = [newQ.a, newQ.b, newQ.c, newQ.d].filter(Boolean);
-    if (!options.includes(newQ.correct)) return toast.error("Jawaban benar harus salah satu opsi");
-    const { error } = await supabase.from("questions").insert({
-      exam_id: selectedExam, question_text: newQ.question_text, options, correct_answer: newQ.correct,
-    });
+    if (!newQ.question_text) return toast.error("Lengkapi pertanyaan");
+    const optsRaw = [
+      { k: "a", v: newQ.a, p: newQ.pa },
+      { k: "b", v: newQ.b, p: newQ.pb },
+      { k: "c", v: newQ.c, p: newQ.pc },
+      { k: "d", v: newQ.d, p: newQ.pd },
+      { k: "e", v: newQ.e, p: newQ.pe },
+    ].filter((o) => o.v.trim());
+    if (optsRaw.length < 2) return toast.error("Minimal 2 opsi");
+    const options = optsRaw.map((o) => o.v);
+    const payload: any = {
+      exam_id: selectedExam, question_text: newQ.question_text, options, subtest: newQ.subtest,
+    };
+    if (newQ.subtest === "tkp") {
+      payload.option_points = Object.fromEntries(optsRaw.map((o) => [o.v, o.p]));
+      payload.correct_answer = optsRaw.reduce((m, o) => (o.p > m.p ? o : m), optsRaw[0]).v;
+    } else {
+      if (!newQ.correct || !options.includes(newQ.correct)) return toast.error("Jawaban benar harus salah satu opsi");
+      payload.correct_answer = newQ.correct;
+    }
+    const { error } = await supabase.from("questions").insert(payload);
     if (error) return toast.error(error.message);
     await supabase.from("exams").update({ total_questions: questions.length + 1 }).eq("id", selectedExam);
     toast.success("Soal ditambahkan");
-    setNewQ({ question_text: "", a: "", b: "", c: "", d: "", correct: "" }); refresh();
+    setNewQ({ question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "", subtest: newQ.subtest, pa: 5, pb: 4, pc: 3, pd: 2, pe: 1 }); refresh();
   };
 
   const deleteQ = async (id: string) => {
