@@ -9,8 +9,34 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Trash2, Wallet, Check, X, Plus } from "lucide-react";
+import { Trash2, Wallet, Check, X, Plus, Sparkles, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+
+const TOPIC_OPTIONS = {
+  twk: [
+    { value: "pancasila", label: "Pancasila" },
+    { value: "uud1945", label: "UUD 1945" },
+    { value: "bhineka", label: "Bhinneka Tunggal Ika" },
+    { value: "nkri", label: "NKRI" },
+    { value: "bahasa", label: "Bahasa Indonesia" },
+  ],
+  tiu: [
+    { value: "analogi", label: "Analogi Verbal" },
+    { value: "silogisme", label: "Silogisme" },
+    { value: "logika", label: "Logika Formal" },
+    { value: "hitung", label: "Hitung Cepat" },
+    { value: "deret", label: "Deret Angka & Huruf" },
+    { value: "figural", label: "Figural / Spasial" },
+  ],
+  tkp: [
+    { value: "pelayanan", label: "Pelayanan Publik" },
+    { value: "jejaring", label: "Jejaring Kerja" },
+    { value: "sosial", label: "Sosial Budaya" },
+    { value: "profesionalisme", label: "Profesionalisme" },
+    { value: "antiradikalisme", label: "Anti Radikalisme" },
+    { value: "tik", label: "Teknologi Informasi & Komunikasi" },
+  ],
+} as const;
 
 type Exam = { id: string; title: string; total_questions: number };
 type Question = { id: string; exam_id: string; question_text: string; options: string[]; correct_answer: string; subtest: string; option_points: Record<string, number> | null };
@@ -28,6 +54,9 @@ const Admin = () => {
   const [selectedExam, setSelectedExam] = useState<string>("");
   const [newQ, setNewQ] = useState({ question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "", subtest: "tiu" as "twk"|"tiu"|"tkp"|"skb", pa: 5, pb: 4, pc: 3, pd: 2, pe: 1 });
   const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "" });
+  const [aiGen, setAiGen] = useState({ subtest: "twk" as "twk"|"tiu"|"tkp", topic: "pancasila", count: 10 });
+  const [aiStatus, setAiStatus] = useState<"idle"|"loading"|"done"|"error">("idle");
+  const [aiResult, setAiResult] = useState<{ count: number; requested: number } | null>(null);
 
   const refresh = async () => {
     const { data: e } = await supabase.from("exams").select("id,title,total_questions").order("created_at");
@@ -139,6 +168,33 @@ const Admin = () => {
     refresh();
   };
 
+  const generateViaAI = async () => {
+    if (!selectedExam) return toast.error("Pilih tryout dulu");
+    setAiStatus("loading");
+    setAiResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) { setAiStatus("error"); return toast.error("Sesi tidak ditemukan, silakan login ulang"); }
+
+      const { data, error } = await supabase.functions.invoke("generate-questions", {
+        body: { exam_id: selectedExam, subtest: aiGen.subtest, topic: aiGen.topic, count: aiGen.count },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (error) { setAiStatus("error"); return toast.error(error.message ?? "Gagal generate soal"); }
+      if (data?.error) { setAiStatus("error"); return toast.error(data.error); }
+
+      setAiStatus("done");
+      setAiResult(data);
+      toast.success(`${data.count} soal berhasil di-generate`);
+      refresh();
+    } catch (e: any) {
+      setAiStatus("error");
+      toast.error(e?.message ?? "Terjadi kesalahan");
+    }
+  };
+
   return (
     <AppLayout>
       <div>
@@ -162,6 +218,59 @@ const Admin = () => {
 
             {selectedExam && (
               <>
+                <Card className="border-primary/30 bg-primary/5">
+                  <CardHeader><h2 className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Generate Soal via AI</h2></CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div>
+                        <Label>Subtes</Label>
+                        <Select value={aiGen.subtest} onValueChange={(v: any) => setAiGen({ ...aiGen, subtest: v, topic: TOPIC_OPTIONS[v as keyof typeof TOPIC_OPTIONS][0].value })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="twk">TWK — Wawasan Kebangsaan</SelectItem>
+                            <SelectItem value="tiu">TIU — Intelegensia Umum</SelectItem>
+                            <SelectItem value="tkp">TKP — Karakteristik Pribadi</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Topik</Label>
+                        <Select value={aiGen.topic} onValueChange={(v) => setAiGen({ ...aiGen, topic: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {TOPIC_OPTIONS[aiGen.subtest].map((t) => (
+                              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Jumlah Soal (1–30)</Label>
+                        <Input
+                          type="number" min={1} max={30}
+                          value={aiGen.count}
+                          onChange={(e) => setAiGen({ ...aiGen, count: Math.max(1, Math.min(30, +e.target.value)) })}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Button onClick={generateViaAI} disabled={aiStatus === "loading"} className="gap-2">
+                        {aiStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                        {aiStatus === "loading" ? "Sedang generate..." : "Generate via AI"}
+                      </Button>
+                      {aiStatus === "done" && aiResult && (
+                        <span className="text-sm text-green-600 font-medium">
+                          {aiResult.count} / {aiResult.requested} soal berhasil ditambahkan
+                        </span>
+                      )}
+                      {aiStatus === "error" && (
+                        <span className="text-sm text-destructive">Gagal — cek koneksi atau API key</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">AI akan membuat soal sesuai kisi-kisi BKN. TKP otomatis menggunakan poin 1–5. Harap review soal yang dihasilkan sebelum tryout dibuka.</p>
+                  </CardContent>
+                </Card>
+
                 <Card><CardHeader><h2 className="font-semibold">Tambah Soal</h2></CardHeader><CardContent className="space-y-3">
                   <div>
                     <Label>Subtes</Label>
