@@ -82,10 +82,10 @@ const BeliPaket = () => {
               <img
                 src={c.image}
                 alt={c.label}
-                className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-56"
+                className="h-32 w-full object-contain transition-transform duration-300 group-hover:scale-105 sm:h-40 bg-blue-50"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-              <span className="absolute bottom-4 right-4 flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+              <span className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
                 Pilih <ArrowUpRight className="h-3 w-3" />
               </span>
             </motion.button>
