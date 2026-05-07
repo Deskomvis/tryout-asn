@@ -19,10 +19,10 @@ const usernameSchema = z
   .regex(/^[a-zA-Z0-9_.]+$/, "Username hanya huruf, angka, titik, garis bawah");
 
 const signupSchema = z.object({
-  email: z.string().trim().email("Email tidak valid").max(255),
-  password: z.string().min(6, "Minimal 6 karakter").max(72),
-  full_name: z.string().trim().min(2, "Nama minimal 2 karakter").max(100),
   username: usernameSchema,
+  email: z.string().trim().email("Email tidak valid").max(255),
+  phone: z.string().trim().min(9, "Nomor HP minimal 9 digit").max(15, "Nomor HP maksimal 15 digit").regex(/^[0-9+\-\s]+$/, "Format nomor HP tidak valid"),
+  password: z.string().min(6, "Minimal 6 karakter").max(72),
 });
 
 const loginSchema = z.object({
@@ -35,7 +35,7 @@ const Auth = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [loginForm, setLoginForm] = useState({ identifier: "", password: "" });
-  const [signupForm, setSignupForm] = useState({ email: "", password: "", full_name: "", username: "" });
+  const [signupForm, setSignupForm] = useState({ username: "", email: "", phone: "", password: "" });
 
   useEffect(() => { if (user) navigate("/dashboard"); }, [user, navigate]);
 
@@ -80,7 +80,7 @@ const Auth = () => {
       password: signupForm.password,
       options: {
         emailRedirectTo: `${window.location.origin}/dashboard`,
-        data: { full_name: signupForm.full_name, username: signupForm.username.toLowerCase() },
+        data: { username: signupForm.username.toLowerCase(), phone: signupForm.phone.trim() },
       },
     });
     setLoading(false);
@@ -134,10 +134,10 @@ const Auth = () => {
             </TabsContent>
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4 pt-4">
-                <div><Label>Nama Lengkap</Label><Input value={signupForm.full_name} onChange={(e) => setSignupForm({ ...signupForm, full_name: e.target.value })} required /></div>
-                <div><Label>Username</Label><Input value={signupForm.username} onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value })} placeholder="contoh: budi_123" required /></div>
-                <div><Label>Email</Label><Input type="email" value={signupForm.email} onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })} required /></div>
-                <div><Label>Password</Label><Input type="password" value={signupForm.password} onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })} required /></div>
+                <div><Label>Username</Label><Input autoComplete="username" placeholder="contoh: budi_123" value={signupForm.username} onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value })} required /></div>
+                <div><Label>Email</Label><Input type="email" autoComplete="email" value={signupForm.email} onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })} required /></div>
+                <div><Label>Nomor HP</Label><Input type="tel" autoComplete="tel" placeholder="contoh: 081234567890" value={signupForm.phone} onChange={(e) => setSignupForm({ ...signupForm, phone: e.target.value })} required /></div>
+                <div><Label>Password</Label><Input type="password" autoComplete="new-password" value={signupForm.password} onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })} required /></div>
                 <Button type="submit" className="w-full" disabled={loading}>{loading ? "..." : "Daftar"}</Button>
               </form>
             </TabsContent>
