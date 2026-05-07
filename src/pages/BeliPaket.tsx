@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { LayoutGrid, Briefcase, HeartHandshake, ArrowUpRight, Layers } from "lucide-react";
+import { ArrowUpRight, Layers } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { ExamCard } from "@/components/ExamCard";
@@ -9,9 +9,8 @@ import { Input } from "@/components/ui/input";
 import { useExams } from "@/hooks/useExams";
 
 const categories = [
-  { id: "cpns", label: "CPNS", icon: Briefcase },
-  { id: "pppk", label: "PPPK", icon: HeartHandshake },
-  { id: "all", label: "Semua Paket", icon: LayoutGrid },
+  { id: "cpns", label: "CPNS", image: "/CPNS.png" },
+  { id: "pppk", label: "PPPK", image: "/PPPK.png" },
 ];
 
 type Step = { categoryId?: string; subcategory?: string };
@@ -45,9 +44,7 @@ const BeliPaket = () => {
 
   const subcategories = useMemo(() => {
     if (!step.categoryId) return [];
-    const list = step.categoryId === "all"
-      ? exams
-      : exams.filter((e) => e.category === step.categoryId);
+    const list = exams.filter((e) => e.category === step.categoryId);
     const set = new Set<string>();
     list.forEach((e) => { if (e.subcategory) set.add(e.subcategory); });
     return Array.from(set).sort();
@@ -55,7 +52,7 @@ const BeliPaket = () => {
 
   const filteredExams = useMemo(() => {
     if (!step.categoryId) return [];
-    let list = step.categoryId === "all" ? exams : exams.filter((e) => e.category === step.categoryId);
+    let list = exams.filter((e) => e.category === step.categoryId);
     if (step.subcategory) list = list.filter((e) => e.subcategory === step.subcategory);
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -69,22 +66,28 @@ const BeliPaket = () => {
     return (
       <AppLayout>
         <PageHeader title="Pilih Kategori" breadcrumbs={[{ label: "Beli Paket" }]} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           {categories.map((c, i) => (
             <motion.button
               key={c.id}
               type="button"
               onClick={() => setStep({ categoryId: c.id })}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.04 }}
-              whileHover={{ y: -2 }}
-              className="group flex items-center gap-4 rounded-xl border border-border bg-card p-5 text-left transition-all hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              transition={{ duration: 0.35, delay: i * 0.08 }}
+              whileHover={{ scale: 1.02, y: -3 }}
+              whileTap={{ scale: 0.98 }}
+              className="group relative overflow-hidden rounded-2xl shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <c.icon className="h-5 w-5" aria-hidden="true" />
-              </div>
-              <span className="text-sm font-semibold text-foreground sm:text-base">{c.label}</span>
+              <img
+                src={c.image}
+                alt={c.label}
+                className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-56"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+              <span className="absolute bottom-4 right-4 flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                Pilih <ArrowUpRight className="h-3 w-3" />
+              </span>
             </motion.button>
           ))}
         </div>
