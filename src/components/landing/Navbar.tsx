@@ -6,7 +6,7 @@ import { GraduationCap, Menu } from "lucide-react";
 const links = [
   { href: "#beranda", label: "Beranda" },
   { href: "#fitur", label: "Fitur" },
-  { href: "#paket", label: "Paket" },
+  { href: "#available-paket", label: "Paket" },
   { href: "#testimoni", label: "Testimoni" },
 ];
 

@@ -18,7 +18,7 @@ export const CtaBanner = () => {
           Bergabung dengan 10.000+ alumni yang sudah merasakan manfaatnya. Daftar sekarang.
         </p>
         <Button size="lg" variant="secondary" className="mt-6" asChild>
-          <a href="#paket">
+          <a href="#available-paket">
             Daftar Sekarang <ArrowRight className="ml-2 h-4 w-4" />
           </a>
         </Button>

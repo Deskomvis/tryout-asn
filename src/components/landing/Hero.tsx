@@ -49,7 +49,7 @@ export const Hero = () => {
             className="flex flex-col gap-3 sm:flex-row"
           >
             <Button size="lg" asChild>
-              <a href="#paket">
+              <a href="#available-paket">
                 Ambil Paketnya Sekarang <ArrowRight className="ml-2 h-4 w-4" />
               </a>
             </Button>

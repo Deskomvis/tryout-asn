@@ -3,7 +3,6 @@ import { Hero } from "@/components/landing/Hero";
 import { Categories } from "@/components/landing/Categories";
 import { Features } from "@/components/landing/Features";
 import { AvailablePaket } from "@/components/landing/AvailablePaket";
-import { Pricing } from "@/components/landing/Pricing";
 import { Testimonials } from "@/components/landing/Testimonials";
 import { CtaBanner } from "@/components/landing/CtaBanner";
 import { Footer } from "@/components/landing/Footer";
@@ -18,7 +17,6 @@ const Index = () => {
         <Categories />
         <Features />
         <AvailablePaket />
-        <Pricing />
         <Testimonials />
         <CtaBanner />
       </main>
