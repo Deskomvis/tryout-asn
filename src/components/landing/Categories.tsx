@@ -1,15 +1,9 @@
-import { Briefcase, Globe, MonitorSmartphone, ClipboardList, Luggage, UserPlus, HeartHandshake, BookOpen } from "lucide-react";
+import { Briefcase, HeartHandshake } from "lucide-react";
 import { motion } from "framer-motion";
 
 const categories = [
   { icon: Briefcase, label: "CPNS" },
-  { icon: Globe, label: "BUMN" },
-  { icon: MonitorSmartphone, label: "PPPK Guru/Dosen" },
-  { icon: ClipboardList, label: "Sekolah Kedinasan" },
-  { icon: Luggage, label: "PPPK Teknis" },
-  { icon: UserPlus, label: "Paket SKB" },
-  { icon: HeartHandshake, label: "PPPK Kesehatan" },
-  { icon: BookOpen, label: "Ebook Soal" },
+  { icon: HeartHandshake, label: "PPPK" },
 ];
 
 export const Categories = () => {
@@ -31,7 +25,7 @@ export const Categories = () => {
           </p>
         </div>
 
-        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-4 sm:gap-5 md:grid-cols-4">
+        <div className="mx-auto grid max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
           {categories.map(({ icon: Icon, label }, i) => (
             <motion.div
               key={label}

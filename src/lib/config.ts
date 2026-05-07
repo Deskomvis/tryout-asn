@@ -9,7 +9,7 @@ export const buildTopupWhatsAppUrl = (params: {
   requestId: string;
 }) => {
   const text =
-    `Halo Admin TryoutPro,\n\n` +
+    `Halo Admin Ruang CASN,\n\n` +
     `Saya ingin topup saldo point:\n` +
     `• Nama: ${params.userName}\n` +
     `• Email: ${params.userEmail}\n` +

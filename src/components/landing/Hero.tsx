@@ -41,7 +41,7 @@ export const Hero = () => {
             className="max-w-xl text-lg text-muted-foreground"
           >
             Tryout berbasis <strong className="text-foreground">soal asli ujian bertahun-tahun</strong> + sistem CAT real-time persis aslinya.
-            Faktanya, <strong className="text-primary">73% pengguna TryoutPro mencapai skor tinggi</strong> dan tembus passing grade di percobaan pertama.
+            Faktanya, <strong className="text-primary">73% pengguna Ruang CASN mencapai skor tinggi</strong> dan tembus passing grade di percobaan pertama.
           </motion.p>
 
           <motion.div

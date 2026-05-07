@@ -59,6 +59,7 @@ export type Database = {
           created_at: string
           description: string | null
           duration: number
+          exam_type: string
           id: string
           image_url: string | null
           original_price: number | null
@@ -73,6 +74,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration?: number
+          exam_type?: string
           id?: string
           image_url?: string | null
           original_price?: number | null
@@ -87,6 +89,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration?: number
+          exam_type?: string
           id?: string
           image_url?: string | null
           original_price?: number | null
@@ -130,24 +133,30 @@ export type Database = {
           created_at: string
           exam_id: string
           id: string
+          option_points: Json | null
           options: Json
           question_text: string
+          subtest: Database["public"]["Enums"]["exam_subtest"]
         }
         Insert: {
           correct_answer: string
           created_at?: string
           exam_id: string
           id?: string
+          option_points?: Json | null
           options: Json
           question_text: string
+          subtest?: Database["public"]["Enums"]["exam_subtest"]
         }
         Update: {
           correct_answer?: string
           created_at?: string
           exam_id?: string
           id?: string
+          option_points?: Json | null
           options?: Json
           question_text?: string
+          subtest?: Database["public"]["Enums"]["exam_subtest"]
         }
         Relationships: [
           {
@@ -233,7 +242,9 @@ export type Database = {
           completed_at: string
           exam_id: string
           id: string
+          max_score: number | null
           score: number
+          score_breakdown: Json | null
           time_spent: number
           user_id: string
         }
@@ -241,7 +252,9 @@ export type Database = {
           completed_at?: string
           exam_id: string
           id?: string
+          max_score?: number | null
           score: number
+          score_breakdown?: Json | null
           time_spent?: number
           user_id: string
         }
@@ -249,7 +262,9 @@ export type Database = {
           completed_at?: string
           exam_id?: string
           id?: string
+          max_score?: number | null
           score?: number
+          score_breakdown?: Json | null
           time_spent?: number
           user_id?: string
         }
@@ -284,6 +299,7 @@ export type Database = {
           id: string
           options: Json
           question_text: string
+          subtest: string
         }[]
       }
       has_role: {
@@ -302,6 +318,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      exam_subtest: "twk" | "tiu" | "tkp" | "skb"
       topup_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
@@ -431,6 +448,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      exam_subtest: ["twk", "tiu", "tkp", "skb"],
       topup_status: ["pending", "approved", "rejected"],
     },
   },

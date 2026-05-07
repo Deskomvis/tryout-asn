@@ -43,7 +43,7 @@ export const AppSidebar = () => {
             <GraduationCap className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="text-base font-bold text-sidebar-foreground">TryoutPro</span>
+            <span className="text-base font-bold text-sidebar-foreground">Ruang CASN</span>
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">CPNS · PPPK · SEKDIN</span>
           </div>
         </NavLink>

@@ -10,7 +10,7 @@ export const Footer = () => {
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <GraduationCap className="h-5 w-5" />
               </div>
-              <span className="text-lg font-bold">TryoutPro</span>
+              <span className="text-lg font-bold">Ruang CASN</span>
             </div>
             <p className="mt-4 text-sm text-muted-foreground">
               Platform tryout online terlengkap untuk persiapan ujian impianmu.
@@ -39,7 +39,7 @@ export const Footer = () => {
         </div>
 
         <div className="mt-10 border-t border-border pt-6 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} TryoutPro. All rights reserved.
+          © {new Date().getFullYear()} Ruang CASN. All rights reserved.
         </div>
       </div>
     </footer>

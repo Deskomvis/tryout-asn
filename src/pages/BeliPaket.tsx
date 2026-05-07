@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { LayoutGrid, ShieldCheck, Stethoscope, GraduationCap, Wrench, School, FileText, Building2, Layers, ArrowUpRight } from "lucide-react";
+import { LayoutGrid, Briefcase, HeartHandshake, ArrowUpRight, Layers } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { ExamCard } from "@/components/ExamCard";
@@ -9,13 +9,8 @@ import { Input } from "@/components/ui/input";
 import { useExams } from "@/hooks/useExams";
 
 const categories = [
-  { id: "koperasi", label: "Koperasi Desa/Kelurahan Merah Putih", icon: Building2 },
-  { id: "skb", label: "PAKET SKB CPNS", icon: ShieldCheck },
-  { id: "skd", label: "PAKET SKD (TWK,TIU,TKP)", icon: FileText },
-  { id: "guru", label: "PPPK GURU/DOSEN", icon: GraduationCap },
-  { id: "kesehatan", label: "PPPK KESEHATAN", icon: Stethoscope },
-  { id: "teknis", label: "PPPK TEKNIS", icon: Wrench },
-  { id: "sekdin", label: "SEKOLAH KEDINASAN", icon: School },
+  { id: "cpns", label: "CPNS", icon: Briefcase },
+  { id: "pppk", label: "PPPK", icon: HeartHandshake },
   { id: "all", label: "Semua Paket", icon: LayoutGrid },
 ];
 
