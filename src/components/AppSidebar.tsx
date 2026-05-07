@@ -18,7 +18,6 @@ import { useBalance } from "@/hooks/useBalance";
 const items = [
   { title: "Home", url: "/dashboard", icon: Home },
   { title: "Beli Paket", url: "/beli-paket", icon: LayoutGrid },
-  { title: "Topup Saldo", url: "/topup", icon: Wallet },
   { title: "Paket Saya", url: "/paket-saya", icon: FolderOpen },
 ];
 
