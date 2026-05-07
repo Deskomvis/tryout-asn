@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Home, LayoutGrid, FolderOpen, LogOut, GraduationCap, Shield, Wallet } from "lucide-react";
+import { Home, LayoutGrid, FolderOpen, LogOut, GraduationCap, Shield } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { useBalance } from "@/hooks/useBalance";
 
 const items = [
   { title: "Home", url: "/dashboard", icon: Home },
@@ -31,7 +30,6 @@ const itemClass = ({ isActive }: { isActive: boolean }) =>
 export const AppSidebar = () => {
   const { signOut, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const { balance } = useBalance();
 
   return (
     <Sidebar collapsible="icon">
@@ -45,17 +43,6 @@ export const AppSidebar = () => {
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">CPNS · PPPK · SEKDIN</span>
           </div>
         </NavLink>
-        <button
-          type="button"
-          onClick={() => navigate("/topup")}
-          className="mx-2 mb-2 flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-left transition hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary group-data-[collapsible=icon]:hidden"
-          aria-label="Topup saldo"
-        >
-          <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Wallet className="h-4 w-4 text-primary" /> Saldo
-          </span>
-          <span className="text-sm font-bold text-primary">Rp {balance.toLocaleString("id-ID")}</span>
-        </button>
       </SidebarHeader>
 
       <SidebarContent>
