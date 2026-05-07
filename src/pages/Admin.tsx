@@ -13,7 +13,7 @@ import { Trash2, Wallet, Check, X, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 type Exam = { id: string; title: string; total_questions: number };
-type Question = { id: string; exam_id: string; question_text: string; options: string[]; correct_answer: string };
+type Question = { id: string; exam_id: string; question_text: string; options: string[]; correct_answer: string; subtest: string; option_points: Record<string, number> | null };
 type Score = { id: string; score: number; completed_at: string; profiles: { full_name: string | null; email: string | null } | null; exams: { title: string } | null };
 type Topup = { id: string; user_id: string; amount: number; status: "pending" | "approved" | "rejected"; created_at: string; profiles: { full_name: string | null; email: string | null } | null };
 type UserBalance = { user_id: string; balance: number; profiles: { full_name: string | null; email: string | null } | null };
@@ -26,7 +26,7 @@ const Admin = () => {
   const [balances, setBalances] = useState<UserBalance[]>([]);
   const [adjustAmount, setAdjustAmount] = useState<Record<string, number>>({});
   const [selectedExam, setSelectedExam] = useState<string>("");
-  const [newQ, setNewQ] = useState({ question_text: "", a: "", b: "", c: "", d: "", correct: "" });
+  const [newQ, setNewQ] = useState({ question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "", subtest: "tiu" as "twk"|"tiu"|"tkp"|"skb", pa: 5, pb: 4, pc: 3, pd: 2, pe: 1 });
   const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "" });
 
   const refresh = async () => {
@@ -148,14 +148,37 @@ const Admin = () => {
             {selectedExam && (
               <>
                 <Card><CardHeader><h2 className="font-semibold">Tambah Soal</h2></CardHeader><CardContent className="space-y-3">
-                  <div><Label>Pertanyaan</Label><Textarea value={newQ.question_text} onChange={(e) => setNewQ({ ...newQ, question_text: e.target.value })} /></div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Opsi A</Label><Input value={newQ.a} onChange={(e) => setNewQ({ ...newQ, a: e.target.value })} /></div>
-                    <div><Label>Opsi B</Label><Input value={newQ.b} onChange={(e) => setNewQ({ ...newQ, b: e.target.value })} /></div>
-                    <div><Label>Opsi C</Label><Input value={newQ.c} onChange={(e) => setNewQ({ ...newQ, c: e.target.value })} /></div>
-                    <div><Label>Opsi D</Label><Input value={newQ.d} onChange={(e) => setNewQ({ ...newQ, d: e.target.value })} /></div>
+                  <div>
+                    <Label>Subtes</Label>
+                    <Select value={newQ.subtest} onValueChange={(v: any) => setNewQ({ ...newQ, subtest: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="twk">TWK — Tes Wawasan Kebangsaan</SelectItem>
+                        <SelectItem value="tiu">TIU — Tes Intelegensia Umum</SelectItem>
+                        <SelectItem value="tkp">TKP — Tes Karakteristik Pribadi (poin 1–5)</SelectItem>
+                        <SelectItem value="skb">SKB — Seleksi Kompetensi Bidang</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div><Label>Jawaban Benar (ketik persis sama dengan opsi)</Label><Input value={newQ.correct} onChange={(e) => setNewQ({ ...newQ, correct: e.target.value })} /></div>
+                  <div><Label>Pertanyaan</Label><Textarea value={newQ.question_text} onChange={(e) => setNewQ({ ...newQ, question_text: e.target.value })} /></div>
+                  {(["a","b","c","d","e"] as const).map((k) => (
+                    <div key={k} className="grid grid-cols-[1fr_90px] gap-2 items-end">
+                      <div><Label>Opsi {k.toUpperCase()}{k === "e" ? " (opsional)" : ""}</Label>
+                        <Input value={(newQ as any)[k]} onChange={(e) => setNewQ({ ...newQ, [k]: e.target.value } as any)} />
+                      </div>
+                      {newQ.subtest === "tkp" && (
+                        <div><Label>Poin</Label>
+                          <Input type="number" min={1} max={5} value={(newQ as any)["p"+k]} onChange={(e) => setNewQ({ ...newQ, ["p"+k]: Math.max(1, Math.min(5, +e.target.value)) } as any)} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {newQ.subtest !== "tkp" && (
+                    <div><Label>Jawaban Benar (ketik persis sama dengan opsi)</Label><Input value={newQ.correct} onChange={(e) => setNewQ({ ...newQ, correct: e.target.value })} /><p className="mt-1 text-xs text-muted-foreground">Benar = 5 poin, salah/kosong = 0.</p></div>
+                  )}
+                  {newQ.subtest === "tkp" && (
+                    <p className="text-xs text-muted-foreground">TKP: setiap opsi punya nilai 1–5. Tidak ada jawaban salah.</p>
+                  )}
                   <Button onClick={addQuestion}>Tambah Soal</Button>
                 </CardContent></Card>
 
@@ -164,8 +187,15 @@ const Admin = () => {
                     {questions.map((q) => (
                       <li key={q.id} className="flex items-start justify-between py-3">
                         <div>
-                          <p className="font-medium">{q.question_text}</p>
-                          <p className="text-xs text-muted-foreground">Jawaban: {q.correct_answer}</p>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="uppercase text-[10px]">{q.subtest ?? "tiu"}</Badge>
+                            <p className="font-medium">{q.question_text}</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {q.subtest === "tkp" && q.option_points
+                              ? `Poin: ${Object.entries(q.option_points).map(([k,v]) => `${k}=${v}`).join(", ")}`
+                              : `Jawaban: ${q.correct_answer}`}
+                          </p>
                         </div>
                         <Button variant="ghost" size="icon" onClick={() => deleteQ(q.id)}><Trash2 className="h-4 w-4" /></Button>
                       </li>
@@ -194,13 +224,8 @@ const Admin = () => {
                   <Select value={newExam.category} onValueChange={(v) => setNewExam({ ...newExam, category: v })}>
                     <SelectTrigger><SelectValue placeholder="Wajib pilih kategori" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="koperasi">Koperasi Desa/Kelurahan Merah Putih</SelectItem>
-                      <SelectItem value="skb">PAKET SKB CPNS</SelectItem>
-                      <SelectItem value="skd">PAKET SKD (TWK,TIU,TKP)</SelectItem>
-                      <SelectItem value="guru">PPPK GURU/DOSEN</SelectItem>
-                      <SelectItem value="kesehatan">PPPK KESEHATAN</SelectItem>
-                      <SelectItem value="teknis">PPPK TEKNIS</SelectItem>
-                      <SelectItem value="sekdin">SEKOLAH KEDINASAN</SelectItem>
+                      <SelectItem value="cpns">CPNS</SelectItem>
+                      <SelectItem value="pppk">PPPK</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
