@@ -29,7 +29,7 @@ export const AppHeader = () => {
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <GraduationCap className="h-5 w-5" aria-hidden="true" />
           </div>
-          <span className="text-lg font-bold">TryoutPro</span>
+          <span className="text-lg font-bold">Ruang CASN</span>
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex" aria-label="Navigasi utama">

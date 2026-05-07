@@ -5,7 +5,7 @@ const ADMIN_WA = "6281234567890";
 export const WhatsAppButton = () => {
   return (
     <a
-      href={`https://wa.me/${ADMIN_WA}?text=${encodeURIComponent("Halo Admin, saya ingin bertanya tentang TryoutPro.")}`}
+      href={`https://wa.me/${ADMIN_WA}?text=${encodeURIComponent("Halo Admin, saya ingin bertanya tentang Ruang CASN.")}`}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chat WhatsApp"
