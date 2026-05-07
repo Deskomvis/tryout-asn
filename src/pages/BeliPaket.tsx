@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { useExams } from "@/hooks/useExams";
 
 const categories = [
-  { id: "cpns", label: "CPNS", image: "/CPNS.png" },
-  { id: "pppk", label: "PPPK", image: "/PPPK.png" },
+  { id: "cpns", label: "CPNS", image: "/tryout-cpns.png" },
+  { id: "pppk", label: "PPPK", image: "/tryout-pppk.png" },
 ];
 
 type Step = { categoryId?: string; subcategory?: string };
@@ -72,22 +72,18 @@ const BeliPaket = () => {
               key={c.id}
               type="button"
               onClick={() => setStep({ categoryId: c.id })}
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: i * 0.08 }}
-              whileHover={{ scale: 1.02, y: -3 }}
-              whileTap={{ scale: 0.98 }}
-              className="group relative overflow-hidden rounded-2xl shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              transition={{ duration: 0.35, delay: i * 0.1 }}
+              whileHover={{ scale: 1.03, y: -4 }}
+              whileTap={{ scale: 0.97 }}
+              className="group relative overflow-hidden rounded-3xl shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <img
                 src={c.image}
-                alt={c.label}
-                className="h-32 w-full object-contain transition-transform duration-300 group-hover:scale-105 sm:h-40 bg-blue-50"
+                alt={`Tryout ${c.label}`}
+                className="h-56 w-full object-contain transition-transform duration-300 group-hover:scale-105 sm:h-72"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-              <span className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                Pilih <ArrowUpRight className="h-3 w-3" />
-              </span>
             </motion.button>
           ))}
         </div>
