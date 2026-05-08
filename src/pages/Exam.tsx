@@ -10,7 +10,7 @@ import { Timer, CheckCircle2, Circle, Flag } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-type Q = { id: string; question_text: string; options: string[]; subtest?: string };
+type Q = { id: string; question_text: string; options: string[]; subtest?: string; explanation?: string };
 
 const formatTime = (s: number) => {
   const h = Math.floor(s / 3600);
@@ -53,6 +53,7 @@ const Exam = () => {
     setSubmitting(false);
     if (error) { toast.error(error.message); submittedRef.current = false; return; }
     localStorage.removeItem(`exam-end-${examId}`);
+    localStorage.setItem(`exam-answers-${examId}`, JSON.stringify(answers));
     toast.success(auto ? `Waktu habis! Skor: ${data}` : `Selesai. Skor: ${data}`);
     navigate(`/exam-results/${examId}`);
   }, [examId, answers, navigate]);

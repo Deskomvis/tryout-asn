@@ -1,9 +1,9 @@
-import Anthropic from "npm:@anthropic-ai/sdk@0.52.0";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+const KIE_API_KEY = Deno.env.get("KIE_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const KIE_API_URL = "https://api.kie.ai/claude/v1/messages";
 
 const TWK_TOPICS: Record<string, string> = {
   pancasila: "Pancasila (nilai-nilai, sila, implementasi dalam kehidupan berbangsa)",
@@ -38,10 +38,11 @@ Topik: ${topicDesc}
 
 Buat soal situasional dengan format JSONL: satu objek JSON per baris, tanpa komentar, tanpa markdown.
 Setiap soal memiliki:
-- "question_text": string — situasi/skenario kerja yang relevan dengan topik
+- "question_text": string — situasi/skenario kerja yang relevan dengan topik, kesulitan sesuai standar CPNS/PPPK
 - "options": array 5 string — pilihan sikap/tindakan berbeda (A–E), masing-masing realistis
 - "option_points": objek key=teks_opsi, value=poin 1–5 — SETIAP opsi harus punya poin unik 1,2,3,4,5 (tidak boleh ada yang sama)
   Poin 5 = sikap terbaik sesuai nilai ASN, poin 1 = sikap paling tidak sesuai
+- "explanation": string — penjelasan singkat (2-3 kalimat) mengapa opsi dengan poin 5 adalah yang terbaik, jelaskan nilai ASN yang diterapkan
 
 Aturan ketat:
 - Kelima poin harus berbeda: {teks_opsi_tertentu: 5, teks_lain: 4, teks_lain: 3, teks_lain: 2, teks_lain: 1}
@@ -59,18 +60,21 @@ Aturan ketat:
 Subtes: ${subtest.toUpperCase()} — ${subtest === "twk" ? "Tes Wawasan Kebangsaan" : "Tes Intelegensia Umum"}
 Topik: ${topicDesc}
 ${scoringNote}
+Kesulitan: Sesuai standar CPNS dan PPPK Indonesia
 
 Buat soal pilihan ganda dengan format JSONL: satu objek JSON per baris, tanpa komentar, tanpa markdown.
 Setiap soal memiliki:
 - "question_text": string — pertanyaan yang jelas dan sesuai topik
 - "options": array 5 string — 5 pilihan jawaban (A–E), satu yang benar sisanya pengecoh yang masuk akal
 - "correct_answer": string — teks yang PERSIS SAMA dengan salah satu elemen di "options"
+- "explanation": string — penjelasan singkat (2-3 kalimat) mengapa jawaban tersebut benar dan pengecoh lainnya salah
 
 Aturan ketat:
 - "correct_answer" harus merupakan substring yang ada persis di array "options"
 - Soal harus variatif, tidak mengulang pertanyaan yang sama
 - Bahasa Indonesia formal, akurat secara fakta
 - Untuk ${subtest === "twk" ? "TWK" : "TIU"}: pastikan ada satu jawaban yang jelas benar berdasarkan fakta/logika
+- Explanation harus informatif dan membantu pembelajaran
 - Output HANYA JSONL murni, tidak ada teks lain di luar JSON`;
 }
 
@@ -115,23 +119,37 @@ Deno.serve(async (req: Request) => {
     const topicMap = subtest === "twk" ? TWK_TOPICS : subtest === "tiu" ? TIU_TOPICS : TKP_TOPICS;
     const topicDesc = topicMap[topic] ?? topic;
 
-    const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+    if (!KIE_API_KEY) {
+      return json({ error: "KIE_API_KEY tidak konfigurasi" }, 500);
+    }
 
-    const stream = anthropic.messages.stream({
-      model: "claude-opus-4-7",
-      max_tokens: 8000,
-      thinking: { type: "adaptive" },
-      system: buildSystemPrompt(subtest, topic, topicDesc),
-      messages: [{
-        role: "user",
-        content: `Buat tepat ${safeCount} soal untuk topik: ${topicDesc}. Output harus berupa ${safeCount} baris JSONL, satu soal per baris.`,
-      }],
+    const apiResponse = await fetch(KIE_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${KIE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 8000,
+        messages: [{
+          role: "user",
+          content: `${buildSystemPrompt(subtest, topic, topicDesc)}\n\nBuat tepat ${safeCount} soal untuk topik: ${topicDesc}. Output harus berupa ${safeCount} baris JSONL, satu soal per baris. Setiap soal HARUS punya field 'explanation'.`,
+        }],
+        stream: false,
+      }),
     });
 
-    const response = await stream.finalMessage();
+    if (!apiResponse.ok) {
+      const errorData = await apiResponse.json().catch(() => ({}));
+      return json({ error: `KIE API error: ${apiResponse.status}`, details: errorData }, 500);
+    }
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
+    const response = await apiResponse.json();
+
+    const content = response.content as Array<{ type: string; text?: string }>;
+    const textBlock = content.find((b) => b.type === "text");
+    if (!textBlock || !textBlock.text) {
       return json({ error: "Tidak ada output dari AI" }, 500);
     }
 
@@ -149,6 +167,7 @@ Deno.serve(async (req: Request) => {
           question_text: q.question_text,
           options: q.options,
           subtest,
+          explanation: q.explanation || "", // Pembahasan soal
         };
 
         if (subtest === "tkp") {
