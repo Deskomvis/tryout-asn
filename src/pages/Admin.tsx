@@ -104,6 +104,7 @@ const Admin = () => {
     subtest: "twk" as "twk" | "tiu" | "tkp", topic: "pancasila", count: 10,
     chartType: "none" as ChartType,
     imageFile: null as File | null, imageUrl: "",
+    customInstruction: "",
   });
   const [aiImageUploading, setAiImageUploading] = useState(false);
   const aiImgRef = useRef<HTMLInputElement>(null);
@@ -317,6 +318,7 @@ const Admin = () => {
           exam_id: selectedExam, subtest: aiGen.subtest, topic: aiGen.topic, count: aiGen.count,
           chart_type: aiGen.chartType,
           image_url: aiGen.chartType === "none" ? finalImageUrl || null : null,
+          custom_instruction: aiGen.customInstruction.trim() || null,
         },
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -471,6 +473,25 @@ const Admin = () => {
                         <p className="text-xs text-muted-foreground">AI akan membuat soal berdasarkan foto/ilustrasi yang diupload.</p>
                       </div>
                     )}
+
+                    {/* Custom Instruction */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="custom-instruction" className="flex items-center gap-2">
+                        Instruksi Kustom
+                        <span className="text-[10px] font-normal text-muted-foreground">(opsional)</span>
+                      </Label>
+                      <Textarea
+                        id="custom-instruction"
+                        value={aiGen.customInstruction}
+                        onChange={(e) => setAiGen({ ...aiGen, customInstruction: e.target.value })}
+                        placeholder={`Contoh:\n- Buat soal tentang Pemilu 2024 dan sistem proporsional terbuka\n- Fokus pada kasus nyata di pemerintahan daerah\n- Tingkatkan kesulitan, hindari soal yang terlalu mudah\n- Gunakan konteks ASN di bidang kesehatan`}
+                        rows={3}
+                        className="resize-none text-sm"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Instruksi ini ditambahkan ke prompt AI. Gunakan untuk konteks spesifik, tingkat kesulitan, tema, atau format soal tertentu.
+                      </p>
+                    </div>
 
                     <div className="flex flex-wrap items-center gap-3">
                       <Button

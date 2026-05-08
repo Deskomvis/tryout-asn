@@ -32,7 +32,7 @@ const TKP_TOPICS: Record<string, string> = {
 // Chart types supported for programmatic SVG generation
 type ChartType = "bar" | "line" | "pie" | "table" | "none";
 
-function buildSystemPrompt(subtest: string, topicDesc: string, chartType: ChartType): string {
+function buildSystemPrompt(subtest: string, topicDesc: string, chartType: ChartType, customInstruction?: string): string {
   const hasChart = chartType !== "none";
 
   const chartInstructions = hasChart ? `
@@ -77,10 +77,14 @@ Dalam "question_text", tulis pertanyaan yang mengacu pada grafik, contoh:
 "Berdasarkan grafik di atas, ..." atau "Perhatikan data pada tabel berikut. ..."
 ` : "";
 
+  const customNote = customInstruction
+    ? `\nINSTRUKSI KHUSUS DARI ADMIN (prioritas tinggi, ikuti dengan seksama):\n${customInstruction}\n`
+    : "";
+
   if (subtest === "tkp") {
     return `Kamu adalah pembuat soal TKP (Tes Karakteristik Pribadi) SKD ASN Indonesia.
 Topik: ${topicDesc}
-${chartInstructions}
+${chartInstructions}${customNote}
 Format output: JSONL — satu objek JSON per baris, HANYA JSON murni tanpa komentar.
 Setiap soal WAJIB memiliki:
 - "question_text": skenario situasional
@@ -95,7 +99,7 @@ Key di option_points HARUS persis sama dengan teks di options. Output HANYA JSON
   return `Kamu adalah pembuat soal ${label} SKD ASN Indonesia.
 Topik: ${topicDesc}
 Kesulitan: sesuai standar CPNS dan PPPK Indonesia.
-${chartInstructions}
+${chartInstructions}${customNote}
 Format output: JSONL — satu objek JSON per baris, HANYA JSON murni tanpa komentar.
 Setiap soal WAJIB memiliki:
 - "question_text": pertanyaan yang jelas
@@ -278,12 +282,14 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const {
       exam_id, subtest, topic, count,
-      chart_type = "none",  // "bar" | "line" | "pie" | "table" | "none"
-      image_url = null,     // for manually uploaded images
+      chart_type = "none",
+      image_url = null,
+      custom_instruction = null,
     } = body as {
       exam_id: string; subtest: "twk" | "tiu" | "tkp";
       topic: string; count: number;
       chart_type?: ChartType; image_url?: string | null;
+      custom_instruction?: string | null;
     };
 
     if (!exam_id || !subtest || !topic || !count) {
@@ -306,7 +312,7 @@ Deno.serve(async (req: Request) => {
     const topicDesc = topicMap[topic] ?? topic;
     const chartType: ChartType = ["bar", "line", "pie", "table"].includes(chart_type) ? chart_type as ChartType : "none";
 
-    const systemPrompt = buildSystemPrompt(subtest, topicDesc, chartType);
+    const systemPrompt = buildSystemPrompt(subtest, topicDesc, chartType, custom_instruction ?? undefined);
     const userMsg = `Buat tepat ${safeCount} soal${chartType !== "none" ? ` berbasis grafik (${chartType} chart)` : ""} untuk topik: ${topicDesc}. Output ${safeCount} baris JSONL, satu soal per baris. Setiap soal WAJIB punya semua field termasuk explanation${chartType !== "none" ? " dan chart_data" : ""}.`;
 
     const messages: unknown[] = [{ role: "user", content: userMsg }];
