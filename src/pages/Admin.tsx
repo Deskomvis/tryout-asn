@@ -57,7 +57,7 @@ type Exam = {
   id: string; title: string; total_questions: number;
   description?: string; duration: number; price: number; original_price?: number;
   bundle_size: number; category: string; subcategory: string; exam_type?: string;
-  passing_score?: number; cta_link?: string | null;
+  passing_score?: number; cta_link?: string | null; cover_image_url?: string | null;
 };
 type Question = {
   id: string; exam_id: string; question_text: string; options: string[];
@@ -107,6 +107,9 @@ const Admin = () => {
   const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
   // Edit exam modal
   const [editExam, setEditExam] = useState<Exam | null>(null);
+  const [editExamCoverFile, setEditExamCoverFile] = useState<File | null>(null);
+  const [editExamCoverUploading, setEditExamCoverUploading] = useState(false);
+  const editExamCoverRef = useRef<HTMLInputElement>(null);
 
   // AI Generate
   const [aiGen, setAiGen] = useState({
@@ -130,7 +133,7 @@ const Admin = () => {
 
   const refresh = async () => {
     const { data: e } = await supabase.from("exams")
-      .select("id,title,total_questions,description,duration,price,original_price,bundle_size,category,subcategory,exam_type,passing_score,cta_link")
+      .select("id,title,total_questions,description,duration,price,original_price,bundle_size,category,subcategory,exam_type,passing_score,cta_link,cover_image_url")
       .order("created_at");
     setExams((e as Exam[]) ?? []);
 
@@ -265,6 +268,17 @@ const Admin = () => {
 
   const saveExam = async () => {
     if (!editExam) return;
+    let coverUrl = editExam.cover_image_url ?? null;
+    if (editExamCoverFile) {
+      setEditExamCoverUploading(true);
+      const ext = editExamCoverFile.name.split(".").pop() ?? "jpg";
+      const path = `exam-covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("question-images").upload(path, editExamCoverFile);
+      setEditExamCoverUploading(false);
+      if (upErr) { toast.error("Gagal upload gambar: " + upErr.message); return; }
+      const { data: urlData } = supabase.storage.from("question-images").getPublicUrl(path);
+      coverUrl = urlData.publicUrl;
+    }
     const { error } = await supabase.from("exams").update({
       title: editExam.title.trim(),
       description: editExam.description ?? "",
@@ -276,10 +290,12 @@ const Admin = () => {
       subcategory: editExam.subcategory,
       passing_score: editExam.passing_score ?? 0,
       cta_link: editExam.cta_link?.trim() || null,
+      cover_image_url: coverUrl,
     }).eq("id", editExam.id);
     if (error) return toast.error(error.message);
     toast.success("Paket tryout diperbarui");
     setEditExam(null);
+    setEditExamCoverFile(null);
     refresh();
   };
 
@@ -1253,11 +1269,11 @@ const Admin = () => {
 
       {/* Edit Exam Modal */}
       {editExam && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) setEditExam(null); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) { setEditExam(null); setEditExamCoverFile(null); } }}>
           <div className="bg-background rounded-xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b px-6 py-4">
               <h2 className="text-lg font-semibold">Edit Paket Tryout</h2>
-              <button onClick={() => setEditExam(null)}><X className="h-5 w-5" /></button>
+              <button onClick={() => { setEditExam(null); setEditExamCoverFile(null); }}><X className="h-5 w-5" /></button>
             </div>
             <div className="p-6 space-y-3">
               <div>
@@ -1309,9 +1325,32 @@ const Admin = () => {
                 <Label>CTA Link Beli <span className="text-muted-foreground text-xs">(WhatsApp / link eksternal — kosongkan untuk beli via saldo)</span></Label>
                 <Input value={editExam.cta_link ?? ""} onChange={(e) => setEditExam({ ...editExam, cta_link: e.target.value })} placeholder="https://wa.me/62..." />
               </div>
+              <div>
+                <Label>Gambar Cover <span className="text-muted-foreground text-xs">(opsional — tampil di card Beli Paket)</span></Label>
+                <input ref={editExamCoverRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) setEditExamCoverFile(f); }} />
+                <div className="mt-1.5 flex gap-2 items-center flex-wrap">
+                  <Button type="button" variant="outline" size="sm" onClick={() => editExamCoverRef.current?.click()}>
+                    <Upload className="h-3.5 w-3.5 mr-1" />
+                    {editExamCoverFile ? editExamCoverFile.name : "Upload Gambar Cover"}
+                  </Button>
+                  {(editExamCoverFile || editExam.cover_image_url) && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => { setEditExamCoverFile(null); setEditExam({ ...editExam, cover_image_url: null }); }}>
+                      <X className="h-3.5 w-3.5 mr-1" /> Hapus
+                    </Button>
+                  )}
+                </div>
+                {editExamCoverFile ? (
+                  <img src={URL.createObjectURL(editExamCoverFile)} alt="Preview" className="mt-2 max-h-36 w-full rounded-lg border object-cover" />
+                ) : editExam.cover_image_url ? (
+                  <img src={editExam.cover_image_url} alt="Cover saat ini" className="mt-2 max-h-36 w-full rounded-lg border object-cover" />
+                ) : null}
+              </div>
               <div className="flex gap-2 pt-2">
-                <Button onClick={saveExam}>Simpan Perubahan</Button>
-                <Button variant="outline" onClick={() => setEditExam(null)}>Batal</Button>
+                <Button onClick={saveExam} disabled={editExamCoverUploading}>
+                  {editExamCoverUploading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Upload...</> : "Simpan Perubahan"}
+                </Button>
+                <Button variant="outline" onClick={() => { setEditExam(null); setEditExamCoverFile(null); }}>Batal</Button>
               </div>
             </div>
           </div>

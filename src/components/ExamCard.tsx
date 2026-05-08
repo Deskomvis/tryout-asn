@@ -5,6 +5,7 @@ import { Wallet, GraduationCap, HelpCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { purchaseExam } from "@/lib/payments";
 import { useBalance } from "@/hooks/useBalance";
@@ -20,6 +21,7 @@ export type ExamLite = {
   subcategory?: string | null;
   original_price?: number | null;
   bundle_size?: number | null;
+  cover_image_url?: string | null;
 };
 
 type Mode = "buy" | "play";
@@ -75,23 +77,61 @@ export const ExamCard = ({
       <Card className="h-full overflow-hidden rounded-2xl border-border/60 transition-shadow hover:shadow-lg">
         <CardContent className="flex h-full flex-col p-4">
           {/* Hero block */}
-          <div className="relative mb-4 rounded-xl bg-secondary/50 p-4">
-            <span className="absolute left-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-background text-muted-foreground shadow">
-              <HelpCircle className="h-4 w-4" />
-            </span>
-            <div className="mx-auto flex max-w-[180px] flex-col items-center rounded-xl bg-card p-4 shadow-sm">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <GraduationCap className="h-7 w-7" />
+          <div className="relative mb-4 rounded-xl overflow-hidden bg-secondary/50">
+            {exam.cover_image_url ? (
+              <>
+                <img
+                  src={exam.cover_image_url}
+                  alt={exam.title}
+                  className="w-full h-40 object-cover"
+                />
+                {exam.description && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="absolute left-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-background/90 text-muted-foreground shadow cursor-pointer">
+                        <HelpCircle className="h-4 w-4" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[220px] text-xs">
+                      {exam.description}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </>
+            ) : (
+              <div className="p-4">
+                {exam.description && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="absolute left-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-background text-muted-foreground shadow cursor-pointer">
+                        <HelpCircle className="h-4 w-4" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[220px] text-xs">
+                      {exam.description}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {!exam.description && (
+                  <span className="absolute left-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-background text-muted-foreground shadow">
+                    <HelpCircle className="h-4 w-4" />
+                  </span>
+                )}
+                <div className="mx-auto flex max-w-[180px] flex-col items-center rounded-xl bg-card p-4 shadow-sm">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <GraduationCap className="h-7 w-7" />
+                  </div>
+                  <span className="mt-2 text-xs font-bold tracking-wider text-foreground">TRYOUT ASN</span>
+                  <span className="mt-3 w-full rounded-full bg-muted px-3 py-1.5 text-center text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    {exam.subcategory?.split(" ").slice(-1)[0] ?? exam.category ?? "PAKET"}
+                  </span>
+                </div>
               </div>
-              <span className="mt-2 text-xs font-bold tracking-wider text-foreground">TRYOUT ASN</span>
-              <span className="mt-3 w-full rounded-full bg-muted px-3 py-1.5 text-center text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                {exam.subcategory?.split(" ").slice(-1)[0] ?? exam.category ?? "PAKET"}
-              </span>
-            </div>
+            )}
           </div>
 
-          {/* Title */}
-          <h4 className="mb-1 line-clamp-2 text-base font-bold leading-snug text-foreground">{exam.title}</h4>
+          {/* Title — full, no clamp */}
+          <h4 className="mb-1 text-base font-bold leading-snug text-foreground">{exam.title}</h4>
           <p className="mb-3 text-xs text-muted-foreground">{bundle} Paket</p>
 
           {/* Pricing row */}
