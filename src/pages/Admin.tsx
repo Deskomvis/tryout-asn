@@ -53,7 +53,12 @@ const TOPIC_OPTIONS = {
   ],
 } as const;
 
-type Exam = { id: string; title: string; total_questions: number };
+type Exam = {
+  id: string; title: string; total_questions: number;
+  description?: string; duration: number; price: number; original_price?: number;
+  bundle_size: number; category: string; subcategory: string; exam_type?: string;
+  passing_score?: number; cta_link?: string | null;
+};
 type Question = {
   id: string; exam_id: string; question_text: string; options: string[];
   correct_answer: string; subtest: string; option_points: Record<string, number> | null;
@@ -99,7 +104,9 @@ const Admin = () => {
   const [filterTopic, setFilterTopic] = useState("");
 
   // New exam form
-  const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "" });
+  const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
+  // Edit exam modal
+  const [editExam, setEditExam] = useState<Exam | null>(null);
 
   // AI Generate
   const [aiGen, setAiGen] = useState({
@@ -122,31 +129,43 @@ const Admin = () => {
   const [keyMessage, setKeyMessage] = useState("");
 
   const refresh = async () => {
-    const { data: e } = await supabase.from("exams").select("id,title,total_questions").order("created_at");
-    setExams(e ?? []);
+    const { data: e } = await supabase.from("exams")
+      .select("id,title,total_questions,description,duration,price,original_price,bundle_size,category,subcategory,exam_type,passing_score,cta_link")
+      .order("created_at");
+    setExams((e as Exam[]) ?? []);
+
     if (selectedExam) {
       const { data: q } = await supabase.from("questions").select("*").eq("exam_id", selectedExam).order("created_at");
       setQuestions((q as Question[]) ?? []);
     }
+
     const { data: s } = await supabase.from("user_scores")
       .select("id,score,completed_at,profiles(username,email),exams(title)")
-      .order("completed_at", { ascending: false }).limit(100);
+      .order("completed_at", { ascending: false }).limit(500);
     setScores((s as Score[]) ?? []);
 
     const { data: t } = await supabase.from("topup_requests")
       .select("id,user_id,amount,status,created_at")
-      .order("created_at", { ascending: false }).limit(100);
-    const { data: b } = await supabase.from("user_balances")
-      .select("user_id,balance").order("balance", { ascending: false }).limit(200);
+      .order("created_at", { ascending: false }).limit(200);
 
-    const ids = Array.from(new Set([...(t ?? []).map((x: any) => x.user_id), ...(b ?? []).map((x: any) => x.user_id)]));
-    let profileMap: Record<string, { username: string | null; email: string | null }> = {};
-    if (ids.length) {
-      const { data: profs } = await supabase.from("profiles").select("id,username,email").in("id", ids);
-      profileMap = Object.fromEntries((profs ?? []).map((p: any) => [p.id, { username: p.username, email: p.email }]));
-    }
+    // Fetch ALL profiles for Saldo User (not just those with balances)
+    const { data: allProfiles } = await supabase.from("profiles").select("id,username,email").order("created_at");
+    const { data: balanceRows } = await supabase.from("user_balances").select("user_id,balance");
+
+    const balanceMap: Record<string, number> = Object.fromEntries((balanceRows ?? []).map((b: any) => [b.user_id, b.balance]));
+    const profileMap: Record<string, { username: string | null; email: string | null }> = Object.fromEntries(
+      (allProfiles ?? []).map((p: any) => [p.id, { username: p.username, email: p.email }])
+    );
+
     setTopups(((t ?? []) as any[]).map((x) => ({ ...x, profiles: profileMap[x.user_id] ?? null })));
-    setBalances(((b ?? []) as any[]).map((x) => ({ ...x, profiles: profileMap[x.user_id] ?? null })));
+    // Show all users with balance (default 0)
+    const allBalances = (allProfiles ?? []).map((p: any) => ({
+      user_id: p.id,
+      balance: balanceMap[p.id] ?? 0,
+      profiles: { username: p.username, email: p.email },
+    }));
+    allBalances.sort((a, b) => b.balance - a.balance);
+    setBalances(allBalances);
   };
 
   useEffect(() => { refresh(); }, [selectedExam]);
@@ -240,7 +259,38 @@ const Admin = () => {
     const { error } = await supabase.from("exams").insert({ ...newExam, title: newExam.title.trim(), total_questions: 0 });
     if (error) return toast.error(error.message);
     toast.success("Tryout dibuat");
-    setNewExam({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "" }); refresh();
+    setNewExam({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
+    refresh();
+  };
+
+  const saveExam = async () => {
+    if (!editExam) return;
+    const { error } = await supabase.from("exams").update({
+      title: editExam.title.trim(),
+      description: editExam.description ?? "",
+      duration: editExam.duration,
+      price: editExam.price,
+      original_price: editExam.original_price ?? 0,
+      bundle_size: editExam.bundle_size,
+      category: editExam.category,
+      subcategory: editExam.subcategory,
+      passing_score: editExam.passing_score ?? 0,
+      cta_link: editExam.cta_link?.trim() || null,
+    }).eq("id", editExam.id);
+    if (error) return toast.error(error.message);
+    toast.success("Paket tryout diperbarui");
+    setEditExam(null);
+    refresh();
+  };
+
+  const deleteExam = async (id: string) => {
+    if (!confirm("Hapus tryout ini beserta semua soalnya? Tindakan ini tidak bisa dibatalkan.")) return;
+    await supabase.from("questions").delete().eq("exam_id", id);
+    const { error } = await supabase.from("exams").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Tryout dihapus");
+    if (selectedExam === id) setSelectedExam("");
+    refresh();
   };
 
   const addQuestion = async () => {
@@ -853,19 +903,56 @@ const Admin = () => {
           </TabsContent>
 
           {/* ── TRYOUT ── */}
-          <TabsContent value="exams">
+          <TabsContent value="exams" className="space-y-4">
+            {/* Existing exams */}
             <Card>
-              <CardHeader><h2 className="font-semibold">Buat Tryout Baru</h2></CardHeader>
+              <CardHeader><h2 className="font-semibold text-sm">Paket Tryout ({exams.length})</h2></CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {exams.map((ex) => (
+                    <div key={ex.id} className="flex items-center gap-3 px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className="uppercase text-[9px] px-1 h-4 shrink-0">{ex.category || "—"}</Badge>
+                          {ex.subcategory && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{ex.subcategory}</Badge>}
+                          <span className="text-xs font-semibold truncate">{ex.title}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {ex.total_questions} soal ·{" "}
+                          {ex.price === 0 ? "Gratis" : `Rp ${ex.price.toLocaleString("id-ID")}`}
+                          {ex.original_price ? ` (coret: Rp ${ex.original_price.toLocaleString("id-ID")})` : ""}
+                          {" · "}{Math.floor(ex.duration / 60)} menit
+                          {ex.cta_link ? " · Ada CTA link" : ""}
+                        </p>
+                      </div>
+                      <div className="flex gap-1.5 shrink-0">
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditExam(ex)}>
+                          <Pencil className="h-3 w-3 mr-1" /> Edit
+                        </Button>
+                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteExam(ex.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {exams.length === 0 && <p className="px-4 py-8 text-sm text-muted-foreground text-center">Belum ada paket tryout.</p>}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Create new */}
+            <Card>
+              <CardHeader><h2 className="font-semibold text-sm">Buat Tryout Baru</h2></CardHeader>
               <CardContent className="space-y-3">
-                <div><Label>Judul *</Label><Input placeholder="cth: SKB Bidan Ahli - Paket 1" value={newExam.title} onChange={(e) => setNewExam({ ...newExam, title: e.target.value })} /></div>
-                <div><Label>Deskripsi</Label><Textarea placeholder="Ringkasan singkat" value={newExam.description} onChange={(e) => setNewExam({ ...newExam, description: e.target.value })} /></div>
+                <div><Label>Judul *</Label><Input placeholder="cth: SKD CPNS Premium - Paket 1" value={newExam.title} onChange={(e) => setNewExam({ ...newExam, title: e.target.value })} /></div>
+                <div><Label>Deskripsi</Label><Textarea placeholder="Ringkasan singkat" value={newExam.description} onChange={(e) => setNewExam({ ...newExam, description: e.target.value })} rows={2} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Durasi (detik)</Label><Input type="number" value={newExam.duration} onChange={(e) => setNewExam({ ...newExam, duration: +e.target.value })} /></div>
                   <div><Label>Bundling (jumlah tryout)</Label><Input type="number" min={1} value={newExam.bundle_size} onChange={(e) => setNewExam({ ...newExam, bundle_size: Math.max(1, +e.target.value) })} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Harga (Rp)</Label><Input type="number" placeholder="0 = gratis" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
-                  <div><Label>Harga Asli / Coret (Rp)</Label><Input type="number" placeholder="opsional" value={newExam.original_price} onChange={(e) => setNewExam({ ...newExam, original_price: +e.target.value })} /></div>
+                  <div><Label>Harga Coret (Rp)</Label><Input type="number" placeholder="opsional" value={newExam.original_price} onChange={(e) => setNewExam({ ...newExam, original_price: +e.target.value })} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -877,6 +964,12 @@ const Admin = () => {
                   </div>
                   <div><Label>Subkategori *</Label><Input placeholder="cth: SKD, SKB Bidan" maxLength={80} value={newExam.subcategory} onChange={(e) => setNewExam({ ...newExam, subcategory: e.target.value })} /></div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Skor Lulus</Label><Input type="number" placeholder="0 = tidak ada batas" value={newExam.passing_score} onChange={(e) => setNewExam({ ...newExam, passing_score: +e.target.value })} /></div>
+                </div>
+                <div><Label>CTA Link Beli <span className="text-muted-foreground text-xs">(opsional — misal WhatsApp atau link eksternal)</span></Label>
+                  <Input placeholder="https://wa.me/62..." value={newExam.cta_link} onChange={(e) => setNewExam({ ...newExam, cta_link: e.target.value })} />
+                </div>
                 <Button onClick={addExam}>Buat Tryout</Button>
               </CardContent>
             </Card>
@@ -884,26 +977,39 @@ const Admin = () => {
 
           {/* ── SKOR USER ── */}
           <TabsContent value="scores">
-            <Card><CardContent className="pt-6">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-sm">
-                  <thead><tr className="text-left text-muted-foreground border-b">
-                    <th className="pb-2">Username</th><th>Email</th><th>Tryout</th><th>Skor</th><th>Tanggal</th>
-                  </tr></thead>
-                  <tbody className="divide-y divide-border">
-                    {scores.map((s) => (
-                      <tr key={s.id}>
-                        <td className="py-2">{s.profiles?.username ?? "-"}</td>
-                        <td>{s.profiles?.email}</td>
-                        <td>{s.exams?.title}</td>
-                        <td className="font-bold text-primary">{s.score}</td>
-                        <td>{new Date(s.completed_at).toLocaleDateString("id-ID")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent></Card>
+            <Card>
+              <CardHeader><h2 className="font-semibold text-sm">Semua Skor User ({scores.length})</h2></CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px] text-xs">
+                    <thead><tr className="text-left text-muted-foreground bg-muted/50 border-b">
+                      <th className="px-4 py-2 font-medium">User</th>
+                      <th className="px-4 py-2 font-medium">Tryout</th>
+                      <th className="px-4 py-2 font-medium text-right">Skor</th>
+                      <th className="px-4 py-2 font-medium">Tanggal</th>
+                    </tr></thead>
+                    <tbody className="divide-y divide-border">
+                      {scores.map((s) => (
+                        <tr key={s.id} className="hover:bg-muted/30">
+                          <td className="px-4 py-2">
+                            <div className="font-medium">{s.profiles?.username ?? "—"}</div>
+                            <div className="text-[10px] text-muted-foreground">{s.profiles?.email}</div>
+                          </td>
+                          <td className="px-4 py-2 max-w-[240px]">
+                            <div className="truncate">{s.exams?.title ?? "—"}</div>
+                          </td>
+                          <td className="px-4 py-2 text-right font-bold text-primary">{s.score}</td>
+                          <td className="px-4 py-2 text-muted-foreground whitespace-nowrap">
+                            {new Date(s.completed_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                          </td>
+                        </tr>
+                      ))}
+                      {scores.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Belum ada skor.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* ── TOPUP ── */}
@@ -938,25 +1044,46 @@ const Admin = () => {
 
           {/* ── SALDO USER ── */}
           <TabsContent value="balances">
-            <Card><CardContent className="pt-6">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[680px] text-sm">
-                  <thead className="bg-secondary text-left"><tr>
-                    <th className="px-3 py-2">User</th><th className="px-3 py-2">Saldo</th><th className="px-3 py-2">Adjust</th><th className="px-3 py-2 text-right">Aksi</th>
-                  </tr></thead>
-                  <tbody className="divide-y divide-border">
-                    {balances.map((b) => (
-                      <tr key={b.user_id}>
-                        <td className="px-3 py-2"><div>{b.profiles?.username ?? "-"}</div><div className="text-xs text-muted-foreground">{b.profiles?.email}</div></td>
-                        <td className="px-3 py-2 font-semibold"><span className="inline-flex items-center gap-1"><Wallet className="h-3.5 w-3.5 text-primary" />{b.balance.toLocaleString("id-ID")}</span></td>
-                        <td className="px-3 py-2"><Input type="number" value={adjustAmount[b.user_id] ?? ""} onChange={(e) => setAdjustAmount({ ...adjustAmount, [b.user_id]: Number(e.target.value) })} placeholder="contoh: 50000 atau -10000" className="max-w-[180px]" /></td>
-                        <td className="px-3 py-2 text-right"><Button size="sm" onClick={() => adjustBalance(b.user_id)} className="gap-1"><Plus className="h-3.5 w-3.5" /> Terapkan</Button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent></Card>
+            <Card>
+              <CardHeader><h2 className="font-semibold text-sm">Semua User ({balances.length})</h2></CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[580px] text-xs">
+                    <thead className="bg-muted/50 text-left border-b"><tr>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">User</th>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">Saldo</th>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">Adjust Saldo</th>
+                      <th className="px-4 py-2 font-medium text-muted-foreground text-right">Aksi</th>
+                    </tr></thead>
+                    <tbody className="divide-y divide-border">
+                      {balances.map((b) => (
+                        <tr key={b.user_id} className="hover:bg-muted/30">
+                          <td className="px-4 py-2">
+                            <div className="font-medium">{b.profiles?.username ?? "—"}</div>
+                            <div className="text-[10px] text-muted-foreground">{b.profiles?.email}</div>
+                          </td>
+                          <td className="px-4 py-2">
+                            <span className="inline-flex items-center gap-1 font-semibold">
+                              <Wallet className="h-3 w-3 text-primary" />
+                              Rp {b.balance.toLocaleString("id-ID")}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2">
+                            <Input type="number" value={adjustAmount[b.user_id] ?? ""} onChange={(e) => setAdjustAmount({ ...adjustAmount, [b.user_id]: Number(e.target.value) })} placeholder="±50000" className="h-7 max-w-[140px] text-xs" />
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => adjustBalance(b.user_id)}>
+                              <Plus className="h-3 w-3" /> Terapkan
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                      {balances.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Belum ada user.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* ── PENGATURAN ── */}
@@ -1118,6 +1245,73 @@ const Admin = () => {
                   {editUploadingImg ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Upload...</> : "Simpan Perubahan"}
                 </Button>
                 <Button variant="outline" onClick={() => setEditQ(null)}>Batal</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Exam Modal */}
+      {editExam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) setEditExam(null); }}>
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <h2 className="text-lg font-semibold">Edit Paket Tryout</h2>
+              <button onClick={() => setEditExam(null)}><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-6 space-y-3">
+              <div>
+                <Label>Judul *</Label>
+                <Input value={editExam.title} onChange={(e) => setEditExam({ ...editExam, title: e.target.value })} />
+              </div>
+              <div>
+                <Label>Deskripsi</Label>
+                <Textarea value={editExam.description ?? ""} onChange={(e) => setEditExam({ ...editExam, description: e.target.value })} rows={2} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Kategori *</Label>
+                  <Select value={editExam.category} onValueChange={(v) => setEditExam({ ...editExam, category: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="cpns">CPNS</SelectItem><SelectItem value="pppk">PPPK</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Subkategori *</Label>
+                  <Input value={editExam.subcategory} onChange={(e) => setEditExam({ ...editExam, subcategory: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Durasi (detik)</Label>
+                  <Input type="number" value={editExam.duration} onChange={(e) => setEditExam({ ...editExam, duration: +e.target.value })} />
+                </div>
+                <div>
+                  <Label>Bundling</Label>
+                  <Input type="number" min={1} value={editExam.bundle_size} onChange={(e) => setEditExam({ ...editExam, bundle_size: Math.max(1, +e.target.value) })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Harga (Rp)</Label>
+                  <Input type="number" value={editExam.price} onChange={(e) => setEditExam({ ...editExam, price: +e.target.value })} />
+                </div>
+                <div>
+                  <Label>Harga Coret (Rp)</Label>
+                  <Input type="number" value={editExam.original_price ?? 0} onChange={(e) => setEditExam({ ...editExam, original_price: +e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <Label>Skor Lulus</Label>
+                <Input type="number" value={editExam.passing_score ?? 0} onChange={(e) => setEditExam({ ...editExam, passing_score: +e.target.value })} />
+              </div>
+              <div>
+                <Label>CTA Link Beli <span className="text-muted-foreground text-xs">(WhatsApp / link eksternal — kosongkan untuk beli via saldo)</span></Label>
+                <Input value={editExam.cta_link ?? ""} onChange={(e) => setEditExam({ ...editExam, cta_link: e.target.value })} placeholder="https://wa.me/62..." />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button onClick={saveExam}>Simpan Perubahan</Button>
+                <Button variant="outline" onClick={() => setEditExam(null)}>Batal</Button>
               </div>
             </div>
           </div>
