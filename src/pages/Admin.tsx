@@ -12,10 +12,20 @@ import { toast } from "sonner";
 import {
   Trash2, Wallet, Check, X, Plus, Sparkles, Loader2,
   Pencil, Image, Upload, Key, Eye, EyeOff, ChevronDown, ChevronUp,
+  BarChart2, LineChart, PieChart, Table2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+
+type ChartType = "none" | "bar" | "line" | "pie" | "table";
+
+const CHART_OPTIONS: { value: ChartType; label: string; icon: React.ElementType; desc: string }[] = [
+  { value: "none", label: "Teks Saja", icon: Sparkles, desc: "Soal pilihan ganda biasa" },
+  { value: "bar", label: "Bar Chart", icon: BarChart2, desc: "Grafik batang — data perbandingan" },
+  { value: "line", label: "Line Chart", icon: LineChart, desc: "Grafik garis — data tren/pertumbuhan" },
+  { value: "pie", label: "Pie Chart", icon: PieChart, desc: "Grafik lingkaran — distribusi/proporsi" },
+  { value: "table", label: "Tabel Data", icon: Table2, desc: "Tabel data numerik terstruktur" },
+];
 
 const TOPIC_OPTIONS = {
   twk: [
@@ -47,7 +57,7 @@ type Exam = { id: string; title: string; total_questions: number };
 type Question = {
   id: string; exam_id: string; question_text: string; options: string[];
   correct_answer: string; subtest: string; option_points: Record<string, number> | null;
-  explanation?: string; image_url?: string | null;
+  explanation?: string; image_url?: string | null; svg_content?: string | null;
 };
 type Score = { id: string; score: number; completed_at: string; profiles: { username: string | null; email: string | null } | null; exams: { title: string } | null };
 type Topup = { id: string; user_id: string; amount: number; status: "pending" | "approved" | "rejected"; created_at: string; profiles: { username: string | null; email: string | null } | null };
@@ -92,7 +102,8 @@ const Admin = () => {
   // AI Generate
   const [aiGen, setAiGen] = useState({
     subtest: "twk" as "twk" | "tiu" | "tkp", topic: "pancasila", count: 10,
-    withImage: false, imageMode: "upload" as "upload" | "describe", imageFile: null as File | null, imageUrl: "",
+    chartType: "none" as ChartType,
+    imageFile: null as File | null, imageUrl: "",
   });
   const [aiImageUploading, setAiImageUploading] = useState(false);
   const aiImgRef = useRef<HTMLInputElement>(null);
@@ -290,9 +301,9 @@ const Admin = () => {
       const token = session?.access_token;
       if (!token) { setAiStatus("error"); return toast.error("Sesi tidak ditemukan"); }
 
-      // Upload image if AI image mode
+      // Upload image only for "upload" mode (not needed for chart modes)
       let finalImageUrl = aiGen.imageUrl;
-      if (aiGen.withImage && aiGen.imageMode === "upload" && aiGen.imageFile) {
+      if (aiGen.chartType === "none" && aiGen.imageFile) {
         setAiImageUploading(true);
         const url = await uploadImage(aiGen.imageFile);
         setAiImageUploading(false);
@@ -304,8 +315,8 @@ const Admin = () => {
       const { data, error } = await supabase.functions.invoke("generate-questions", {
         body: {
           exam_id: selectedExam, subtest: aiGen.subtest, topic: aiGen.topic, count: aiGen.count,
-          with_image: aiGen.withImage,
-          image_url: aiGen.withImage ? finalImageUrl || null : null,
+          chart_type: aiGen.chartType,
+          image_url: aiGen.chartType === "none" ? finalImageUrl || null : null,
         },
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -314,7 +325,8 @@ const Admin = () => {
       if (data?.error) { setAiStatus("error"); return toast.error(data.error); }
 
       setAiStatus("done"); setAiResult(data);
-      toast.success(`${data.count} soal beserta pembahasan berhasil di-generate`);
+      const chartLabel = aiGen.chartType !== "none" ? ` (grafik ${aiGen.chartType})` : "";
+      toast.success(`${data.count} soal${chartLabel} + pembahasan berhasil di-generate`);
       setAiGen((g) => ({ ...g, imageFile: null, imageUrl: "" }));
       refresh();
     } catch (e: any) {
@@ -402,72 +414,63 @@ const Admin = () => {
                       </div>
                     </div>
 
-                    {/* Opsi Gambar */}
-                    <div className="rounded-lg border border-border p-4 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <Switch
-                          id="with-image"
-                          checked={aiGen.withImage}
-                          onCheckedChange={(v) => setAiGen({ ...aiGen, withImage: v, imageFile: null, imageUrl: "" })}
-                        />
-                        <Label htmlFor="with-image" className="flex items-center gap-2 cursor-pointer">
-                          <Image className="h-4 w-4 text-muted-foreground" />
-                          Soal Berbasis Gambar (Opsional)
-                        </Label>
-                      </div>
-
-                      {aiGen.withImage && (
-                        <div className="space-y-3 pl-2 border-l-2 border-primary/30">
-                          <div className="flex gap-3">
-                            <Button
-                              type="button" size="sm"
-                              variant={aiGen.imageMode === "upload" ? "default" : "outline"}
-                              onClick={() => setAiGen({ ...aiGen, imageMode: "upload", imageFile: null, imageUrl: "" })}
-                            >
-                              <Upload className="h-3.5 w-3.5 mr-1" /> Upload Gambar
-                            </Button>
-                            <Button
-                              type="button" size="sm"
-                              variant={aiGen.imageMode === "describe" ? "default" : "outline"}
-                              onClick={() => setAiGen({ ...aiGen, imageMode: "describe", imageFile: null, imageUrl: "" })}
-                            >
-                              <Sparkles className="h-3.5 w-3.5 mr-1" /> AI Generate (Teks)
-                            </Button>
-                          </div>
-
-                          {aiGen.imageMode === "upload" && (
-                            <div>
-                              <input
-                                ref={aiImgRef} type="file"
-                                accept="image/jpeg,image/png,image/webp" className="hidden"
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  if (f) setAiGen({ ...aiGen, imageFile: f, imageUrl: "" });
-                                }}
-                              />
-                              <Button type="button" variant="outline" size="sm" onClick={() => aiImgRef.current?.click()}>
-                                <Upload className="h-3.5 w-3.5 mr-1" />
-                                {aiGen.imageFile ? aiGen.imageFile.name : "Pilih Gambar..."}
-                              </Button>
-                              {aiGen.imageFile && (
-                                <img
-                                  src={URL.createObjectURL(aiGen.imageFile)}
-                                  alt="Preview" className="mt-2 max-h-40 rounded border object-contain"
-                                />
+                    {/* Tipe Soal */}
+                    <div className="space-y-2">
+                      <Label>Tipe Soal</Label>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                        {CHART_OPTIONS.map((opt) => {
+                          const Icon = opt.icon;
+                          const active = aiGen.chartType === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setAiGen({ ...aiGen, chartType: opt.value, imageFile: null, imageUrl: "" })}
+                              className={cn(
+                                "flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center text-xs transition-all",
+                                active
+                                  ? "border-primary bg-primary/10 text-primary font-semibold"
+                                  : "border-border hover:border-primary/40 hover:bg-accent text-muted-foreground"
                               )}
-                              <p className="text-xs text-muted-foreground mt-1">
-                                AI akan membuat soal berdasarkan gambar ini. Gambar otomatis tersimpan dan terlampir pada soal.
-                              </p>
-                            </div>
-                          )}
-                          {aiGen.imageMode === "describe" && (
-                            <p className="text-xs text-muted-foreground">
-                              AI akan membuat soal bertipe gambar (ada keterangan gambar di soal), tanpa gambar nyata.
-                            </p>
-                          )}
-                        </div>
+                            >
+                              <Icon className="h-5 w-5" />
+                              <span>{opt.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {aiGen.chartType !== "none" && (
+                        <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded px-3 py-2">
+                          ✓ {CHART_OPTIONS.find(o => o.value === aiGen.chartType)?.desc} — Grafik di-generate otomatis via SVG, gratis & akurat. Tidak perlu image model.
+                        </p>
                       )}
                     </div>
+
+                    {/* Upload gambar hanya untuk mode teks saja (foto ilustrasi) */}
+                    {aiGen.chartType === "none" && (
+                      <div className="rounded border border-dashed border-border p-3 space-y-2">
+                        <Label className="flex items-center gap-2 text-muted-foreground text-xs">
+                          <Image className="h-3.5 w-3.5" /> Upload Foto/Ilustrasi (Opsional)
+                        </Label>
+                        <input ref={aiImgRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) setAiGen({ ...aiGen, imageFile: f, imageUrl: "" }); }}
+                        />
+                        <div className="flex gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => aiImgRef.current?.click()}>
+                            <Upload className="h-3.5 w-3.5 mr-1" />{aiGen.imageFile ? aiGen.imageFile.name : "Pilih Gambar"}
+                          </Button>
+                          {aiGen.imageFile && (
+                            <Button type="button" variant="ghost" size="sm" onClick={() => setAiGen({ ...aiGen, imageFile: null, imageUrl: "" })}>
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                        {aiGen.imageFile && (
+                          <img src={URL.createObjectURL(aiGen.imageFile)} alt="Preview" className="max-h-32 rounded border object-contain" />
+                        )}
+                        <p className="text-xs text-muted-foreground">AI akan membuat soal berdasarkan foto/ilustrasi yang diupload.</p>
+                      </div>
+                    )}
 
                     <div className="flex flex-wrap items-center gap-3">
                       <Button
@@ -593,7 +596,8 @@ const Admin = () => {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <Badge variant="outline" className="uppercase text-[10px]">{q.subtest ?? "tiu"}</Badge>
-                                  {q.image_url && <Badge variant="secondary" className="text-[10px]"><Image className="h-2.5 w-2.5 mr-1" />Gambar</Badge>}
+                                  {q.svg_content && <Badge variant="secondary" className="text-[10px]"><BarChart2 className="h-2.5 w-2.5 mr-1" />Grafik</Badge>}
+                                  {q.image_url && !q.svg_content && <Badge variant="secondary" className="text-[10px]"><Image className="h-2.5 w-2.5 mr-1" />Gambar</Badge>}
                                   <p className="font-medium truncate">{q.question_text}</p>
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -608,7 +612,11 @@ const Admin = () => {
 
                             {isExpanded && (
                               <div className="px-6 pb-5 pt-2 bg-muted/30 space-y-3">
-                                {q.image_url && (
+                                {q.svg_content && (
+                                  <div className="rounded border bg-white p-2 overflow-x-auto"
+                                    dangerouslySetInnerHTML={{ __html: q.svg_content }} />
+                                )}
+                                {q.image_url && !q.svg_content && (
                                   <img src={q.image_url} alt="Gambar soal" className="max-h-48 rounded border object-contain" />
                                 )}
                                 <div>

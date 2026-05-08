@@ -32,6 +32,8 @@ interface Question {
   subtest?: string;
   explanation?: string;
   correct_answer?: string;
+  image_url?: string | null;
+  svg_content?: string | null;
 }
 
 const ExamResults = () => {
@@ -308,6 +310,15 @@ const ExamResults = () => {
 
                     {isExpanded && (
                       <div className="border-t px-6 py-4 space-y-4 bg-muted/30">
+                        {/* Grafik SVG atau gambar */}
+                        {question.svg_content && (
+                          <div className="overflow-x-auto rounded-lg border bg-white p-2"
+                            dangerouslySetInnerHTML={{ __html: question.svg_content }} />
+                        )}
+                        {question.image_url && !question.svg_content && (
+                          <img src={question.image_url} alt="Gambar soal" className="max-h-48 rounded border object-contain w-full" />
+                        )}
+
                         {/* Pertanyaan Lengkap */}
                         <div>
                           <p className="text-sm font-semibold text-muted-foreground">Pertanyaan:</p>
