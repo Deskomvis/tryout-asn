@@ -257,15 +257,18 @@ function buildSVGFromChartData(chartData: Record<string, unknown>): string | nul
   return null;
 }
 
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return json(null, 200, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "authorization, content-type",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-    });
+    return new Response("ok", { status: 200, headers: CORS });
   }
 
   try {
@@ -423,6 +426,6 @@ Deno.serve(async (req: Request) => {
 function json(data: unknown, status = 200, extraHeaders?: Record<string, string>): Response {
   return new Response(data === null ? null : JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", ...extraHeaders },
+    headers: { "Content-Type": "application/json", ...CORS, ...extraHeaders },
   });
 }
