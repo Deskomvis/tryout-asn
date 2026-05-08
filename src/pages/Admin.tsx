@@ -100,8 +100,8 @@ const Admin = () => {
   const [editUploadingImg, setEditUploadingImg] = useState(false);
   const editImgRef = useRef<HTMLInputElement>(null);
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
-  const [filterSubtest, setFilterSubtest] = useState<"" | "twk" | "tiu" | "tkp">("");
-  const [filterTopic, setFilterTopic] = useState("");
+  const [filterSubtest, setFilterSubtest] = useState<"all" | "twk" | "tiu" | "tkp">("all");
+  const [filterTopic, setFilterTopic] = useState("all");
 
   // New exam form
   const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
@@ -289,7 +289,7 @@ const Admin = () => {
     const { error } = await supabase.from("exams").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Tryout dihapus");
-    if (selectedExam === id) setSelectedExam("");
+    if (selectedExam === id) { setSelectedExam(""); setFilterSubtest("all"); setFilterTopic("all"); }
     refresh();
   };
 
@@ -479,7 +479,7 @@ const Admin = () => {
                 {exams.map((e) => (
                   <button
                     key={e.id}
-                    onClick={() => { setSelectedExam(e.id); setFilterSubtest(""); setFilterTopic(""); }}
+                    onClick={() => { setSelectedExam(e.id); setFilterSubtest("all"); setFilterTopic("all"); }}
                     className={cn(
                       "text-left rounded-lg border px-3 py-2.5 transition-all",
                       selectedExam === e.id
@@ -741,8 +741,8 @@ const Admin = () => {
                 {(() => {
                   const uniqueTopics = Array.from(new Set(questions.map((q) => q.topic).filter(Boolean))) as string[];
                   const filtered = questions.filter((q) => {
-                    if (filterSubtest && q.subtest !== filterSubtest) return false;
-                    if (filterTopic && q.topic !== filterTopic) return false;
+                    if (filterSubtest !== "all" && q.subtest !== filterSubtest) return false;
+                    if (filterTopic !== "all" && q.topic !== filterTopic) return false;
                     return true;
                   });
                   return (
@@ -764,7 +764,7 @@ const Admin = () => {
                                 <SelectValue placeholder="Semua subtes" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">Semua subtes</SelectItem>
+                                <SelectItem value="all">Semua subtes</SelectItem>
                                 <SelectItem value="twk">TWK</SelectItem>
                                 <SelectItem value="tiu">TIU</SelectItem>
                                 <SelectItem value="tkp">TKP</SelectItem>
@@ -776,16 +776,16 @@ const Admin = () => {
                                   <SelectValue placeholder="Semua topik" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">Semua topik</SelectItem>
+                                  <SelectItem value="all">Semua topik</SelectItem>
                                   {uniqueTopics.map((t) => (
                                     <SelectItem key={t} value={t}>{t}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                             )}
-                            {(filterSubtest || filterTopic) && (
+                            {(filterSubtest !== "all" || filterTopic !== "all") && (
                               <button
-                                onClick={() => { setFilterSubtest(""); setFilterTopic(""); }}
+                                onClick={() => { setFilterSubtest("all"); setFilterTopic("all"); }}
                                 className="text-[10px] text-primary hover:underline shrink-0"
                               >
                                 Reset
