@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
   Trash2, Wallet, Check, X, Plus, Sparkles, Loader2,
   Pencil, Image, Upload, Key, Eye, EyeOff, ChevronDown, ChevronUp,
-  BarChart2, LineChart, PieChart, Table2,
+  BarChart2, LineChart, PieChart, Table2, RotateCcw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -336,6 +336,15 @@ const Admin = () => {
     toast.success("Soal dihapus"); refresh();
   };
 
+  const syncQuestionCount = async () => {
+    if (!selectedExam) return;
+    const { count } = await supabase
+      .from("questions").select("*", { count: "exact", head: true }).eq("exam_id", selectedExam);
+    await supabase.from("exams").update({ total_questions: count ?? 0 }).eq("id", selectedExam);
+    toast.success(`Total soal diperbarui: ${count ?? 0} soal`);
+    refresh();
+  };
+
   const generateViaAI = async () => {
     if (!selectedExam) return toast.error("Pilih tryout dulu");
     setAiStatus("loading"); setAiResult(null); setAiError("");
@@ -412,16 +421,31 @@ const Admin = () => {
           </TabsList>
 
           {/* ── MANAJEMEN SOAL ── */}
-          <TabsContent value="questions" className="space-y-6">
-            <Card>
-              <CardHeader><h2 className="font-semibold">Pilih Tryout</h2></CardHeader>
-              <CardContent>
-                <Select value={selectedExam} onValueChange={setSelectedExam}>
-                  <SelectTrigger><SelectValue placeholder="Pilih tryout..." /></SelectTrigger>
-                  <SelectContent>{exams.map((e) => <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>)}</SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
+          <TabsContent value="questions" className="space-y-4">
+            {/* Exam selector as cards */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Pilih Tryout</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {exams.map((e) => (
+                  <button
+                    key={e.id}
+                    onClick={() => { setSelectedExam(e.id); setFilterSubtest(""); setFilterTopic(""); }}
+                    className={cn(
+                      "text-left rounded-lg border px-3 py-2.5 transition-all",
+                      selectedExam === e.id
+                        ? "border-primary bg-primary/10 ring-1 ring-primary"
+                        : "border-border hover:border-primary/50 hover:bg-accent"
+                    )}
+                  >
+                    <p className="text-xs font-semibold leading-snug line-clamp-2">{e.title}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{e.total_questions} soal</p>
+                  </button>
+                ))}
+                {exams.length === 0 && (
+                  <p className="text-sm text-muted-foreground col-span-full py-4">Belum ada tryout. Buat di tab Tryout.</p>
+                )}
+              </div>
+            </div>
 
             {selectedExam && (
               <>
@@ -674,45 +698,60 @@ const Admin = () => {
                   return (
                     <Card className="overflow-hidden">
                       <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <h2 className="font-semibold text-sm">
-                            Soal Saat Ini ({filtered.length}{filtered.length !== questions.length ? `/${questions.length}` : ""})
+                        {/* Title row */}
+                        <div className="flex items-center flex-wrap gap-2">
+                          <h2 className="font-semibold text-sm shrink-0">
+                            Management Soal
+                            <span className="ml-1.5 text-muted-foreground font-normal">
+                              ({filtered.length}{filtered.length !== questions.length ? `/${questions.length}` : ""})
+                            </span>
                           </h2>
-                          {(filterSubtest || filterTopic) && (
-                            <button
-                              onClick={() => { setFilterSubtest(""); setFilterTopic(""); }}
-                              className="text-xs text-primary hover:underline"
-                            >
-                              Reset filter
-                            </button>
-                          )}
-                        </div>
-                        {/* Filter bar */}
-                        <div className="flex gap-2 flex-wrap mt-2">
-                          <Select value={filterSubtest} onValueChange={(v) => setFilterSubtest(v as any)}>
-                            <SelectTrigger className="h-7 text-xs w-36">
-                              <SelectValue placeholder="Semua subtes" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="">Semua subtes</SelectItem>
-                              <SelectItem value="twk">TWK</SelectItem>
-                              <SelectItem value="tiu">TIU</SelectItem>
-                              <SelectItem value="tkp">TKP</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {uniqueTopics.length > 0 && (
-                            <Select value={filterTopic} onValueChange={setFilterTopic}>
-                              <SelectTrigger className="h-7 text-xs w-44">
-                                <SelectValue placeholder="Semua topik" />
+
+                          {/* Filters inline */}
+                          <div className="flex items-center gap-1.5 flex-wrap flex-1">
+                            <Select value={filterSubtest} onValueChange={(v) => setFilterSubtest(v as any)}>
+                              <SelectTrigger className="h-7 text-xs w-32">
+                                <SelectValue placeholder="Semua subtes" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">Semua topik</SelectItem>
-                                {uniqueTopics.map((t) => (
-                                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                                ))}
+                                <SelectItem value="">Semua subtes</SelectItem>
+                                <SelectItem value="twk">TWK</SelectItem>
+                                <SelectItem value="tiu">TIU</SelectItem>
+                                <SelectItem value="tkp">TKP</SelectItem>
                               </SelectContent>
                             </Select>
-                          )}
+                            {uniqueTopics.length > 0 && (
+                              <Select value={filterTopic} onValueChange={setFilterTopic}>
+                                <SelectTrigger className="h-7 text-xs w-36">
+                                  <SelectValue placeholder="Semua topik" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="">Semua topik</SelectItem>
+                                  {uniqueTopics.map((t) => (
+                                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                            {(filterSubtest || filterTopic) && (
+                              <button
+                                onClick={() => { setFilterSubtest(""); setFilterTopic(""); }}
+                                className="text-[10px] text-primary hover:underline shrink-0"
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Update Soal button */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs shrink-0"
+                            onClick={syncQuestionCount}
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" /> Update Soal
+                          </Button>
                         </div>
                       </CardHeader>
                       <CardContent className="p-0">
