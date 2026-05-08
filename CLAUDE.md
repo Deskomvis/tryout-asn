@@ -60,21 +60,28 @@ supabase/
 Bundling: `bundle_size` field pada `exams`, fungsi `purchase_exam` membuat N baris `exam_purchases`.
 
 ## Generate Soal via AI (Admin)
-Edge function `generate-questions` dipanggil dari `/admin` tab Manajemen Soal:
-- Input: `exam_id`, `subtest` (twk/tiu/tkp), `topic`, `count`
-- Claude `claude-opus-4-7` generate JSONL → di-parse → insert ke `questions`
-- TWK/TIU: MCQ dengan `correct_answer`; TKP: situasional dengan `option_points` 1–5
-- Butuh secret `ANTHROPIC_API_KEY` di Supabase Edge Function secrets
+Edge function `generate-questions` (Deno runtime) dipanggil dari `/admin`:
+- **API:** KIE API dengan Claude Sonnet 4.6 (`https://api.kie.ai/claude/v1/messages`)
+- **Input:** `exam_id`, `subtest` (twk/tiu/tkp), `topic`, `count`
+- **Output:** JSONL dengan soal berisi `question_text`, `options`, `correct_answer`, `explanation`
+- **Tipe soal:**
+  - TWK/TIU: MCQ dengan `correct_answer` (jawaban benar = 5 poin)
+  - TKP: Situasional dengan `option_points` 1–5 (skala sikap ASN)
+- **Pembahasan:** Setiap soal punya `explanation` singkat (2-3 kalimat)
+- **Difficulty:** Disesuaikan standar CPNS dan PPPK Indonesia
+- **Config:** Butuh secret `KIE_API_KEY` di Supabase Edge Function secrets
+  - Generate di https://kie.ai/api-key (KIE AI provider)
 
 ## Database — Tabel Utama
 | Tabel | Keterangan |
 |---|---|
-| `profiles` | id, full_name, email, username, phone, avatar_url |
+| `profiles` | id, email, username, phone, avatar_url |
 | `user_roles` | user_id, role (app_role enum: user/admin) |
 | `exams` | title, duration, total_questions, price, bundle_size, category, subcategory, exam_type |
-| `questions` | exam_id, question_text, options (jsonb), correct_answer, subtest, option_points (jsonb, TKP) |
+| `questions` | exam_id, question_text, options (jsonb), correct_answer, subtest, option_points (jsonb, TKP), **explanation** |
+| `exam_results` | user_id, exam_id, total_score, twk_score, tiu_score, tkp_score, time_spent, answered_count |
 | `exam_purchases` | user_id, exam_id |
-| `user_scores` | user_id, exam_id, score, completed_at |
+| `user_scores` | user_id, exam_id, score, time_spent, score_breakdown (jsonb) |
 | `user_balances` | user_id, balance |
 | `topup_requests` | user_id, amount, status (pending/approved/rejected) |
 
@@ -82,6 +89,28 @@ Edge function `generate-questions` dipanggil dari `/admin` tab Manajemen Soal:
 - `has_role()` → SECURITY DEFINER, harus di-GRANT ke `anon` dan `authenticated`
 - Policy admin pada tabel harus `TO authenticated` (bukan FOR ALL tanpa role)
 - `get_exam_questions(uuid)` → hanya `authenticated`
+
+## Exam Flow & Results
+1. **Exam Page** (`/exam/:examId`)
+   - Timer countdown dengan absolute end time (tidak terpengaruh browser throttle)
+   - Question navigator grid dengan status answered/unanswered
+   - Subtest category label (TWK/TIU/TKP)
+   - Report button untuk laporkan soal
+
+2. **Results Page** (`/exam-results/:examId`)
+   - Pass/fail alert banner dengan scoring
+   - Score cards: Total, TWK, TIU, TKP
+   - Data tryout: waktu pengerjaan, soal terjawab/tidak terjawab
+   - **Pembahasan:** Expandable review setiap soal dengan:
+     - Pertanyaan lengkap + pilihan jawaban
+     - Visual feedback: jawaban user (biru), jawaban benar (hijau)
+     - Penjelasan singkat mengapa jawaban benar
+     - Status: benar/salah/tidak dijawab
+
+3. **Answer Tracking**
+   - Answers disimpan ke localStorage (`exam-answers-${examId}`)
+   - Diakses di results page untuk menampilkan review
+   - Clearing pada tab close atau logout
 
 ## Scripts
 - `bun dev` — Vite dev server
@@ -92,3 +121,4 @@ Edge function `generate-questions` dipanggil dari `/admin` tab Manajemen Soal:
 - ⚠️ `BACKEND_PROMPT.md` berisi credentials — jangan expose ke publik
 - Path alias: `@/` → `src/`
 - Selalu commit + push ke `origin/main` setelah setiap task selesai
+- KIE_API_KEY diperlukan di Supabase secrets untuk generate soal
