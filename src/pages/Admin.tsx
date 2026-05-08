@@ -95,6 +95,8 @@ const Admin = () => {
   const [editUploadingImg, setEditUploadingImg] = useState(false);
   const editImgRef = useRef<HTMLInputElement>(null);
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
+  const [filterSubtest, setFilterSubtest] = useState<"" | "twk" | "tiu" | "tkp">("");
+  const [filterTopic, setFilterTopic] = useState("");
 
   // New exam form
   const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "" });
@@ -396,7 +398,7 @@ const Admin = () => {
 
   return (
     <AppLayout>
-      <div>
+      <div className="w-full overflow-x-hidden">
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
 
         <Tabs defaultValue="questions" className="mt-6">
@@ -662,90 +664,151 @@ const Admin = () => {
                 </Card>
 
                 {/* Daftar Soal */}
-                <Card>
-                  <CardHeader><h2 className="font-semibold">Soal Saat Ini ({questions.length})</h2></CardHeader>
-                  <CardContent className="p-0">
-                    <div className="divide-y divide-border">
-                      {questions.map((q, idx) => {
-                        const isExpanded = expandedQ.has(q.id);
-                        return (
-                          <div key={q.id}>
+                {(() => {
+                  const uniqueTopics = Array.from(new Set(questions.map((q) => q.topic).filter(Boolean))) as string[];
+                  const filtered = questions.filter((q) => {
+                    if (filterSubtest && q.subtest !== filterSubtest) return false;
+                    if (filterTopic && q.topic !== filterTopic) return false;
+                    return true;
+                  });
+                  return (
+                    <Card className="overflow-hidden">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <h2 className="font-semibold text-sm">
+                            Soal Saat Ini ({filtered.length}{filtered.length !== questions.length ? `/${questions.length}` : ""})
+                          </h2>
+                          {(filterSubtest || filterTopic) && (
                             <button
-                              className="w-full flex items-start gap-3 px-6 py-4 hover:bg-accent text-left transition-colors"
-                              onClick={() => toggleExpand(q.id)}
+                              onClick={() => { setFilterSubtest(""); setFilterTopic(""); }}
+                              className="text-xs text-primary hover:underline"
                             >
-                              <span className="text-sm font-bold text-muted-foreground w-6 shrink-0">{idx + 1}.</span>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <Badge variant="outline" className="uppercase text-[10px]">{q.subtest ?? "tiu"}</Badge>
-                                  {q.topic && <Badge variant="secondary" className="text-[10px]">{q.topic}</Badge>}
-                                  {q.svg_content && <Badge variant="secondary" className="text-[10px]"><BarChart2 className="h-2.5 w-2.5 mr-1" />Grafik</Badge>}
-                                  {q.image_url && !q.svg_content && <Badge variant="secondary" className="text-[10px]"><Image className="h-2.5 w-2.5 mr-1" />Gambar</Badge>}
-                                  <p className="font-medium truncate">{q.question_text}</p>
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {q.subtest === "tkp" && q.option_points
-                                    ? `${q.options.length} opsi — poin ${Object.values(q.option_points).sort((a,b) => b-a).join(",")}`
-                                    : `Jawaban: ${q.correct_answer ?? "-"}`}
-                                  {q.explanation ? " · Ada pembahasan" : " · Belum ada pembahasan"}
-                                </p>
-                              </div>
-                              {isExpanded ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                              Reset filter
                             </button>
+                          )}
+                        </div>
+                        {/* Filter bar */}
+                        <div className="flex gap-2 flex-wrap mt-2">
+                          <Select value={filterSubtest} onValueChange={(v) => setFilterSubtest(v as any)}>
+                            <SelectTrigger className="h-7 text-xs w-36">
+                              <SelectValue placeholder="Semua subtes" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">Semua subtes</SelectItem>
+                              <SelectItem value="twk">TWK</SelectItem>
+                              <SelectItem value="tiu">TIU</SelectItem>
+                              <SelectItem value="tkp">TKP</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {uniqueTopics.length > 0 && (
+                            <Select value={filterTopic} onValueChange={setFilterTopic}>
+                              <SelectTrigger className="h-7 text-xs w-44">
+                                <SelectValue placeholder="Semua topik" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="">Semua topik</SelectItem>
+                                {uniqueTopics.map((t) => (
+                                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <div className="divide-y divide-border">
+                          {filtered.map((q, idx) => {
+                            const isExpanded = expandedQ.has(q.id);
+                            const globalIdx = questions.indexOf(q) + 1;
+                            return (
+                              <div key={q.id} className="overflow-hidden">
+                                <button
+                                  className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-accent text-left transition-colors"
+                                  onClick={() => toggleExpand(q.id)}
+                                >
+                                  <span className="text-xs font-bold text-muted-foreground w-5 shrink-0">{globalIdx}.</span>
+                                  <div className="flex-1 min-w-0 overflow-hidden">
+                                    <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                      <Badge variant="outline" className="uppercase text-[9px] px-1 py-0 h-4 shrink-0">{q.subtest ?? "tiu"}</Badge>
+                                      {q.topic && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">{q.topic}</Badge>}
+                                      {q.svg_content && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">Grafik</Badge>}
+                                      {q.image_url && !q.svg_content && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">Gambar</Badge>}
+                                    </div>
+                                    <p className="text-xs font-medium leading-snug line-clamp-1 text-foreground">{q.question_text}</p>
+                                    <p className="text-[10px] text-muted-foreground leading-tight mt-0.5 truncate">
+                                      {q.subtest === "tkp" && q.option_points
+                                        ? `Poin: ${Object.values(q.option_points).sort((a, b) => b - a).join(",")}`
+                                        : `✓ ${q.correct_answer ?? "-"}`}
+                                      {q.explanation ? " · Ada pembahasan" : ""}
+                                    </p>
+                                  </div>
+                                  {isExpanded ? <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                                </button>
 
-                            {isExpanded && (
-                              <div className="px-6 pb-5 pt-2 bg-muted/30 space-y-3">
-                                {q.svg_content && (
-                                  <div className="rounded border bg-white p-2 overflow-x-auto"
-                                    dangerouslySetInnerHTML={{ __html: q.svg_content }} />
-                                )}
-                                {q.image_url && !q.svg_content && (
-                                  <img src={q.image_url} alt="Gambar soal" className="max-h-48 rounded border object-contain" />
-                                )}
-                                <div>
-                                  <p className="text-sm font-semibold text-muted-foreground">Pertanyaan:</p>
-                                  <p className="mt-1 text-sm">{q.question_text}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm font-semibold text-muted-foreground">Pilihan Jawaban:</p>
-                                  <ul className="mt-1 space-y-1">
-                                    {q.options.map((opt) => (
-                                      <li key={opt} className={cn(
-                                        "text-sm px-3 py-1.5 rounded border",
-                                        opt === q.correct_answer ? "border-green-500 bg-green-50 text-green-900 font-medium" : "border-border"
-                                      )}>
-                                        {opt}
-                                        {opt === q.correct_answer && " ✓"}
-                                        {q.subtest === "tkp" && q.option_points && ` (${q.option_points[opt]} poin)`}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                                {q.explanation && (
-                                  <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                                    <p className="text-xs font-semibold text-blue-900 mb-1">Pembahasan:</p>
-                                    <p className="text-sm text-blue-800">{q.explanation}</p>
+                                {isExpanded && (
+                                  <div className="px-4 pb-4 pt-2 bg-muted/30 space-y-2.5 overflow-hidden">
+                                    {/* Topic + badges */}
+                                    {q.topic && (
+                                      <p className="text-[10px] text-muted-foreground">
+                                        Topik: <span className="font-medium text-foreground">{q.topic}</span>
+                                      </p>
+                                    )}
+                                    {q.svg_content && (
+                                      <div className="rounded border bg-white p-2 max-w-full [&_svg]:max-w-full [&_svg]:h-auto">
+                                        <div dangerouslySetInnerHTML={{ __html: q.svg_content }} />
+                                      </div>
+                                    )}
+                                    {q.image_url && !q.svg_content && (
+                                      <img src={q.image_url} alt="Gambar soal" className="max-h-40 rounded border object-contain" />
+                                    )}
+                                    <div>
+                                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Pertanyaan</p>
+                                      <p className="text-xs leading-relaxed">{q.question_text}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Pilihan Jawaban</p>
+                                      <ul className="space-y-1">
+                                        {q.options.map((opt) => (
+                                          <li key={opt} className={cn(
+                                            "text-xs px-2.5 py-1 rounded border",
+                                            opt === q.correct_answer ? "border-green-500 bg-green-50 text-green-900 font-medium" : "border-border"
+                                          )}>
+                                            {opt}
+                                            {opt === q.correct_answer && " ✓"}
+                                            {q.subtest === "tkp" && q.option_points && ` (${q.option_points[opt]} poin)`}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                    {q.explanation && (
+                                      <div className="bg-blue-50 border border-blue-200 rounded p-2.5">
+                                        <p className="text-[10px] font-semibold text-blue-900 mb-1 uppercase tracking-wide">Pembahasan</p>
+                                        <p className="text-xs text-blue-800 leading-relaxed">{q.explanation}</p>
+                                      </div>
+                                    )}
+                                    <div className="flex gap-2 pt-1">
+                                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEdit(q)}>
+                                        <Pencil className="h-3 w-3 mr-1" /> Edit
+                                      </Button>
+                                      <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteQ(q.id)}>
+                                        <Trash2 className="h-3 w-3 mr-1" /> Hapus
+                                      </Button>
+                                    </div>
                                   </div>
                                 )}
-                                <div className="flex gap-2">
-                                  <Button size="sm" variant="outline" onClick={() => openEdit(q)}>
-                                    <Pencil className="h-3.5 w-3.5 mr-1" /> Edit Soal
-                                  </Button>
-                                  <Button size="sm" variant="destructive" onClick={() => deleteQ(q.id)}>
-                                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Hapus
-                                  </Button>
-                                </div>
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      {questions.length === 0 && (
-                        <p className="px-6 py-8 text-sm text-muted-foreground text-center">Belum ada soal. Generate via AI atau tambah manual.</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                            );
+                          })}
+                          {filtered.length === 0 && (
+                            <p className="px-6 py-8 text-sm text-muted-foreground text-center">
+                              {questions.length === 0 ? "Belum ada soal. Generate via AI atau tambah manual." : "Tidak ada soal yang cocok dengan filter."}
+                            </p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
               </>
             )}
           </TabsContent>
