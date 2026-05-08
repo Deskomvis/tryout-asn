@@ -82,32 +82,33 @@ Dalam "question_text", tulis pertanyaan yang mengacu pada grafik, contoh:
     : "";
 
   if (subtest === "tkp") {
-    return `Kamu adalah pembuat soal TKP (Tes Karakteristik Pribadi) SKD ASN Indonesia.
-Topik: ${topicDesc}
-${chartInstructions}${customNote}
-Format output: JSONL — satu objek JSON per baris, HANYA JSON murni tanpa komentar.
-Setiap soal WAJIB memiliki:
-- "question_text": skenario situasional
-- "options": array 5 string pilihan sikap
-- "option_points": {teks_opsi: poin 1-5} — kelima nilai HARUS berbeda (1,2,3,4,5 masing-masing sekali)
-- "explanation": penjelasan 2-3 kalimat mengapa opsi poin 5 terbaik${hasChart ? '\n- "chart_data": objek data grafik sesuai format di atas' : ""}
+    return `You are a JSON generator. Output ONLY a raw JSON array. No prose, no explanation, no markdown, no code fences. Start your response with [ and end with ].
 
-Key di option_points HARUS persis sama dengan teks di options. Output HANYA JSONL.`;
+Generate Indonesian ASN TKP (Tes Karakteristik Pribadi) exam questions.
+Topic: ${topicDesc}
+${chartInstructions}${customNote}
+Each object in the array MUST have exactly these fields:
+- "question_text": situational scenario string
+- "options": array of exactly 5 strings (attitude choices)
+- "option_points": object mapping each option string to a unique integer 1-5 (each of 1,2,3,4,5 used exactly once)
+- "explanation": 2-3 sentence string explaining why the option with 5 points is best${hasChart ? '\n- "chart_data": chart data object as specified above' : ""}
+
+CRITICAL: Keys in option_points must be identical to strings in options. Output ONLY the JSON array.`;
   }
 
   const label = subtest === "twk" ? "TWK (Tes Wawasan Kebangsaan)" : "TIU (Tes Intelegensia Umum)";
-  return `Kamu adalah pembuat soal ${label} SKD ASN Indonesia.
-Topik: ${topicDesc}
-Kesulitan: sesuai standar CPNS dan PPPK Indonesia.
-${chartInstructions}${customNote}
-Format output: JSONL — satu objek JSON per baris, HANYA JSON murni tanpa komentar.
-Setiap soal WAJIB memiliki:
-- "question_text": pertanyaan yang jelas
-- "options": array 5 string pilihan jawaban
-- "correct_answer": string PERSIS sama dengan salah satu elemen options
-- "explanation": penjelasan 2-3 kalimat mengapa jawaban benar${hasChart ? '\n- "chart_data": objek data grafik sesuai format di atas' : ""}
+  return `You are a JSON generator. Output ONLY a raw JSON array. No prose, no explanation, no markdown, no code fences. Start your response with [ and end with ].
 
-Output HANYA JSONL.`;
+Generate Indonesian ASN ${label} exam questions. Difficulty: appropriate for CPNS and PPPK standards.
+Topic: ${topicDesc}
+${chartInstructions}${customNote}
+Each object in the array MUST have exactly these fields:
+- "question_text": clear question string in Indonesian
+- "options": array of exactly 5 strings (answer choices)
+- "correct_answer": string that is EXACTLY one of the options strings
+- "explanation": 2-3 sentence string in Indonesian explaining why the answer is correct${hasChart ? '\n- "chart_data": chart data object as specified above' : ""}
+
+Output ONLY the JSON array starting with [.`;
 }
 
 // ─── SVG generators ──────────────────────────────────────────────────────────
@@ -340,20 +341,20 @@ Deno.serve(async (req: Request) => {
     const chartType: ChartType = ["bar", "line", "pie", "table"].includes(chart_type) ? chart_type as ChartType : "none";
 
     const systemPrompt = buildSystemPrompt(subtest, topicDesc, chartType, custom_instruction ?? undefined);
-    const userMsg = `Buat tepat ${safeCount} soal${chartType !== "none" ? ` berbasis grafik (${chartType} chart)` : ""} untuk topik: ${topicDesc}. Output ${safeCount} baris JSONL, satu soal per baris. Setiap soal WAJIB punya semua field termasuk explanation${chartType !== "none" ? " dan chart_data" : ""}.`;
+    const userMsg = `Generate exactly ${safeCount} question${safeCount > 1 ? "s" : ""}${chartType !== "none" ? ` with ${chartType} chart data` : ""} about: ${topicDesc}`;
 
-    const messages: unknown[] = [{ role: "user", content: userMsg }];
-
-    // If admin provided an image, attach it for visual context
-    if (image_url && chartType === "none") {
-      messages[0] = {
-        role: "user",
-        content: [
+    const userContent: unknown = (image_url && chartType === "none")
+      ? [
           { type: "image", source: { type: "url", url: image_url } },
-          { type: "text", text: userMsg + " Soal harus merujuk pada gambar yang disertakan." },
-        ],
-      };
-    }
+          { type: "text", text: userMsg + ". Questions must reference the image." },
+        ]
+      : userMsg;
+
+    // Assistant prefill forces model to start directly with JSON array
+    const messages: unknown[] = [
+      { role: "user", content: userContent },
+      { role: "assistant", content: "[" },
+    ];
 
     const apiResponse = await fetch(KIE_API_URL, {
       method: "POST",
@@ -370,18 +371,41 @@ Deno.serve(async (req: Request) => {
     const textBlock = (response.content as Array<{ type: string; text?: string }>)?.find((b) => b.type === "text");
     if (!textBlock?.text) return json({ error: "Tidak ada output dari AI" }, 500);
 
-    const lines = textBlock.text.trim().split("\n").map((l: string) => l.trim()).filter((l: string) => l.startsWith("{"));
+    // Reconstruct full JSON array (prefill "[" + model output)
+    const rawText = "[" + textBlock.text;
+
+    // Parse the JSON array output
+    let questionList: unknown[] = [];
+    try {
+      // Try direct JSON parse first
+      const cleaned = rawText
+        .replace(/```json\s*/gi, "")
+        .replace(/```\s*/g, "")
+        .trim();
+      questionList = JSON.parse(cleaned);
+    } catch {
+      // Fallback: extract individual JSON objects line by line
+      const lines = rawText.split("\n").map((l: string) => l.trim()).filter((l: string) => l.startsWith("{") && l.endsWith("}"));
+      for (const line of lines) {
+        try { questionList.push(JSON.parse(line)); } catch { /* skip */ }
+      }
+    }
+
+    if (questionList.length === 0) {
+      return json({ error: `AI tidak mengembalikan JSON yang valid. Preview: ${textBlock.text.slice(0, 200)}` }, 500);
+    }
+
     const inserted: string[] = [];
 
-    for (const line of lines) {
+    for (const item of questionList) {
       try {
-        const q = JSON.parse(line);
-        if (!q.question_text || !Array.isArray(q.options) || q.options.length < 2) continue;
+        const q = item as Record<string, unknown>;
+        if (!q.question_text || !Array.isArray(q.options) || (q.options as unknown[]).length < 2) continue;
 
         // Build SVG from chart_data if present
         let svgContent: string | null = null;
         if (q.chart_data && typeof q.chart_data === "object") {
-          svgContent = buildSVGFromChartData(q.chart_data);
+          svgContent = buildSVGFromChartData(q.chart_data as Record<string, unknown>);
         }
 
         const payload: Record<string, unknown> = {
@@ -396,13 +420,14 @@ Deno.serve(async (req: Request) => {
 
         if (subtest === "tkp") {
           if (!q.option_points || typeof q.option_points !== "object") continue;
-          const pointVals = Object.values(q.option_points) as number[];
-          if (new Set(pointVals).size !== 5 || !pointVals.every((v) => [1,2,3,4,5].includes(v))) continue;
+          const pointVals = Object.values(q.option_points as Record<string, number>);
+          if (new Set(pointVals).size !== 5 || !pointVals.every((v) => [1,2,3,4,5].includes(Number(v)))) continue;
           payload.option_points = q.option_points;
           payload.correct_answer = Object.entries(q.option_points as Record<string, number>)
             .reduce((a, b) => (b[1] > a[1] ? b : a))[0];
         } else {
-          if (!q.correct_answer || !q.options.includes(q.correct_answer)) continue;
+          const opts = q.options as string[];
+          if (!q.correct_answer || !opts.includes(q.correct_answer as string)) continue;
           payload.correct_answer = q.correct_answer;
         }
 

@@ -364,7 +364,11 @@ const Admin = () => {
 
       setAiStatus("done"); setAiResult(data);
       const chartLabel = aiGen.chartType !== "none" ? ` (grafik ${aiGen.chartType})` : "";
-      toast.success(`${data.count} soal${chartLabel} + pembahasan berhasil di-generate`);
+      if (data.count === 0) {
+        toast.warning(`AI merespons tapi tidak ada soal yang bisa diproses. Coba lagi.`);
+      } else {
+        toast.success(`${data.count} soal${chartLabel} + pembahasan berhasil di-generate`);
+      }
       setAiGen((g) => ({ ...g, imageFile: null, imageUrl: "" }));
       refresh();
     } catch (e: any) {
