@@ -57,7 +57,7 @@ type Exam = { id: string; title: string; total_questions: number };
 type Question = {
   id: string; exam_id: string; question_text: string; options: string[];
   correct_answer: string; subtest: string; option_points: Record<string, number> | null;
-  explanation?: string; image_url?: string | null; svg_content?: string | null;
+  explanation?: string; image_url?: string | null; svg_content?: string | null; topic?: string | null;
 };
 type Score = { id: string; score: number; completed_at: string; profiles: { username: string | null; email: string | null } | null; exams: { title: string } | null };
 type Topup = { id: string; user_id: string; amount: number; status: "pending" | "approved" | "rejected"; created_at: string; profiles: { username: string | null; email: string | null } | null };
@@ -66,12 +66,12 @@ type UserBalance = { user_id: string; balance: number; profiles: { username: str
 type EditQ = {
   id: string; question_text: string; a: string; b: string; c: string; d: string; e: string;
   correct: string; subtest: string; pa: number; pb: number; pc: number; pd: number; pe: number;
-  explanation: string; image_url: string;
+  explanation: string; image_url: string; topic: string;
 };
 
 const emptyNewQ = () => ({
   question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "", subtest: "tiu" as const,
-  pa: 5, pb: 4, pc: 3, pd: 2, pe: 1, explanation: "", image_url: "",
+  pa: 5, pb: 4, pc: 3, pd: 2, pe: 1, explanation: "", image_url: "", topic: "",
 });
 
 const Admin = () => {
@@ -110,6 +110,7 @@ const Admin = () => {
   const aiImgRef = useRef<HTMLInputElement>(null);
   const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [aiResult, setAiResult] = useState<{ count: number; requested: number } | null>(null);
+  const [aiError, setAiError] = useState("");
 
   // Settings
   const [kieApiKey, setKieApiKey] = useState("");
@@ -262,6 +263,7 @@ const Admin = () => {
     const payload: any = {
       exam_id: selectedExam, question_text: newQ.question_text.trim(),
       options, subtest: newQ.subtest, explanation: newQ.explanation.trim(), image_url: imageUrl || null,
+      topic: newQ.topic.trim() || null,
     };
     if (newQ.subtest === "tkp") {
       payload.option_points = Object.fromEntries(optsRaw.map((o) => [o.v, o.p]));
@@ -285,6 +287,7 @@ const Admin = () => {
       pa: q.option_points?.[opts[0]] ?? 5, pb: q.option_points?.[opts[1]] ?? 4,
       pc: q.option_points?.[opts[2]] ?? 3, pd: q.option_points?.[opts[3]] ?? 2, pe: q.option_points?.[opts[4]] ?? 1,
       correct: q.correct_answer ?? "", explanation: q.explanation ?? "", image_url: q.image_url ?? "",
+      topic: q.topic ?? "",
     });
     setEditImageFile(null);
   };
@@ -310,6 +313,7 @@ const Admin = () => {
     const payload: any = {
       question_text: editQ.question_text.trim(), options, subtest: editQ.subtest,
       explanation: editQ.explanation.trim(), image_url: imageUrl || null,
+      topic: editQ.topic?.trim() || null,
     };
     if (editQ.subtest === "tkp") {
       payload.option_points = Object.fromEntries(optsRaw.map((o) => [o.v, o.p]));
@@ -332,7 +336,7 @@ const Admin = () => {
 
   const generateViaAI = async () => {
     if (!selectedExam) return toast.error("Pilih tryout dulu");
-    setAiStatus("loading"); setAiResult(null);
+    setAiStatus("loading"); setAiResult(null); setAiError("");
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
@@ -359,8 +363,13 @@ const Admin = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (error) { setAiStatus("error"); return toast.error(error.message ?? "Gagal generate soal"); }
-      if (data?.error) { setAiStatus("error"); return toast.error(data.error); }
+      if (error) {
+        const msg = error.message ?? "Gagal generate soal";
+        setAiStatus("error"); setAiError(msg); return toast.error(msg);
+      }
+      if (data?.error) {
+        setAiStatus("error"); setAiError(data.error); return toast.error(data.error);
+      }
 
       setAiStatus("done"); setAiResult(data);
       const chartLabel = aiGen.chartType !== "none" ? ` (grafik ${aiGen.chartType})` : "";
@@ -372,7 +381,8 @@ const Admin = () => {
       setAiGen((g) => ({ ...g, imageFile: null, imageUrl: "" }));
       refresh();
     } catch (e: any) {
-      setAiStatus("error"); toast.error(e?.message ?? "Terjadi kesalahan");
+      const msg = e?.message ?? "Terjadi kesalahan";
+      setAiStatus("error"); setAiError(msg); toast.error(msg);
     }
   };
 
@@ -550,7 +560,9 @@ const Admin = () => {
                         </span>
                       )}
                       {aiStatus === "error" && (
-                        <span className="text-sm text-destructive">Gagal — cek API key di tab Pengaturan</span>
+                        <span className="text-sm text-destructive">
+                          {aiError ? `Gagal: ${aiError.slice(0, 120)}` : "Gagal generate soal. Coba lagi."}
+                        </span>
                       )}
                     </div>
                   </CardContent>
@@ -570,6 +582,15 @@ const Admin = () => {
                           <SelectItem value="tkp">TKP — Tes Karakteristik Pribadi (poin 1–5)</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    <div>
+                      <Label>Topik <span className="text-muted-foreground text-xs">(opsional)</span></Label>
+                      <Input
+                        value={newQ.topic}
+                        onChange={(e) => setNewQ({ ...newQ, topic: e.target.value })}
+                        placeholder="cth: Pancasila, Analogi Verbal, Pelayanan Publik..."
+                      />
                     </div>
 
                     {/* Gambar Opsional */}
@@ -657,6 +678,7 @@ const Admin = () => {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <Badge variant="outline" className="uppercase text-[10px]">{q.subtest ?? "tiu"}</Badge>
+                                  {q.topic && <Badge variant="secondary" className="text-[10px]">{q.topic}</Badge>}
                                   {q.svg_content && <Badge variant="secondary" className="text-[10px]"><BarChart2 className="h-2.5 w-2.5 mr-1" />Grafik</Badge>}
                                   {q.image_url && !q.svg_content && <Badge variant="secondary" className="text-[10px]"><Image className="h-2.5 w-2.5 mr-1" />Gambar</Badge>}
                                   <p className="font-medium truncate">{q.question_text}</p>
@@ -922,6 +944,15 @@ const Admin = () => {
                     <SelectItem value="tkp">TKP</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div>
+                <Label>Topik <span className="text-muted-foreground text-xs">(opsional)</span></Label>
+                <Input
+                  value={editQ.topic}
+                  onChange={(e) => setEditQ({ ...editQ, topic: e.target.value })}
+                  placeholder="cth: Pancasila, Analogi Verbal, Pelayanan Publik..."
+                />
               </div>
 
               {/* Edit image */}

@@ -350,11 +350,7 @@ Deno.serve(async (req: Request) => {
         ]
       : userMsg;
 
-    // Assistant prefill forces model to start directly with JSON array
-    const messages: unknown[] = [
-      { role: "user", content: userContent },
-      { role: "assistant", content: "[" },
-    ];
+    const messages: unknown[] = [{ role: "user", content: userContent }];
 
     const apiResponse = await fetch(KIE_API_URL, {
       method: "POST",
@@ -371,28 +367,31 @@ Deno.serve(async (req: Request) => {
     const textBlock = (response.content as Array<{ type: string; text?: string }>)?.find((b) => b.type === "text");
     if (!textBlock?.text) return json({ error: "Tidak ada output dari AI" }, 500);
 
-    // Reconstruct full JSON array (prefill "[" + model output)
-    const rawText = "[" + textBlock.text;
+    const rawText = textBlock.text;
 
-    // Parse the JSON array output
+    // Extract JSON array: find first [ and last ] regardless of surrounding text/markdown
     let questionList: unknown[] = [];
-    try {
-      // Try direct JSON parse first
-      const cleaned = rawText
-        .replace(/```json\s*/gi, "")
-        .replace(/```\s*/g, "")
-        .trim();
-      questionList = JSON.parse(cleaned);
-    } catch {
-      // Fallback: extract individual JSON objects line by line
-      const lines = rawText.split("\n").map((l: string) => l.trim()).filter((l: string) => l.startsWith("{") && l.endsWith("}"));
+    const arrStart = rawText.indexOf("[");
+    const arrEnd = rawText.lastIndexOf("]");
+    if (arrStart !== -1 && arrEnd > arrStart) {
+      try {
+        questionList = JSON.parse(rawText.slice(arrStart, arrEnd + 1));
+      } catch { /* fall through to line extraction */ }
+    }
+
+    // Fallback: extract individual JSON objects from lines (JSONL)
+    if (questionList.length === 0) {
+      const lines = rawText.split("\n").map((l: string) => l.trim()).filter((l: string) => l.startsWith("{"));
       for (const line of lines) {
-        try { questionList.push(JSON.parse(line)); } catch { /* skip */ }
+        try {
+          const trimmed = line.endsWith(",") ? line.slice(0, -1) : line;
+          questionList.push(JSON.parse(trimmed));
+        } catch { /* skip */ }
       }
     }
 
     if (questionList.length === 0) {
-      return json({ error: `AI tidak mengembalikan JSON yang valid. Preview: ${textBlock.text.slice(0, 200)}` }, 500);
+      return json({ error: `AI tidak mengembalikan JSON yang valid. Coba lagi. (Preview: ${rawText.slice(0, 150)})` }, 500);
     }
 
     const inserted: string[] = [];
