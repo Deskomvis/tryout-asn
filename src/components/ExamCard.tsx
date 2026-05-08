@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Wallet, GraduationCap, HelpCircle } from "lucide-react";
+import { Wallet, GraduationCap } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { purchaseExam } from "@/lib/payments";
 import { useBalance } from "@/hooks/useBalance";
@@ -77,46 +76,15 @@ export const ExamCard = ({
       <Card className="h-full overflow-hidden rounded-2xl border-border/60 transition-shadow hover:shadow-lg">
         <CardContent className="flex h-full flex-col p-4">
           {/* Hero block */}
-          <div className="relative mb-4 rounded-xl overflow-hidden bg-secondary/50">
+          <div className="mb-4 rounded-xl overflow-hidden bg-secondary/50">
             {exam.cover_image_url ? (
-              <>
-                <img
-                  src={exam.cover_image_url}
-                  alt={exam.title}
-                  className="w-full h-40 object-cover"
-                />
-                {exam.description && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="absolute left-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-background/90 text-muted-foreground shadow cursor-pointer">
-                        <HelpCircle className="h-4 w-4" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-[220px] text-xs">
-                      {exam.description}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </>
+              <img
+                src={exam.cover_image_url}
+                alt={exam.title}
+                className="w-full object-cover"
+              />
             ) : (
               <div className="p-4">
-                {exam.description && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="absolute left-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-background text-muted-foreground shadow cursor-pointer">
-                        <HelpCircle className="h-4 w-4" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-[220px] text-xs">
-                      {exam.description}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-                {!exam.description && (
-                  <span className="absolute left-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-background text-muted-foreground shadow">
-                    <HelpCircle className="h-4 w-4" />
-                  </span>
-                )}
                 <div className="mx-auto flex max-w-[180px] flex-col items-center rounded-xl bg-card p-4 shadow-sm">
                   <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <GraduationCap className="h-7 w-7" />
