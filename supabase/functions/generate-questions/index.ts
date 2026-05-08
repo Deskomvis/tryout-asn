@@ -280,6 +280,30 @@ Deno.serve(async (req: Request) => {
     if (!isAdmin) return json({ error: "Forbidden: admin only" }, 403);
 
     const body = await req.json();
+
+    // ── Test connection mode ──────────────────────────────────────────────────
+    if (body.action === "test_connection") {
+      const testKey: string = body.api_key?.trim() ?? "";
+      if (!testKey) return json({ success: false, message: "API key kosong" }, 400);
+
+      const testRes = await fetch(KIE_API_URL, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${testKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: MODEL, max_tokens: 5, stream: false,
+          messages: [{ role: "user", content: "hi" }],
+        }),
+      });
+
+      if (testRes.ok) {
+        return json({ success: true, message: "Koneksi berhasil! API key valid." });
+      }
+      const errBody = await testRes.json().catch(() => ({})) as Record<string, unknown>;
+      const errMsg = (errBody as any)?.error?.message ?? `HTTP ${testRes.status}`;
+      return json({ success: false, message: `API key tidak valid: ${errMsg}` }, 400);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const {
       exam_id, subtest, topic, count,
       chart_type = "none",

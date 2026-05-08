@@ -115,6 +115,8 @@ const Admin = () => {
   const [kieApiKey, setKieApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
+  const [keyStatus, setKeyStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
+  const [keyMessage, setKeyMessage] = useState("");
 
   const refresh = async () => {
     const { data: e } = await supabase.from("exams").select("id,title,total_questions").order("created_at");
@@ -165,12 +167,46 @@ const Admin = () => {
   };
 
   const saveApiKey = async () => {
-    if (!kieApiKey.trim()) return toast.error("Masukkan API key terlebih dahulu");
-    setSavingKey(true);
-    const { error } = await supabase.from("admin_settings").upsert({ key: "kie_api_key", value: kieApiKey.trim(), updated_at: new Date().toISOString() }, { onConflict: "key" });
-    setSavingKey(false);
-    if (error) return toast.error("Gagal menyimpan: " + error.message);
-    toast.success("API key berhasil disimpan");
+    const trimmed = kieApiKey.trim();
+    if (!trimmed) return toast.error("Masukkan API key terlebih dahulu");
+
+    // 1. Test connection first
+    setKeyStatus("testing");
+    setKeyMessage("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) { setKeyStatus("error"); setKeyMessage("Sesi tidak ditemukan, login ulang"); return; }
+
+      const { data, error } = await supabase.functions.invoke("generate-questions", {
+        body: { action: "test_connection", api_key: trimmed },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (error || !data?.success) {
+        const msg = data?.message ?? error?.message ?? "Koneksi gagal";
+        setKeyStatus("error");
+        setKeyMessage(msg);
+        return toast.error(`Gagal: ${msg}`);
+      }
+
+      // 2. Save only if test passes
+      setSavingKey(true);
+      const { error: saveErr } = await supabase.from("admin_settings").upsert(
+        { key: "kie_api_key", value: trimmed, updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      );
+      setSavingKey(false);
+      if (saveErr) { setKeyStatus("error"); setKeyMessage(saveErr.message); return toast.error("Gagal menyimpan: " + saveErr.message); }
+
+      setKeyStatus("ok");
+      setKeyMessage(data.message ?? "API key valid dan tersimpan");
+      toast.success("API key valid dan berhasil disimpan");
+    } catch (e: any) {
+      setKeyStatus("error");
+      setKeyMessage(e?.message ?? "Terjadi kesalahan");
+      toast.error("Gagal test koneksi");
+    }
   };
 
   const approveTopup = async (t: Topup) => {
@@ -809,7 +845,7 @@ const Admin = () => {
                       id="kie-key"
                       type={showApiKey ? "text" : "password"}
                       value={kieApiKey}
-                      onChange={(e) => setKieApiKey(e.target.value)}
+                      onChange={(e) => { setKieApiKey(e.target.value); setKeyStatus("idle"); setKeyMessage(""); }}
                       placeholder="Masukkan KIE API Key..."
                       className="pr-10"
                     />
@@ -829,13 +865,32 @@ const Admin = () => {
                     . API key disimpan terenkripsi di database dan hanya bisa diakses oleh admin.
                   </p>
                 </div>
-                <Button onClick={saveApiKey} disabled={savingKey} className="gap-2">
-                  {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
-                  {savingKey ? "Menyimpan..." : "Simpan API Key"}
+                <Button
+                  onClick={saveApiKey}
+                  disabled={savingKey || keyStatus === "testing"}
+                  className="gap-2"
+                >
+                  {(savingKey || keyStatus === "testing")
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Key className="h-4 w-4" />}
+                  {keyStatus === "testing" ? "Mengecek koneksi..." : savingKey ? "Menyimpan..." : "Simpan & Cek Koneksi"}
                 </Button>
-                {kieApiKey && (
-                  <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                    ✓ API key sudah dikonfigurasi. Generator soal AI siap digunakan.
+
+                {keyStatus === "ok" && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800 flex items-start gap-2">
+                    <Check className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>{keyMessage}</span>
+                  </div>
+                )}
+                {keyStatus === "error" && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 flex items-start gap-2">
+                    <X className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>{keyMessage}</span>
+                  </div>
+                )}
+                {keyStatus === "idle" && kieApiKey && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                    API key tersimpan. Klik "Simpan &amp; Cek Koneksi" untuk verifikasi ulang.
                   </div>
                 )}
               </CardContent>
