@@ -87,6 +87,7 @@ const Admin = () => {
   const [balances, setBalances] = useState<UserBalance[]>([]);
   const [adjustAmount, setAdjustAmount] = useState<Record<string, number>>({});
   const [selectedExam, setSelectedExam] = useState<string>("");
+  const [showNewExamForm, setShowNewExamForm] = useState(false);
 
   // New question form
   const [newQ, setNewQ] = useState(emptyNewQ());
@@ -920,6 +921,49 @@ const Admin = () => {
 
           {/* ── TRYOUT ── */}
           <TabsContent value="exams" className="space-y-4">
+            <div className="flex justify-end">
+              <Button onClick={() => setShowNewExamForm((v) => !v)} variant={showNewExamForm ? "outline" : "default"} className="gap-2">
+                <Plus className="h-4 w-4" />
+                {showNewExamForm ? "Tutup Form" : "Buat Tryout Baru"}
+              </Button>
+            </div>
+
+            {/* Create new — collapsible */}
+            {showNewExamForm && (
+              <Card>
+                <CardHeader><h2 className="font-semibold text-sm">Buat Tryout Baru</h2></CardHeader>
+                <CardContent className="space-y-3">
+                  <div><Label>Judul *</Label><Input placeholder="cth: SKD CPNS Premium - Paket 1" value={newExam.title} onChange={(e) => setNewExam({ ...newExam, title: e.target.value })} /></div>
+                  <div><Label>Deskripsi</Label><Textarea placeholder="Ringkasan singkat" value={newExam.description} onChange={(e) => setNewExam({ ...newExam, description: e.target.value })} rows={2} /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Durasi (detik)</Label><Input type="number" value={newExam.duration} onChange={(e) => setNewExam({ ...newExam, duration: +e.target.value })} /></div>
+                    <div><Label>Bundling (jumlah tryout)</Label><Input type="number" min={1} value={newExam.bundle_size} onChange={(e) => setNewExam({ ...newExam, bundle_size: Math.max(1, +e.target.value) })} /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Harga (Rp)</Label><Input type="number" placeholder="0 = gratis" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
+                    <div><Label>Harga Coret (Rp)</Label><Input type="number" placeholder="opsional" value={newExam.original_price} onChange={(e) => setNewExam({ ...newExam, original_price: +e.target.value })} /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Kategori *</Label>
+                      <Select value={newExam.category} onValueChange={(v) => setNewExam({ ...newExam, category: v })}>
+                        <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
+                        <SelectContent><SelectItem value="cpns">CPNS</SelectItem><SelectItem value="pppk">PPPK</SelectItem></SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label>Subkategori *</Label><Input placeholder="cth: SKD, SKB Bidan" maxLength={80} value={newExam.subcategory} onChange={(e) => setNewExam({ ...newExam, subcategory: e.target.value })} /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Skor Lulus</Label><Input type="number" placeholder="0 = tidak ada batas" value={newExam.passing_score} onChange={(e) => setNewExam({ ...newExam, passing_score: +e.target.value })} /></div>
+                  </div>
+                  <div><Label>CTA Link Beli <span className="text-muted-foreground text-xs">(opsional — misal WhatsApp atau link eksternal)</span></Label>
+                    <Input placeholder="https://wa.me/62..." value={newExam.cta_link} onChange={(e) => setNewExam({ ...newExam, cta_link: e.target.value })} />
+                  </div>
+                  <Button onClick={async () => { await addExam(); setShowNewExamForm(false); }}>Buat Tryout</Button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Existing exams */}
             <Card>
               <CardHeader><h2 className="font-semibold text-sm">Paket Tryout ({exams.length})</h2></CardHeader>
@@ -956,39 +1000,6 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-            {/* Create new */}
-            <Card>
-              <CardHeader><h2 className="font-semibold text-sm">Buat Tryout Baru</h2></CardHeader>
-              <CardContent className="space-y-3">
-                <div><Label>Judul *</Label><Input placeholder="cth: SKD CPNS Premium - Paket 1" value={newExam.title} onChange={(e) => setNewExam({ ...newExam, title: e.target.value })} /></div>
-                <div><Label>Deskripsi</Label><Textarea placeholder="Ringkasan singkat" value={newExam.description} onChange={(e) => setNewExam({ ...newExam, description: e.target.value })} rows={2} /></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Durasi (detik)</Label><Input type="number" value={newExam.duration} onChange={(e) => setNewExam({ ...newExam, duration: +e.target.value })} /></div>
-                  <div><Label>Bundling (jumlah tryout)</Label><Input type="number" min={1} value={newExam.bundle_size} onChange={(e) => setNewExam({ ...newExam, bundle_size: Math.max(1, +e.target.value) })} /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Harga (Rp)</Label><Input type="number" placeholder="0 = gratis" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
-                  <div><Label>Harga Coret (Rp)</Label><Input type="number" placeholder="opsional" value={newExam.original_price} onChange={(e) => setNewExam({ ...newExam, original_price: +e.target.value })} /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Kategori *</Label>
-                    <Select value={newExam.category} onValueChange={(v) => setNewExam({ ...newExam, category: v })}>
-                      <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
-                      <SelectContent><SelectItem value="cpns">CPNS</SelectItem><SelectItem value="pppk">PPPK</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                  <div><Label>Subkategori *</Label><Input placeholder="cth: SKD, SKB Bidan" maxLength={80} value={newExam.subcategory} onChange={(e) => setNewExam({ ...newExam, subcategory: e.target.value })} /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Skor Lulus</Label><Input type="number" placeholder="0 = tidak ada batas" value={newExam.passing_score} onChange={(e) => setNewExam({ ...newExam, passing_score: +e.target.value })} /></div>
-                </div>
-                <div><Label>CTA Link Beli <span className="text-muted-foreground text-xs">(opsional — misal WhatsApp atau link eksternal)</span></Label>
-                  <Input placeholder="https://wa.me/62..." value={newExam.cta_link} onChange={(e) => setNewExam({ ...newExam, cta_link: e.target.value })} />
-                </div>
-                <Button onClick={addExam}>Buat Tryout</Button>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* ── SKOR USER ── */}
