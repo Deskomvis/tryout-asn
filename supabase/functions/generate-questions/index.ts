@@ -32,7 +32,7 @@ const TKP_TOPICS: Record<string, string> = {
 // Chart types supported for programmatic SVG generation
 type ChartType = "bar" | "line" | "pie" | "table" | "none";
 
-function buildSystemPrompt(subtest: string, topicDesc: string, chartType: ChartType, customInstruction?: string): string {
+function buildSystemPrompt(subtest: string, topicDesc: string, chartType: ChartType, customInstruction?: string, materialText?: string, materialTitle?: string): string {
   const hasChart = chartType !== "none";
 
   const chartInstructions = hasChart ? `
@@ -81,12 +81,16 @@ Dalam "question_text", tulis pertanyaan yang mengacu pada grafik, contoh:
     ? `\nINSTRUKSI KHUSUS DARI ADMIN (prioritas tinggi, ikuti dengan seksama):\n${customInstruction}\n`
     : "";
 
+  const materialNote = materialText
+    ? `\nMATERI REFERENSI${materialTitle ? ` — ${materialTitle}` : ""}:\n"""\n${materialText.slice(0, 6000)}${materialText.length > 6000 ? "\n[... terpotong]" : ""}\n"""\nBuat soal yang BERSUMBER dari materi referensi di atas. Gunakan fakta, angka, pasal, atau konsep yang ada dalam materi tersebut.\n`
+    : "";
+
   if (subtest === "tkp") {
     return `You are a JSON generator. Output ONLY a raw JSON array. No prose, no explanation, no markdown, no code fences. Start your response with [ and end with ].
 
 Generate Indonesian ASN TKP (Tes Karakteristik Pribadi) exam questions.
 Topic: ${topicDesc}
-${chartInstructions}${customNote}
+${materialNote}${chartInstructions}${customNote}
 Each object in the array MUST have exactly these fields:
 - "question_text": situational scenario string
 - "options": array of exactly 5 strings (attitude choices)
@@ -101,7 +105,7 @@ CRITICAL: Keys in option_points must be identical to strings in options. Output 
 
 Generate Indonesian ASN ${label} exam questions. Difficulty: appropriate for CPNS and PPPK standards.
 Topic: ${topicDesc}
-${chartInstructions}${customNote}
+${materialNote}${chartInstructions}${customNote}
 Each object in the array MUST have exactly these fields:
 - "question_text": clear question string in Indonesian
 - "options": array of exactly 5 strings (answer choices)
@@ -313,11 +317,15 @@ Deno.serve(async (req: Request) => {
       chart_type = "none",
       image_url = null,
       custom_instruction = null,
+      material_text = null,
+      material_title = null,
     } = body as {
       exam_id: string; subtest: "twk" | "tiu" | "tkp";
       topic: string; count: number;
       chart_type?: ChartType; image_url?: string | null;
       custom_instruction?: string | null;
+      material_text?: string | null;
+      material_title?: string | null;
     };
 
     if (!exam_id || !subtest || !topic || !count) {
@@ -340,7 +348,7 @@ Deno.serve(async (req: Request) => {
     const topicDesc = topicMap[topic] ?? topic;
     const chartType: ChartType = ["bar", "line", "pie", "table"].includes(chart_type) ? chart_type as ChartType : "none";
 
-    const systemPrompt = buildSystemPrompt(subtest, topicDesc, chartType, custom_instruction ?? undefined);
+    const systemPrompt = buildSystemPrompt(subtest, topicDesc, chartType, custom_instruction ?? undefined, material_text ?? undefined, material_title ?? undefined);
     const userMsg = `Generate exactly ${safeCount} question${safeCount > 1 ? "s" : ""}${chartType !== "none" ? ` with ${chartType} chart data` : ""} about: ${topicDesc}`;
 
     const userContent: unknown = (image_url && chartType === "none")

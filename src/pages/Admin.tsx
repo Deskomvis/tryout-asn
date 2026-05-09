@@ -13,9 +13,11 @@ import {
   Trash2, Wallet, Check, X, Plus, Sparkles, Loader2,
   Pencil, Image, Upload, Key, Eye, EyeOff, ChevronDown, ChevronUp,
   BarChart2, LineChart, PieChart, Table2, RotateCcw, Copy,
+  BookOpen, FileText, AlertCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { extractTextFromFile } from "@/lib/extractPdfText";
 
 type ChartType = "none" | "bar" | "line" | "pie" | "table";
 
@@ -68,6 +70,12 @@ type Score = { id: string; score: number; completed_at: string; profiles: { user
 type Topup = { id: string; user_id: string; amount: number; status: "pending" | "approved" | "rejected"; created_at: string; profiles: { username: string | null; email: string | null } | null };
 type UserBalance = { user_id: string; balance: number; profiles: { username: string | null; email: string | null } | null };
 type Purchase = { id: string; created_at: string; user_id: string; exam_id: string; profiles: { username: string | null; email: string | null } | null; exams: { title: string } | null };
+type Material = {
+  id: string; title: string; description?: string | null; file_name?: string | null;
+  category: string; topic?: string | null; extracted_text: string; char_count?: number | null;
+  created_at: string;
+};
+
 type LynkPackage = {
   id: string; lynk_uuid: string; exam_id: string | null; title: string;
   is_active: boolean; description?: string | null;
@@ -113,6 +121,16 @@ const Admin = () => {
   const [filterTopic, setFilterTopic] = useState("all");
   const [addQuestionMode, setAddQuestionMode] = useState<null | "manual" | "ai">(null);
 
+  // Materials
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [matUploading, setMatUploading] = useState(false);
+  const [matForm, setMatForm] = useState({ title: "", description: "", category: "general", topic: "" });
+  const [matFile, setMatFile] = useState<File | null>(null);
+  const [matExtractedText, setMatExtractedText] = useState("");
+  const [matExtracting, setMatExtracting] = useState(false);
+  const [matExpanded, setMatExpanded] = useState<Set<string>>(new Set());
+  const matFileRef = useRef<HTMLInputElement>(null);
+
   // Lynk packages
   const [lynkPackages, setLynkPackages] = useState<LynkPackage[]>([]);
   const emptyLynkPkg = () => ({ lynk_uuid: "", exam_id: "", title: "", is_active: true, description: "", notification_title: "", notification_message: "" });
@@ -134,6 +152,7 @@ const Admin = () => {
     chartType: "none" as ChartType,
     imageFile: null as File | null, imageUrl: "",
     customInstruction: "",
+    materialId: "",
   });
   const [aiImageUploading, setAiImageUploading] = useState(false);
   const aiImgRef = useRef<HTMLInputElement>(null);
@@ -161,6 +180,11 @@ const Admin = () => {
     const { data: lp } = await supabase.from("lynk_packages")
       .select("*, exams(title)").order("created_at");
     setLynkPackages((lp as LynkPackage[]) ?? []);
+
+    const { data: mat } = await supabase.from("materials")
+      .select("id,title,description,file_name,category,topic,char_count,created_at,extracted_text")
+      .order("created_at", { ascending: false });
+    setMaterials((mat as Material[]) ?? []);
 
     if (selectedExam) {
       const { data: q } = await supabase.from("questions").select("*").eq("exam_id", selectedExam).order("created_at");
@@ -497,12 +521,15 @@ const Admin = () => {
         setAiGen((g) => ({ ...g, imageUrl: url }));
       }
 
+      const selectedMaterial = aiGen.materialId ? materials.find((m) => m.id === aiGen.materialId) : null;
       const { data, error } = await supabase.functions.invoke("generate-questions", {
         body: {
           exam_id: selectedExam, subtest: aiGen.subtest, topic: aiGen.topic, count: aiGen.count,
           chart_type: aiGen.chartType,
           image_url: aiGen.chartType === "none" ? finalImageUrl || null : null,
           custom_instruction: aiGen.customInstruction.trim() || null,
+          material_text: selectedMaterial?.extracted_text || null,
+          material_title: selectedMaterial?.title || null,
         },
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -529,6 +556,50 @@ const Admin = () => {
       const msg = e?.message ?? "Terjadi kesalahan";
       setAiStatus("error"); setAiError(msg); toast.error(msg);
     }
+  };
+
+  const handleMatFileChange = async (file: File) => {
+    setMatFile(file);
+    setMatExtracting(true);
+    setMatExtractedText("");
+    try {
+      const text = await extractTextFromFile(file);
+      setMatExtractedText(text);
+      if (!matForm.title) setMatForm((f) => ({ ...f, title: file.name.replace(/\.[^.]+$/, "") }));
+    } catch (e: any) {
+      toast.error("Gagal ekstrak teks: " + e.message);
+    } finally {
+      setMatExtracting(false);
+    }
+  };
+
+  const saveMaterial = async () => {
+    if (!matForm.title.trim()) return toast.error("Judul materi wajib diisi");
+    if (!matExtractedText.trim()) return toast.error("Upload file terlebih dahulu");
+    setMatUploading(true);
+    const { error } = await supabase.from("materials").insert({
+      title: matForm.title.trim(),
+      description: matForm.description.trim() || null,
+      file_name: matFile?.name ?? null,
+      category: matForm.category,
+      topic: matForm.topic.trim() || null,
+      extracted_text: matExtractedText,
+      char_count: matExtractedText.length,
+    });
+    setMatUploading(false);
+    if (error) return toast.error(error.message);
+    toast.success("Materi berhasil disimpan");
+    setMatForm({ title: "", description: "", category: "general", topic: "" });
+    setMatFile(null); setMatExtractedText("");
+    if (matFileRef.current) matFileRef.current.value = "";
+    refresh();
+  };
+
+  const deleteMaterial = async (id: string) => {
+    if (!confirm("Hapus materi ini?")) return;
+    const { error } = await supabase.from("materials").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Materi dihapus"); refresh();
   };
 
   const addLynkPkg = async () => {
@@ -589,6 +660,7 @@ const Admin = () => {
           <TabsList className="flex-wrap">
             <TabsTrigger value="questions">Manajemen Soal</TabsTrigger>
             <TabsTrigger value="exams">Tryout</TabsTrigger>
+            <TabsTrigger value="materi">Materi</TabsTrigger>
             <TabsTrigger value="lynk">Lynk Webhook</TabsTrigger>
             <TabsTrigger value="scores">Skor User</TabsTrigger>
             <TabsTrigger value="topups">History Transaksi</TabsTrigger>
@@ -709,6 +781,52 @@ const Admin = () => {
                           onChange={(e) => setAiGen({ ...aiGen, count: Math.max(1, Math.min(30, +e.target.value)) })}
                         />
                       </div>
+                    </div>
+
+                    {/* Materi Referensi */}
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <BookOpen className="h-3.5 w-3.5 text-primary" /> Materi Referensi
+                        <span className="text-[10px] font-normal text-muted-foreground">(opsional — AI akan buat soal dari materi ini)</span>
+                      </Label>
+                      <Select
+                        value={aiGen.materialId || "none"}
+                        onValueChange={(v) => setAiGen({ ...aiGen, materialId: v === "none" ? "" : v })}
+                      >
+                        <SelectTrigger className="bg-background">
+                          <SelectValue placeholder="Pilih materi referensi..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— Tanpa materi (gunakan pengetahuan AI) —</SelectItem>
+                          {materials
+                            .filter((m) => m.category === "general" || m.category === aiGen.subtest)
+                            .map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                [{m.category === "general" ? "Umum" : m.category.toUpperCase()}] {m.title}
+                                {m.topic ? ` — ${m.topic}` : ""}
+                              </SelectItem>
+                            ))}
+                          {materials.filter((m) => m.category !== "general" && m.category !== aiGen.subtest).length > 0 && (
+                            <>
+                              {materials
+                                .filter((m) => m.category !== "general" && m.category !== aiGen.subtest)
+                                .map((m) => (
+                                  <SelectItem key={m.id} value={m.id} className="opacity-60">
+                                    [{m.category.toUpperCase()}] {m.title}
+                                  </SelectItem>
+                                ))}
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      {aiGen.materialId && (() => {
+                        const mat = materials.find((m) => m.id === aiGen.materialId);
+                        return mat ? (
+                          <p className="text-[11px] text-primary">
+                            ✓ {mat.char_count?.toLocaleString("id-ID")} karakter · {mat.file_name ?? "teks manual"}
+                          </p>
+                        ) : null;
+                      })()}
                     </div>
 
                     {/* Tipe Soal */}
@@ -1156,6 +1274,147 @@ const Admin = () => {
               </CardContent>
             </Card>
 
+          </TabsContent>
+
+          {/* ── MATERI REFERENSI ── */}
+          <TabsContent value="materi" className="space-y-4">
+            {/* Upload card */}
+            <Card>
+              <CardHeader>
+                <h2 className="flex items-center gap-2 font-semibold">
+                  <BookOpen className="h-4 w-4 text-primary" /> Upload Materi Referensi
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Upload PDF atau TXT dari modul SKD, UUD 1945, Pancasila, dll. Teks akan diekstrak otomatis dan digunakan sebagai konteks saat generate soal via AI.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* File picker */}
+                <div>
+                  <input
+                    ref={matFileRef}
+                    type="file"
+                    accept=".pdf,.txt,.md"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMatFileChange(f); }}
+                  />
+                  <div
+                    onClick={() => matFileRef.current?.click()}
+                    className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 p-8 text-center transition-colors hover:border-primary hover:bg-primary/5"
+                  >
+                    {matExtracting ? (
+                      <><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="text-sm font-medium">Mengekstrak teks dari file...</p></>
+                    ) : matFile ? (
+                      <><FileText className="h-8 w-8 text-primary" /><p className="text-sm font-semibold">{matFile.name}</p><p className="text-xs text-muted-foreground">{matExtractedText.length.toLocaleString("id-ID")} karakter diekstrak</p></>
+                    ) : (
+                      <><Upload className="h-8 w-8 text-muted-foreground" /><p className="text-sm font-medium">Klik untuk upload PDF atau TXT</p><p className="text-xs text-muted-foreground">Maksimal puluhan halaman — teks diekstrak otomatis di browser</p></>
+                    )}
+                  </div>
+                </div>
+
+                {/* Preview teks */}
+                {matExtractedText && (
+                  <div className="rounded-lg border bg-muted/30 p-3">
+                    <p className="text-[11px] font-semibold text-muted-foreground mb-1">Preview teks ({matExtractedText.length.toLocaleString()} karakter):</p>
+                    <p className="text-xs line-clamp-4 whitespace-pre-wrap">{matExtractedText.slice(0, 500)}{matExtractedText.length > 500 ? "..." : ""}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label>Judul Materi *</Label>
+                    <Input placeholder="cth: Modul TWK — UUD 1945" value={matForm.title} onChange={(e) => setMatForm({ ...matForm, title: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Kategori</Label>
+                    <Select value={matForm.category} onValueChange={(v) => setMatForm({ ...matForm, category: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="general">Umum</SelectItem>
+                        <SelectItem value="twk">TWK — Wawasan Kebangsaan</SelectItem>
+                        <SelectItem value="tiu">TIU — Intelegensia Umum</SelectItem>
+                        <SelectItem value="tkp">TKP — Karakteristik Pribadi</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label>Topik <span className="text-muted-foreground text-xs">(opsional)</span></Label>
+                    <Input placeholder="cth: Pancasila, UUD 1945 Pasal 1-5, NKRI..." value={matForm.topic} onChange={(e) => setMatForm({ ...matForm, topic: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Deskripsi <span className="text-muted-foreground text-xs">(opsional)</span></Label>
+                    <Input placeholder="cth: Modul resmi BKN 2024" value={matForm.description} onChange={(e) => setMatForm({ ...matForm, description: e.target.value })} />
+                  </div>
+                </div>
+
+                <Button onClick={saveMaterial} disabled={matUploading || matExtracting || !matExtractedText} className="gap-2">
+                  {matUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
+                  {matUploading ? "Menyimpan..." : "Simpan Materi"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Daftar materi */}
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold text-sm">Materi Tersimpan ({materials.length})</h2>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {materials.map((m) => {
+                    const isExpanded = matExpanded.has(m.id);
+                    return (
+                      <div key={m.id} className="px-4 py-3">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="outline" className="text-[9px] uppercase px-1 h-4 shrink-0">
+                                {m.category === "general" ? "Umum" : m.category.toUpperCase()}
+                              </Badge>
+                              {m.topic && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{m.topic}</Badge>}
+                              <span className="text-sm font-semibold">{m.title}</span>
+                            </div>
+                            {m.description && <p className="text-[11px] text-muted-foreground mt-0.5">{m.description}</p>}
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {m.file_name && <span className="mr-2">📄 {m.file_name}</span>}
+                              {(m.char_count ?? 0).toLocaleString("id-ID")} karakter ·{" "}
+                              {new Date(m.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                            </p>
+                            {/* Preview / expand */}
+                            <button
+                              onClick={() => {
+                                const next = new Set(matExpanded);
+                                isExpanded ? next.delete(m.id) : next.add(m.id);
+                                setMatExpanded(next);
+                              }}
+                              className="mt-1.5 text-[11px] text-primary hover:underline"
+                            >
+                              {isExpanded ? "Sembunyikan teks ▲" : "Lihat preview teks ▼"}
+                            </button>
+                            {isExpanded && (
+                              <div className="mt-2 rounded border bg-muted/30 p-3 text-xs whitespace-pre-wrap line-clamp-10 max-h-48 overflow-y-auto">
+                                {m.extracted_text.slice(0, 2000)}{m.extracted_text.length > 2000 ? "\n\n[... teks terpotong, total " + m.char_count?.toLocaleString() + " karakter]" : ""}
+                              </div>
+                            )}
+                          </div>
+                          <Button size="sm" variant="destructive" className="h-7 w-7 p-0 shrink-0" onClick={() => deleteMaterial(m.id)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {materials.length === 0 && (
+                    <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-muted-foreground">
+                      <BookOpen className="h-8 w-8 opacity-30" />
+                      <p className="text-sm">Belum ada materi. Upload PDF atau TXT di atas.</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* ── LYNK WEBHOOK ── */}
