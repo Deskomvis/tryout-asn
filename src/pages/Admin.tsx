@@ -154,8 +154,8 @@ const Admin = () => {
   // Ekstrak soal dari materi
   const [extractPanelId, setExtractPanelId] = useState<string | null>(null);
   const [extractExamId, setExtractExamId] = useState("");
-  const [extracting, setExtracting] = useState(false);
-  const [extractResults, setExtractResults] = useState<Record<string, { count: number; total: number }>>({});
+  const [extractProgress, setExtractProgress] = useState<{ current: number; total: number; count: number } | null>(null);
+  const [extractResults, setExtractResults] = useState<Record<string, { count: number }>>({});
 
   // Lynk packages
   const [lynkPackages, setLynkPackages] = useState<LynkPackage[]>([]);
@@ -681,28 +681,69 @@ const Admin = () => {
     toast.success("Materi dihapus"); refresh();
   };
 
-  const doExtractQuestions = async (materialId: string) => {
-    if (!extractExamId) return toast.error("Pilih tryout tujuan terlebih dahulu");
-    setExtracting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return toast.error("Sesi tidak ditemukan");
-      const { data, error } = await supabase.functions.invoke("extract-questions", {
-        body: { material_id: materialId, exam_id: extractExamId },
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (error || data?.error) {
-        return toast.error((data?.error ?? error?.message) ?? "Gagal ekstrak soal");
+  const CHUNK_SIZE = 7000; // chars per request — keeps KIE API happy
+
+  const splitTextIntoChunks = (text: string): string[] => {
+    if (text.length <= CHUNK_SIZE) return [text];
+    const chunks: string[] = [];
+    let start = 0;
+    while (start < text.length) {
+      let end = Math.min(start + CHUNK_SIZE, text.length);
+      if (end < text.length) {
+        // Try to split at a newline near the boundary
+        const lastNl = text.lastIndexOf("\n", end);
+        if (lastNl > start + CHUNK_SIZE * 0.5) end = lastNl + 1;
       }
-      toast.success(`✓ ${data.count} soal berhasil diekstrak ke tryout`);
-      setExtractResults((r) => ({ ...r, [materialId]: { count: data.count, total: data.total_in_exam } }));
+      chunks.push(text.slice(start, end));
+      start = end;
+    }
+    return chunks;
+  };
+
+  const doExtractQuestions = async (material: Material) => {
+    if (!extractExamId) return toast.error("Pilih tryout tujuan terlebih dahulu");
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return toast.error("Sesi tidak ditemukan");
+
+    const chunks = splitTextIntoChunks(material.extracted_text);
+    setExtractProgress({ current: 0, total: chunks.length, count: 0 });
+
+    let totalCount = 0;
+    let hasError = false;
+
+    for (let i = 0; i < chunks.length; i++) {
+      setExtractProgress({ current: i + 1, total: chunks.length, count: totalCount });
+      try {
+        const { data, error } = await supabase.functions.invoke("extract-questions", {
+          body: {
+            text_chunk: chunks[i],
+            exam_id: extractExamId,
+            category: material.category,
+            topic: material.topic ?? undefined,
+          },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (error || data?.error) {
+          toast.error(`Bagian ${i + 1}: ${data?.error ?? error?.message ?? "Gagal"}`);
+          hasError = true;
+          continue;
+        }
+        totalCount += data.count ?? 0;
+      } catch (e: any) {
+        toast.error(`Bagian ${i + 1}: ${e.message ?? "Error"}`);
+        hasError = true;
+      }
+    }
+
+    setExtractProgress(null);
+    if (totalCount > 0) {
+      toast.success(`✓ ${totalCount} soal diekstrak dari "${material.title}"`);
+      setExtractResults((r) => ({ ...r, [material.id]: { count: totalCount } }));
       setExtractPanelId(null);
       refresh();
-    } catch (e: any) {
-      toast.error(e.message ?? "Terjadi kesalahan");
-    } finally {
-      setExtracting(false);
+    } else if (!hasError) {
+      toast.warning("Tidak ada soal yang berhasil diekstrak. Coba cek format teks materi.");
     }
   };
 
@@ -1776,24 +1817,33 @@ const Admin = () => {
                                 <Button
                                   size="sm"
                                   className="h-8 text-xs gap-1"
-                                  disabled={extracting || !extractExamId}
-                                  onClick={() => doExtractQuestions(m.id)}
+                                  disabled={!!extractProgress || !extractExamId}
+                                  onClick={() => doExtractQuestions(m)}
                                 >
-                                  {extracting ? (
-                                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Mengekstrak...</>
+                                  {extractProgress ? (
+                                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Bagian {extractProgress.current}/{extractProgress.total}...</>
                                   ) : (
                                     <><Sparkles className="h-3.5 w-3.5" /> Mulai Ekstrak</>
                                   )}
                                 </Button>
-                                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setExtractPanelId(null)}>
+                                <Button size="sm" variant="outline" className="h-8 text-xs" disabled={!!extractProgress} onClick={() => setExtractPanelId(null)}>
                                   Batal
                                 </Button>
                               </div>
                             </div>
-                            {extracting && (
-                              <p className="text-[11px] text-primary animate-pulse">
-                                AI sedang membaca dan mengekstrak soal... bisa memakan waktu 30–90 detik tergantung panjang teks.
-                              </p>
+                            {extractProgress && (
+                              <div className="space-y-1">
+                                <div className="h-1.5 rounded-full bg-primary/20 overflow-hidden">
+                                  <div
+                                    className="h-full bg-primary transition-all duration-500"
+                                    style={{ width: `${(extractProgress.current / extractProgress.total) * 100}%` }}
+                                  />
+                                </div>
+                                <p className="text-[11px] text-primary">
+                                  Memproses bagian {extractProgress.current} dari {extractProgress.total}
+                                  {extractProgress.count > 0 && ` · ${extractProgress.count} soal ditemukan`}
+                                </p>
+                              </div>
                             )}
                           </div>
                         )}
