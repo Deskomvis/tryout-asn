@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
   Trash2, Wallet, Check, X, Plus, Sparkles, Loader2,
   Pencil, Image, Upload, Key, Eye, EyeOff, ChevronDown, ChevronUp,
-  BarChart2, LineChart, PieChart, Table2, RotateCcw,
+  BarChart2, LineChart, PieChart, Table2, RotateCcw, Copy,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -297,6 +297,27 @@ const Admin = () => {
     toast.success("Paket tryout diperbarui");
     setEditExam(null);
     setEditExamCoverFile(null);
+    refresh();
+  };
+
+  const duplicateExam = async (ex: Exam) => {
+    const { data, error } = await supabase.from("exams").insert({
+      title: `${ex.title} (Salinan)`,
+      description: ex.description ?? "",
+      duration: ex.duration,
+      price: ex.price,
+      original_price: ex.original_price ?? 0,
+      bundle_size: ex.bundle_size,
+      category: ex.category,
+      subcategory: ex.subcategory,
+      exam_type: ex.exam_type ?? null,
+      passing_score: ex.passing_score ?? 0,
+      cta_link: ex.cta_link ?? null,
+      cover_image_url: ex.cover_image_url ?? null,
+      total_questions: 0,
+    }).select("id").single();
+    if (error) return toast.error(error.message);
+    toast.success("Tryout berhasil diduplikasi");
     refresh();
   };
 
@@ -988,6 +1009,9 @@ const Admin = () => {
                       <div className="flex gap-1.5 shrink-0">
                         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditExam(ex)}>
                           <Pencil className="h-3 w-3 mr-1" /> Edit
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => duplicateExam(ex)}>
+                          <Copy className="h-3 w-3" />
                         </Button>
                         <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteExam(ex.id)}>
                           <Trash2 className="h-3 w-3" />
