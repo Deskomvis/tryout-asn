@@ -67,6 +67,7 @@ type Question = {
 type Score = { id: string; score: number; completed_at: string; profiles: { username: string | null; email: string | null } | null; exams: { title: string } | null };
 type Topup = { id: string; user_id: string; amount: number; status: "pending" | "approved" | "rejected"; created_at: string; profiles: { username: string | null; email: string | null } | null };
 type UserBalance = { user_id: string; balance: number; profiles: { username: string | null; email: string | null } | null };
+type Purchase = { id: string; created_at: string; user_id: string; exam_id: string; profiles: { username: string | null; email: string | null } | null; exams: { title: string } | null };
 type LynkPackage = {
   id: string; lynk_uuid: string; exam_id: string | null; title: string;
   is_active: boolean; description?: string | null;
@@ -91,6 +92,7 @@ const Admin = () => {
   const [scores, setScores] = useState<Score[]>([]);
   const [topups, setTopups] = useState<Topup[]>([]);
   const [balances, setBalances] = useState<UserBalance[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [adjustAmount, setAdjustAmount] = useState<Record<string, number>>({});
   const [selectedExam, setSelectedExam] = useState<string>("");
   const [showNewExamForm, setShowNewExamForm] = useState(false);
@@ -173,6 +175,11 @@ const Admin = () => {
     const { data: t } = await supabase.from("topup_requests")
       .select("id,user_id,amount,status,created_at")
       .order("created_at", { ascending: false }).limit(200);
+
+    const { data: purch } = await supabase.from("exam_purchases")
+      .select("id,created_at,user_id,exam_id,profiles(username,email),exams(title)")
+      .order("created_at", { ascending: false }).limit(500);
+    setPurchases((purch as Purchase[]) ?? []);
 
     // Fetch ALL profiles for Saldo User (not just those with balances)
     const { data: allProfiles } = await supabase.from("profiles").select("id,username,email").order("created_at");
@@ -584,8 +591,8 @@ const Admin = () => {
             <TabsTrigger value="exams">Tryout</TabsTrigger>
             <TabsTrigger value="lynk">Lynk Webhook</TabsTrigger>
             <TabsTrigger value="scores">Skor User</TabsTrigger>
-            <TabsTrigger value="topups">Topup</TabsTrigger>
-            <TabsTrigger value="balances">Saldo User</TabsTrigger>
+            <TabsTrigger value="topups">History Transaksi</TabsTrigger>
+            <TabsTrigger value="balances">Semua User</TabsTrigger>
             <TabsTrigger value="settings">Pengaturan</TabsTrigger>
           </TabsList>
 
@@ -1293,73 +1300,64 @@ const Admin = () => {
             </Card>
           </TabsContent>
 
-          {/* ── TOPUP ── */}
+          {/* ── HISTORY TRANSAKSI ── */}
           <TabsContent value="topups">
-            <Card><CardContent className="pt-6">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-sm">
-                  <thead className="bg-secondary text-left"><tr>
-                    <th className="px-3 py-2">Tanggal</th><th className="px-3 py-2">User</th><th className="px-3 py-2">Nominal</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Aksi</th>
-                  </tr></thead>
-                  <tbody className="divide-y divide-border">
-                    {topups.map((t) => (
-                      <tr key={t.id}>
-                        <td className="px-3 py-2 text-muted-foreground">{new Date(t.created_at).toLocaleString("id-ID")}</td>
-                        <td className="px-3 py-2"><div>{t.profiles?.username ?? "-"}</div><div className="text-xs text-muted-foreground">{t.profiles?.email}</div></td>
-                        <td className="px-3 py-2 font-semibold">Rp {t.amount.toLocaleString("id-ID")}</td>
-                        <td className="px-3 py-2"><Badge variant={t.status === "approved" ? "default" : t.status === "rejected" ? "destructive" : "secondary"}>{t.status}</Badge></td>
-                        <td className="px-3 py-2">{t.status === "pending" && (
-                          <div className="flex justify-end gap-2">
-                            <Button size="sm" onClick={() => approveTopup(t)} className="gap-1"><Check className="h-3.5 w-3.5" /> Setujui</Button>
-                            <Button size="sm" variant="outline" onClick={() => rejectTopup(t)} className="gap-1"><X className="h-3.5 w-3.5" /> Tolak</Button>
-                          </div>
-                        )}</td>
-                      </tr>
-                    ))}
-                    {topups.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Belum ada topup.</td></tr>}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent></Card>
+            <Card>
+              <CardHeader><h2 className="font-semibold text-sm">History Pembelian Paket ({purchases.length})</h2></CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px] text-xs">
+                    <thead className="bg-muted/50 text-left border-b"><tr>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">Tanggal</th>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">User</th>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">Paket</th>
+                    </tr></thead>
+                    <tbody className="divide-y divide-border">
+                      {purchases.map((p) => (
+                        <tr key={p.id} className="hover:bg-muted/30">
+                          <td className="px-4 py-2 text-muted-foreground whitespace-nowrap">
+                            {new Date(p.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="font-medium">{p.profiles?.username ?? "—"}</div>
+                            <div className="text-[10px] text-muted-foreground">{p.profiles?.email}</div>
+                          </td>
+                          <td className="px-4 py-2 max-w-[240px]">
+                            <div className="truncate">{p.exams?.title ?? "—"}</div>
+                          </td>
+                        </tr>
+                      ))}
+                      {purchases.length === 0 && (
+                        <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">Belum ada transaksi.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          {/* ── SALDO USER ── */}
+          {/* ── SEMUA USER ── */}
           <TabsContent value="balances">
             <Card>
               <CardHeader><h2 className="font-semibold text-sm">Semua User ({balances.length})</h2></CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[580px] text-xs">
+                  <table className="w-full min-w-[400px] text-xs">
                     <thead className="bg-muted/50 text-left border-b"><tr>
-                      <th className="px-4 py-2 font-medium text-muted-foreground">User</th>
-                      <th className="px-4 py-2 font-medium text-muted-foreground">Saldo</th>
-                      <th className="px-4 py-2 font-medium text-muted-foreground">Adjust Saldo</th>
-                      <th className="px-4 py-2 font-medium text-muted-foreground text-right">Aksi</th>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">Username</th>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">Email</th>
                     </tr></thead>
                     <tbody className="divide-y divide-border">
                       {balances.map((b) => (
                         <tr key={b.user_id} className="hover:bg-muted/30">
-                          <td className="px-4 py-2">
-                            <div className="font-medium">{b.profiles?.username ?? "—"}</div>
-                            <div className="text-[10px] text-muted-foreground">{b.profiles?.email}</div>
-                          </td>
-                          <td className="px-4 py-2">
-                            <span className="inline-flex items-center gap-1 font-semibold">
-                              <Wallet className="h-3 w-3 text-primary" />
-                              Rp {b.balance.toLocaleString("id-ID")}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2">
-                            <Input type="number" value={adjustAmount[b.user_id] ?? ""} onChange={(e) => setAdjustAmount({ ...adjustAmount, [b.user_id]: Number(e.target.value) })} placeholder="±50000" className="h-7 max-w-[140px] text-xs" />
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => adjustBalance(b.user_id)}>
-                              <Plus className="h-3 w-3" /> Terapkan
-                            </Button>
-                          </td>
+                          <td className="px-4 py-2 font-medium">{b.profiles?.username ?? "—"}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{b.profiles?.email ?? "—"}</td>
                         </tr>
                       ))}
-                      {balances.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Belum ada user.</td></tr>}
+                      {balances.length === 0 && (
+                        <tr><td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">Belum ada user.</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
