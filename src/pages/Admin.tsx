@@ -76,6 +76,17 @@ type Material = {
   created_at: string;
 };
 
+type MatQueueItem = {
+  id: string;
+  file: File;
+  status: "extracting" | "ready" | "error";
+  text: string;
+  title: string;
+  category: string;
+  topic: string;
+  errorMsg?: string;
+};
+
 type LynkPackage = {
   id: string; lynk_uuid: string; exam_id: string | null; title: string;
   is_active: boolean; description?: string | null;
@@ -124,10 +135,7 @@ const Admin = () => {
   // Materials
   const [materials, setMaterials] = useState<Material[]>([]);
   const [matUploading, setMatUploading] = useState(false);
-  const [matForm, setMatForm] = useState({ title: "", description: "", category: "general", topic: "" });
-  const [matFile, setMatFile] = useState<File | null>(null);
-  const [matExtractedText, setMatExtractedText] = useState("");
-  const [matExtracting, setMatExtracting] = useState(false);
+  const [matQueue, setMatQueue] = useState<MatQueueItem[]>([]);
   const [matExpanded, setMatExpanded] = useState<Set<string>>(new Set());
   const matFileRef = useRef<HTMLInputElement>(null);
 
@@ -558,40 +566,59 @@ const Admin = () => {
     }
   };
 
-  const handleMatFileChange = async (file: File) => {
-    setMatFile(file);
-    setMatExtracting(true);
-    setMatExtractedText("");
-    try {
-      const text = await extractTextFromFile(file);
-      setMatExtractedText(text);
-      if (!matForm.title) setMatForm((f) => ({ ...f, title: file.name.replace(/\.[^.]+$/, "") }));
-    } catch (e: any) {
-      toast.error("Gagal ekstrak teks: " + e.message);
-    } finally {
-      setMatExtracting(false);
+  const handleMatFilesChange = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const newItems: MatQueueItem[] = Array.from(files).map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      status: "extracting" as const,
+      text: "",
+      title: file.name.replace(/\.[^.]+$/, ""),
+      category: "general",
+      topic: "",
+    }));
+    setMatQueue((prev) => [...prev, ...newItems]);
+    if (matFileRef.current) matFileRef.current.value = "";
+
+    for (const item of newItems) {
+      try {
+        const text = await extractTextFromFile(item.file);
+        setMatQueue((prev) =>
+          prev.map((q) => q.id === item.id ? { ...q, status: "ready", text } : q)
+        );
+      } catch (e: any) {
+        setMatQueue((prev) =>
+          prev.map((q) => q.id === item.id ? { ...q, status: "error", errorMsg: e.message } : q)
+        );
+      }
     }
   };
 
-  const saveMaterial = async () => {
-    if (!matForm.title.trim()) return toast.error("Judul materi wajib diisi");
-    if (!matExtractedText.trim()) return toast.error("Upload file terlebih dahulu");
+  const updateMatQueueItem = (id: string, patch: Partial<MatQueueItem>) => {
+    setMatQueue((prev) => prev.map((q) => q.id === id ? { ...q, ...patch } : q));
+  };
+
+  const removeFromQueue = (id: string) => {
+    setMatQueue((prev) => prev.filter((q) => q.id !== id));
+  };
+
+  const saveAllMaterials = async () => {
+    const readyItems = matQueue.filter((q) => q.status === "ready");
+    if (readyItems.length === 0) return toast.error("Tidak ada materi siap disimpan");
     setMatUploading(true);
-    const { error } = await supabase.from("materials").insert({
-      title: matForm.title.trim(),
-      description: matForm.description.trim() || null,
-      file_name: matFile?.name ?? null,
-      category: matForm.category,
-      topic: matForm.topic.trim() || null,
-      extracted_text: matExtractedText,
-      char_count: matExtractedText.length,
-    });
+    const inserts = readyItems.map((q) => ({
+      title: q.title.trim() || q.file.name,
+      file_name: q.file.name,
+      category: q.category,
+      topic: q.topic.trim() || null,
+      extracted_text: q.text,
+      char_count: q.text.length,
+    }));
+    const { error } = await supabase.from("materials").insert(inserts);
     setMatUploading(false);
     if (error) return toast.error(error.message);
-    toast.success("Materi berhasil disimpan");
-    setMatForm({ title: "", description: "", category: "general", topic: "" });
-    setMatFile(null); setMatExtractedText("");
-    if (matFileRef.current) matFileRef.current.value = "";
+    toast.success(`${readyItems.length} materi berhasil disimpan`);
+    setMatQueue((prev) => prev.filter((q) => q.status !== "ready"));
     refresh();
   };
 
@@ -1285,74 +1312,100 @@ const Admin = () => {
                   <BookOpen className="h-4 w-4 text-primary" /> Upload Materi Referensi
                 </h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Upload PDF atau TXT dari modul SKD, UUD 1945, Pancasila, dll. Teks akan diekstrak otomatis dan digunakan sebagai konteks saat generate soal via AI.
+                  Upload PDF atau TXT dari modul SKD, UUD 1945, Pancasila, dll. Bisa pilih banyak file sekaligus — teks diekstrak otomatis di browser.
                 </p>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {/* File picker */}
-                <div>
-                  <input
-                    ref={matFileRef}
-                    type="file"
-                    accept=".pdf,.txt,.md"
-                    className="hidden"
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMatFileChange(f); }}
-                  />
-                  <div
-                    onClick={() => matFileRef.current?.click()}
-                    className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 p-8 text-center transition-colors hover:border-primary hover:bg-primary/5"
-                  >
-                    {matExtracting ? (
-                      <><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="text-sm font-medium">Mengekstrak teks dari file...</p></>
-                    ) : matFile ? (
-                      <><FileText className="h-8 w-8 text-primary" /><p className="text-sm font-semibold">{matFile.name}</p><p className="text-xs text-muted-foreground">{matExtractedText.length.toLocaleString("id-ID")} karakter diekstrak</p></>
-                    ) : (
-                      <><Upload className="h-8 w-8 text-muted-foreground" /><p className="text-sm font-medium">Klik untuk upload PDF atau TXT</p><p className="text-xs text-muted-foreground">Maksimal puluhan halaman — teks diekstrak otomatis di browser</p></>
-                    )}
-                  </div>
+              <CardContent className="space-y-4">
+                {/* Drop zone */}
+                <input
+                  ref={matFileRef}
+                  type="file"
+                  accept=".pdf,.txt,.md"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleMatFilesChange(e.target.files)}
+                />
+                <div
+                  onClick={() => matFileRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => { e.preventDefault(); handleMatFilesChange(e.dataTransfer.files); }}
+                  className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 p-8 text-center transition-colors hover:border-primary hover:bg-primary/5"
+                >
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm font-medium">Klik atau drag-drop PDF / TXT</p>
+                  <p className="text-xs text-muted-foreground">Bisa pilih banyak file sekaligus</p>
                 </div>
 
-                {/* Preview teks */}
-                {matExtractedText && (
-                  <div className="rounded-lg border bg-muted/30 p-3">
-                    <p className="text-[11px] font-semibold text-muted-foreground mb-1">Preview teks ({matExtractedText.length.toLocaleString()} karakter):</p>
-                    <p className="text-xs line-clamp-4 whitespace-pre-wrap">{matExtractedText.slice(0, 500)}{matExtractedText.length > 500 ? "..." : ""}</p>
+                {/* Queue list */}
+                {matQueue.length > 0 && (
+                  <div className="space-y-2">
+                    {matQueue.map((q) => (
+                      <div key={q.id} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          {q.status === "extracting" && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
+                          {q.status === "ready" && <FileText className="h-4 w-4 text-green-500 shrink-0" />}
+                          {q.status === "error" && <FileText className="h-4 w-4 text-destructive shrink-0" />}
+                          <span className="text-xs text-muted-foreground truncate flex-1">{q.file.name}</span>
+                          {q.status === "ready" && <span className="text-[10px] text-green-600 shrink-0">{q.text.length.toLocaleString("id-ID")} kar</span>}
+                          {q.status === "error" && <span className="text-[10px] text-destructive shrink-0">Gagal</span>}
+                          <button onClick={() => removeFromQueue(q.id)} className="ml-1 shrink-0 text-muted-foreground hover:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        {q.status === "error" && <p className="text-[11px] text-destructive">{q.errorMsg}</p>}
+                        {q.status === "ready" && (
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <div className="sm:col-span-2">
+                              <Input
+                                placeholder="Judul materi"
+                                value={q.title}
+                                onChange={(e) => updateMatQueueItem(q.id, { title: e.target.value })}
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                            <Select value={q.category} onValueChange={(v) => updateMatQueueItem(q.id, { category: v })}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="general">Umum</SelectItem>
+                                <SelectItem value="twk">TWK</SelectItem>
+                                <SelectItem value="tiu">TIU</SelectItem>
+                                <SelectItem value="tkp">TKP</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <div className="sm:col-span-3">
+                              <Input
+                                placeholder="Topik (opsional) — cth: Pancasila, UUD 1945 Pasal 1-5..."
+                                value={q.topic}
+                                onChange={(e) => updateMatQueueItem(q.id, { topic: e.target.value })}
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-xs text-muted-foreground">
+                        {matQueue.filter((q) => q.status === "ready").length} dari {matQueue.length} file siap disimpan
+                      </span>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setMatQueue([])} className="gap-1 h-8 text-xs">
+                          Bersihkan
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={saveAllMaterials}
+                          disabled={matUploading || matQueue.every((q) => q.status !== "ready")}
+                          className="gap-1 h-8 text-xs"
+                        >
+                          {matUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookOpen className="h-3.5 w-3.5" />}
+                          {matUploading ? "Menyimpan..." : `Simpan ${matQueue.filter((q) => q.status === "ready").length} Materi`}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <Label>Judul Materi *</Label>
-                    <Input placeholder="cth: Modul TWK — UUD 1945" value={matForm.title} onChange={(e) => setMatForm({ ...matForm, title: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label>Kategori</Label>
-                    <Select value={matForm.category} onValueChange={(v) => setMatForm({ ...matForm, category: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="general">Umum</SelectItem>
-                        <SelectItem value="twk">TWK — Wawasan Kebangsaan</SelectItem>
-                        <SelectItem value="tiu">TIU — Intelegensia Umum</SelectItem>
-                        <SelectItem value="tkp">TKP — Karakteristik Pribadi</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <Label>Topik <span className="text-muted-foreground text-xs">(opsional)</span></Label>
-                    <Input placeholder="cth: Pancasila, UUD 1945 Pasal 1-5, NKRI..." value={matForm.topic} onChange={(e) => setMatForm({ ...matForm, topic: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label>Deskripsi <span className="text-muted-foreground text-xs">(opsional)</span></Label>
-                    <Input placeholder="cth: Modul resmi BKN 2024" value={matForm.description} onChange={(e) => setMatForm({ ...matForm, description: e.target.value })} />
-                  </div>
-                </div>
-
-                <Button onClick={saveMaterial} disabled={matUploading || matExtracting || !matExtractedText} className="gap-2">
-                  {matUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
-                  {matUploading ? "Menyimpan..." : "Simpan Materi"}
-                </Button>
               </CardContent>
             </Card>
 
