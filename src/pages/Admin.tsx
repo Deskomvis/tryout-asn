@@ -151,6 +151,12 @@ const Admin = () => {
   const [matExpanded, setMatExpanded] = useState<Set<string>>(new Set());
   const matFileRef = useRef<HTMLInputElement>(null);
 
+  // Ekstrak soal dari materi
+  const [extractPanelId, setExtractPanelId] = useState<string | null>(null);
+  const [extractExamId, setExtractExamId] = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const [extractResults, setExtractResults] = useState<Record<string, { count: number; total: number }>>({});
+
   // Lynk packages
   const [lynkPackages, setLynkPackages] = useState<LynkPackage[]>([]);
   const emptyLynkPkg = () => ({ lynk_uuid: "", exam_id: "", title: "", is_active: true, description: "", notification_title: "", notification_message: "" });
@@ -673,6 +679,31 @@ const Admin = () => {
     const { error } = await supabase.from("materials").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Materi dihapus"); refresh();
+  };
+
+  const doExtractQuestions = async (materialId: string) => {
+    if (!extractExamId) return toast.error("Pilih tryout tujuan terlebih dahulu");
+    setExtracting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return toast.error("Sesi tidak ditemukan");
+      const { data, error } = await supabase.functions.invoke("extract-questions", {
+        body: { material_id: materialId, exam_id: extractExamId },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (error || data?.error) {
+        return toast.error((data?.error ?? error?.message) ?? "Gagal ekstrak soal");
+      }
+      toast.success(`✓ ${data.count} soal berhasil diekstrak ke tryout`);
+      setExtractResults((r) => ({ ...r, [materialId]: { count: data.count, total: data.total_in_exam } }));
+      setExtractPanelId(null);
+      refresh();
+    } catch (e: any) {
+      toast.error(e.message ?? "Terjadi kesalahan");
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const addLynkPkg = async () => {
@@ -1657,8 +1688,10 @@ const Admin = () => {
                 <div className="divide-y divide-border">
                   {materials.map((m) => {
                     const isExpanded = matExpanded.has(m.id);
+                    const isExtractOpen = extractPanelId === m.id;
+                    const result = extractResults[m.id];
                     return (
-                      <div key={m.id} className="px-4 py-3">
+                      <div key={m.id} className="px-4 py-3 space-y-2">
                         <div className="flex items-start gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -1667,6 +1700,11 @@ const Admin = () => {
                               </Badge>
                               {m.topic && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{m.topic}</Badge>}
                               <span className="text-sm font-semibold">{m.title}</span>
+                              {result && (
+                                <Badge className="text-[9px] px-1 h-4 bg-green-100 text-green-700 border-green-300">
+                                  ✓ {result.count} soal diekstrak
+                                </Badge>
+                              )}
                             </div>
                             {m.description && <p className="text-[11px] text-muted-foreground mt-0.5">{m.description}</p>}
                             <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -1674,27 +1712,91 @@ const Admin = () => {
                               {(m.char_count ?? 0).toLocaleString("id-ID")} karakter ·{" "}
                               {new Date(m.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
                             </p>
-                            {/* Preview / expand */}
                             <button
                               onClick={() => {
                                 const next = new Set(matExpanded);
                                 isExpanded ? next.delete(m.id) : next.add(m.id);
                                 setMatExpanded(next);
                               }}
-                              className="mt-1.5 text-[11px] text-primary hover:underline"
+                              className="mt-1 text-[11px] text-primary hover:underline"
                             >
                               {isExpanded ? "Sembunyikan teks ▲" : "Lihat preview teks ▼"}
                             </button>
                             {isExpanded && (
                               <div className="mt-2 rounded border bg-muted/30 p-3 text-xs whitespace-pre-wrap line-clamp-10 max-h-48 overflow-y-auto">
-                                {m.extracted_text.slice(0, 2000)}{m.extracted_text.length > 2000 ? "\n\n[... teks terpotong, total " + m.char_count?.toLocaleString() + " karakter]" : ""}
+                                {m.extracted_text.slice(0, 2000)}{m.extracted_text.length > 2000 ? "\n\n[... terpotong, total " + m.char_count?.toLocaleString() + " karakter]" : ""}
                               </div>
                             )}
                           </div>
-                          <Button size="sm" variant="destructive" className="h-7 w-7 p-0 shrink-0" onClick={() => deleteMaterial(m.id)}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <div className="flex gap-1.5 shrink-0">
+                            <Button
+                              size="sm" variant="outline"
+                              className={cn("h-7 text-xs gap-1", isExtractOpen && "border-primary text-primary")}
+                              onClick={() => {
+                                setExtractPanelId(isExtractOpen ? null : m.id);
+                                setExtractExamId("");
+                              }}
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              Ekstrak Soal
+                            </Button>
+                            <Button size="sm" variant="destructive" className="h-7 w-7 p-0" onClick={() => deleteMaterial(m.id)}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
+
+                        {/* Inline extract panel */}
+                        {isExtractOpen && (
+                          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+                            <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Ekstrak soal dari "{m.title}" ke bank soal
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              AI akan membaca teks PDF ini dan mengekstrak semua soal persis seperti di sumber. Soal langsung masuk ke tryout yang dipilih.
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="flex-1 min-w-48">
+                                <Label className="text-[10px] mb-1 block">Pilih tryout tujuan *</Label>
+                                <Select value={extractExamId} onValueChange={setExtractExamId}>
+                                  <SelectTrigger className="h-8 text-xs bg-background">
+                                    <SelectValue placeholder="Pilih tryout..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {exams.map((ex) => (
+                                      <SelectItem key={ex.id} value={ex.id}>
+                                        {ex.title.slice(0, 60)}{ex.title.length > 60 ? "..." : ""}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex gap-2 pt-4">
+                                <Button
+                                  size="sm"
+                                  className="h-8 text-xs gap-1"
+                                  disabled={extracting || !extractExamId}
+                                  onClick={() => doExtractQuestions(m.id)}
+                                >
+                                  {extracting ? (
+                                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Mengekstrak...</>
+                                  ) : (
+                                    <><Sparkles className="h-3.5 w-3.5" /> Mulai Ekstrak</>
+                                  )}
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setExtractPanelId(null)}>
+                                  Batal
+                                </Button>
+                              </div>
+                            </div>
+                            {extracting && (
+                              <p className="text-[11px] text-primary animate-pulse">
+                                AI sedang membaca dan mengekstrak soal... bisa memakan waktu 30–90 detik tergantung panjang teks.
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
