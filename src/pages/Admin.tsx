@@ -103,6 +103,7 @@ const Admin = () => {
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
   const [filterSubtest, setFilterSubtest] = useState<"all" | "twk" | "tiu" | "tkp">("all");
   const [filterTopic, setFilterTopic] = useState("all");
+  const [addQuestionMode, setAddQuestionMode] = useState<null | "manual" | "ai">(null);
 
   // New exam form
   const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
@@ -366,7 +367,7 @@ const Admin = () => {
     if (error) return toast.error(error.message);
     await supabase.from("exams").update({ total_questions: questions.length + 1 }).eq("id", selectedExam);
     toast.success("Soal ditambahkan");
-    setNewQ(emptyNewQ()); setNewQImageFile(null); refresh();
+    setNewQ(emptyNewQ()); setNewQImageFile(null); setAddQuestionMode(null); refresh();
   };
 
   const openEdit = (q: Question) => {
@@ -478,6 +479,7 @@ const Admin = () => {
         toast.success(`${data.count} soal${chartLabel} + pembahasan berhasil di-generate`);
       }
       setAiGen((g) => ({ ...g, imageFile: null, imageUrl: "" }));
+      setAddQuestionMode(null);
       refresh();
     } catch (e: any) {
       const msg = e?.message ?? "Terjadi kesalahan";
@@ -517,7 +519,7 @@ const Admin = () => {
                 {exams.map((e) => (
                   <button
                     key={e.id}
-                    onClick={() => { setSelectedExam(e.id); setFilterSubtest("all"); setFilterTopic("all"); }}
+                    onClick={() => { setSelectedExam(e.id); setFilterSubtest("all"); setFilterTopic("all"); setAddQuestionMode(null); }}
                     className={cn(
                       "text-left rounded-lg border px-3 py-2.5 transition-all",
                       selectedExam === e.id
@@ -537,7 +539,50 @@ const Admin = () => {
 
             {selectedExam && (
               <>
+                {/* Tombol Tambah Soal */}
+                <div className="flex justify-end">
+                  <Button
+                    onClick={() => setAddQuestionMode((m) => m ? null : "picker")}
+                    variant={addQuestionMode ? "outline" : "default"}
+                    className="gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {addQuestionMode ? "Tutup" : "Tambah Soal Tryout"}
+                  </Button>
+                </div>
+
+                {/* Picker: pilih Manual atau AI */}
+                {addQuestionMode === "picker" && (
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-2">
+                    <button
+                      onClick={() => setAddQuestionMode("manual")}
+                      className="flex flex-col items-center gap-3 rounded-xl border-2 border-border bg-card p-6 text-center transition-all hover:border-primary hover:bg-primary/5"
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-primary">
+                        <Pencil className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">Buat Manual</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Tulis pertanyaan & pilihan jawaban sendiri</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setAddQuestionMode("ai")}
+                      className="flex flex-col items-center gap-3 rounded-xl border-2 border-border bg-card p-6 text-center transition-all hover:border-primary hover:bg-primary/5"
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Sparkles className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">Generate via AI</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Buat soal otomatis menggunakan AI</p>
+                      </div>
+                    </button>
+                  </div>
+                )}
+
                 {/* AI Generate */}
+                {addQuestionMode === "ai" && <>
                 <Card className="border-primary/30 bg-primary/5">
                   <CardHeader>
                     <h2 className="flex items-center gap-2 font-semibold">
@@ -681,9 +726,10 @@ const Admin = () => {
                     </div>
                   </CardContent>
                 </Card>
+                </>}
 
                 {/* Tambah Soal Manual */}
-                <Card>
+                {addQuestionMode === "manual" && <Card>
                   <CardHeader><h2 className="font-semibold">Tambah Soal Manual</h2></CardHeader>
                   <CardContent className="space-y-3">
                     <div>
@@ -773,7 +819,7 @@ const Admin = () => {
                       {newQUploadingImg ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Upload...</> : "Tambah Soal"}
                     </Button>
                   </CardContent>
-                </Card>
+                </Card>}
 
                 {/* Daftar Soal */}
                 {(() => {
