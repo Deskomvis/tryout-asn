@@ -62,9 +62,13 @@ type Exam = {
   passing_score?: number; cta_link?: string | null; cover_image_url?: string | null;
 };
 type Question = {
-  id: string; exam_id: string; question_text: string; options: string[];
+  id: string; exam_id: string | null; question_text: string; options: string[];
   correct_answer: string; subtest: string; option_points: Record<string, number> | null;
   explanation?: string; image_url?: string | null; svg_content?: string | null; topic?: string | null;
+};
+
+type BankQuestion = {
+  id: string; exam_id: string | null; question_text: string; subtest: string; topic?: string | null;
 };
 type Score = { id: string; score: number; completed_at: string; profiles: { username: string | null; email: string | null } | null; exams: { title: string } | null };
 type Topup = { id: string; user_id: string; amount: number; status: "pending" | "approved" | "rejected"; created_at: string; profiles: { username: string | null; email: string | null } | null };
@@ -130,7 +134,15 @@ const Admin = () => {
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
   const [filterSubtest, setFilterSubtest] = useState<"all" | "twk" | "tiu" | "tkp">("all");
   const [filterTopic, setFilterTopic] = useState("all");
-  const [addQuestionMode, setAddQuestionMode] = useState<null | "manual" | "ai">(null);
+  const [addQuestionMode, setAddQuestionMode] = useState<null | "picker" | "manual" | "ai" | "bank">(null);
+
+  // Bank soal picker
+  const [bankQuestions, setBankQuestions] = useState<BankQuestion[]>([]);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankFilter, setBankFilter] = useState({ subtest: "all", search: "" });
+  const [selectedBankIds, setSelectedBankIds] = useState<Set<string>>(new Set());
+  const [bankRandomSubtest, setBankRandomSubtest] = useState("all");
+  const [bankRandomCount, setBankRandomCount] = useState(10);
 
   // Materials
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -195,8 +207,26 @@ const Admin = () => {
     setMaterials((mat as Material[]) ?? []);
 
     if (selectedExam) {
-      const { data: q } = await supabase.from("questions").select("*").eq("exam_id", selectedExam).order("created_at");
-      setQuestions((q as Question[]) ?? []);
+      // Auto-migrate: if no assignments yet, create them from exam_id
+      const { count: aCount } = await (supabase as any)
+        .from("exam_question_assignments")
+        .select("*", { count: "exact", head: true })
+        .eq("exam_id", selectedExam);
+      if ((aCount ?? 0) === 0) {
+        const { data: oldQs } = await supabase.from("questions").select("id").eq("exam_id", selectedExam).order("created_at");
+        if (oldQs && oldQs.length > 0) {
+          await (supabase as any).from("exam_question_assignments").insert(
+            oldQs.map((q: any, i: number) => ({ exam_id: selectedExam, question_id: q.id, position: i + 1 }))
+          );
+        }
+      }
+      // Load questions via junction table
+      const { data: asgn } = await (supabase as any)
+        .from("exam_question_assignments")
+        .select("position, questions(id, exam_id, question_text, options, correct_answer, subtest, option_points, explanation, image_url, svg_content, topic)")
+        .eq("exam_id", selectedExam)
+        .order("position");
+      setQuestions(((asgn ?? []).map((d: any) => d.questions).filter(Boolean)) as Question[]);
     }
 
     const { data: s } = await supabase.from("user_scores")
@@ -439,8 +469,12 @@ const Admin = () => {
       if (!newQ.correct || !options.includes(newQ.correct)) return toast.error("Jawaban benar harus sama persis dengan salah satu opsi");
       payload.correct_answer = newQ.correct;
     }
-    const { error } = await supabase.from("questions").insert(payload);
+    const { data: newQData, error } = await supabase.from("questions").insert(payload).select("id").single();
     if (error) return toast.error(error.message);
+    // Also assign to this exam via junction table
+    await (supabase as any).from("exam_question_assignments").insert({
+      exam_id: selectedExam, question_id: (newQData as any).id, position: questions.length + 1,
+    });
     await supabase.from("exams").update({ total_questions: questions.length + 1 }).eq("id", selectedExam);
     toast.success("Soal ditambahkan");
     setNewQ(emptyNewQ()); setNewQImageFile(null); setAddQuestionMode(null); refresh();
@@ -503,8 +537,8 @@ const Admin = () => {
 
   const syncQuestionCount = async () => {
     if (!selectedExam) return;
-    const { count } = await supabase
-      .from("questions").select("*", { count: "exact", head: true }).eq("exam_id", selectedExam);
+    const { count } = await (supabase as any)
+      .from("exam_question_assignments").select("*", { count: "exact", head: true }).eq("exam_id", selectedExam);
     await supabase.from("exams").update({ total_questions: count ?? 0 }).eq("id", selectedExam);
     toast.success(`Total soal diperbarui: ${count ?? 0} soal`);
     refresh();
@@ -559,6 +593,18 @@ const Admin = () => {
       }
       setAiGen((g) => ({ ...g, imageFile: null, imageUrl: "" }));
       setAddQuestionMode(null);
+      // Sync newly generated questions to assignment table
+      if (data.count > 0 && selectedExam) {
+        const currentIds = new Set(questions.map((q) => q.id));
+        const { data: newQs } = await supabase.from("questions").select("id").eq("exam_id", selectedExam).order("created_at", { ascending: false }).limit(data.count + 5);
+        const toAssign = (newQs ?? []).filter((q: any) => !currentIds.has(q.id));
+        if (toAssign.length > 0) {
+          const maxPos = questions.length;
+          await (supabase as any).from("exam_question_assignments").insert(
+            toAssign.map((q: any, i: number) => ({ exam_id: selectedExam, question_id: q.id, position: maxPos + i + 1 }))
+          );
+        }
+      }
       refresh();
     } catch (e: any) {
       const msg = e?.message ?? "Terjadi kesalahan";
@@ -670,6 +716,56 @@ const Admin = () => {
     toast.success("Package dihapus"); refresh();
   };
 
+  const loadBankQuestions = async () => {
+    setBankLoading(true);
+    const assignedIds = new Set(questions.map((q) => q.id));
+    let query = (supabase as any)
+      .from("questions")
+      .select("id, question_text, subtest, topic, exam_id")
+      .order("created_at", { ascending: false })
+      .limit(300);
+    if (bankFilter.subtest !== "all") query = query.eq("subtest", bankFilter.subtest);
+    if (bankFilter.search.trim()) query = query.ilike("question_text", `%${bankFilter.search.trim()}%`);
+    const { data } = await query;
+    setBankQuestions(((data ?? []).filter((q: any) => !assignedIds.has(q.id))) as BankQuestion[]);
+    setBankLoading(false);
+  };
+
+  const assignFromBank = async (questionIds: string[]) => {
+    if (questionIds.length === 0) return toast.error("Pilih soal terlebih dahulu");
+    const maxPos = questions.length;
+    const { error } = await (supabase as any).from("exam_question_assignments").insert(
+      questionIds.map((qid, i) => ({ exam_id: selectedExam, question_id: qid, position: maxPos + i + 1 }))
+    );
+    if (error) return toast.error(error.message);
+    toast.success(`${questionIds.length} soal ditambahkan dari bank`);
+    setSelectedBankIds(new Set());
+    setAddQuestionMode(null);
+    refresh();
+  };
+
+  const addRandomFromBank = async (subtest: string, count: number) => {
+    const assignedIds = new Set(questions.map((q) => q.id));
+    let query = (supabase as any).from("questions").select("id").limit(1000);
+    if (subtest !== "all") query = query.eq("subtest", subtest);
+    const { data } = await query;
+    const pool = (data ?? []).filter((q: any) => !assignedIds.has(q.id));
+    if (pool.length === 0) return toast.error("Tidak ada soal tersedia di bank untuk filter ini");
+    const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, count);
+    await assignFromBank(shuffled.map((q: any) => q.id));
+  };
+
+  const removeAssignment = async (questionId: string) => {
+    const { error } = await (supabase as any)
+      .from("exam_question_assignments")
+      .delete()
+      .eq("exam_id", selectedExam)
+      .eq("question_id", questionId);
+    if (error) return toast.error(error.message);
+    toast.success("Soal dilepas dari tryout ini");
+    refresh();
+  };
+
   const toggleExpand = (id: string) => {
     setExpandedQ((prev) => {
       const next = new Set(prev);
@@ -736,34 +832,167 @@ const Admin = () => {
                   </Button>
                 </div>
 
-                {/* Picker: pilih Manual atau AI */}
+                {/* Picker: pilih Manual, AI, atau Bank */}
                 {addQuestionMode === "picker" && (
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-3 gap-3">
                     <button
                       onClick={() => setAddQuestionMode("manual")}
-                      className="flex flex-col items-center gap-3 rounded-xl border-2 border-border bg-card p-6 text-center transition-all hover:border-primary hover:bg-primary/5"
+                      className="flex flex-col items-center gap-3 rounded-xl border-2 border-border bg-card p-5 text-center transition-all hover:border-primary hover:bg-primary/5"
                     >
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-primary">
                         <Pencil className="h-6 w-6" />
                       </div>
                       <div>
-                        <p className="font-semibold">Buat Manual</p>
+                        <p className="font-semibold text-sm">Buat Manual</p>
                         <p className="mt-1 text-xs text-muted-foreground">Tulis pertanyaan & pilihan jawaban sendiri</p>
                       </div>
                     </button>
                     <button
                       onClick={() => setAddQuestionMode("ai")}
-                      className="flex flex-col items-center gap-3 rounded-xl border-2 border-border bg-card p-6 text-center transition-all hover:border-primary hover:bg-primary/5"
+                      className="flex flex-col items-center gap-3 rounded-xl border-2 border-border bg-card p-5 text-center transition-all hover:border-primary hover:bg-primary/5"
                     >
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
                         <Sparkles className="h-6 w-6" />
                       </div>
                       <div>
-                        <p className="font-semibold">Generate via AI</p>
+                        <p className="font-semibold text-sm">Generate via AI</p>
                         <p className="mt-1 text-xs text-muted-foreground">Buat soal otomatis menggunakan AI</p>
                       </div>
                     </button>
+                    <button
+                      onClick={() => { setAddQuestionMode("bank"); setBankQuestions([]); setSelectedBankIds(new Set()); }}
+                      className="flex flex-col items-center gap-3 rounded-xl border-2 border-border bg-card p-5 text-center transition-all hover:border-primary hover:bg-primary/5"
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-700">
+                        <BookOpen className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">Pilih dari Bank</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Gunakan soal yang sudah ada dari tryout lain</p>
+                      </div>
+                    </button>
                   </div>
+                )}
+
+                {/* Bank soal picker */}
+                {addQuestionMode === "bank" && (
+                  <Card className="border-green-200 bg-green-50/30">
+                    <CardHeader>
+                      <h2 className="flex items-center gap-2 font-semibold">
+                        <BookOpen className="h-4 w-4 text-green-700" /> Pilih dari Bank Soal
+                      </h2>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Pilih soal dari bank (semua soal yang pernah dibuat). Soal yang dipilih akan ditambahkan ke tryout ini.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {/* Filter row */}
+                      <div className="flex gap-2 flex-wrap">
+                        <Select value={bankFilter.subtest} onValueChange={(v) => setBankFilter((f) => ({ ...f, subtest: v }))}>
+                          <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Semua Subtes</SelectItem>
+                            <SelectItem value="twk">TWK</SelectItem>
+                            <SelectItem value="tiu">TIU</SelectItem>
+                            <SelectItem value="tkp">TKP</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder="Cari teks soal..."
+                          value={bankFilter.search}
+                          onChange={(e) => setBankFilter((f) => ({ ...f, search: e.target.value }))}
+                          className="h-8 text-xs flex-1 min-w-32"
+                          onKeyDown={(e) => e.key === "Enter" && loadBankQuestions()}
+                        />
+                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={loadBankQuestions} disabled={bankLoading}>
+                          {bankLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Cari"}
+                        </Button>
+                      </div>
+
+                      {/* Random add row */}
+                      <div className="flex items-center gap-2 flex-wrap p-3 rounded-lg border border-dashed border-green-300 bg-green-50/50">
+                        <span className="text-xs text-muted-foreground shrink-0">Tambah acak:</span>
+                        <Select value={bankRandomSubtest} onValueChange={setBankRandomSubtest}>
+                          <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Semua</SelectItem>
+                            <SelectItem value="twk">TWK</SelectItem>
+                            <SelectItem value="tiu">TIU</SelectItem>
+                            <SelectItem value="tkp">TKP</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number" min={1} max={200}
+                          value={bankRandomCount}
+                          onChange={(e) => setBankRandomCount(Math.max(1, +e.target.value))}
+                          className="h-7 text-xs w-16"
+                        />
+                        <span className="text-xs text-muted-foreground shrink-0">soal</span>
+                        <Button size="sm" className="h-7 text-xs bg-green-700 hover:bg-green-800" onClick={() => addRandomFromBank(bankRandomSubtest, bankRandomCount)}>
+                          Tambah Acak
+                        </Button>
+                      </div>
+
+                      {/* Question list */}
+                      {bankLoading && (
+                        <div className="flex items-center justify-center py-6">
+                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                      {!bankLoading && bankQuestions.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          Klik "Cari" untuk muat soal dari bank, atau gunakan "Tambah Acak".
+                        </p>
+                      )}
+                      {bankQuestions.length > 0 && (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">{bankQuestions.length} soal tersedia · {selectedBankIds.size} dipilih</span>
+                            <button
+                              className="text-xs text-primary hover:underline"
+                              onClick={() => {
+                                if (selectedBankIds.size === bankQuestions.length) setSelectedBankIds(new Set());
+                                else setSelectedBankIds(new Set(bankQuestions.map((q) => q.id)));
+                              }}
+                            >
+                              {selectedBankIds.size === bankQuestions.length ? "Batal semua" : "Pilih semua"}
+                            </button>
+                          </div>
+                          <div className="divide-y divide-border rounded-lg border max-h-80 overflow-y-auto bg-background">
+                            {bankQuestions.map((q) => (
+                              <label key={q.id} className="flex items-start gap-2.5 px-3 py-2 cursor-pointer hover:bg-accent">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedBankIds.has(q.id)}
+                                  onChange={(e) => {
+                                    const next = new Set(selectedBankIds);
+                                    e.target.checked ? next.add(q.id) : next.delete(q.id);
+                                    setSelectedBankIds(next);
+                                  }}
+                                  className="mt-0.5 shrink-0 accent-primary"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1 flex-wrap mb-0.5">
+                                    <Badge variant="outline" className="uppercase text-[9px] px-1 h-4 shrink-0">{q.subtest}</Badge>
+                                    {q.topic && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{q.topic}</Badge>}
+                                  </div>
+                                  <p className="text-xs line-clamp-2 text-foreground">{q.question_text}</p>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                          <Button
+                            onClick={() => assignFromBank([...selectedBankIds])}
+                            disabled={selectedBankIds.size === 0}
+                            className="gap-2 bg-green-700 hover:bg-green-800"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Tambah Terpilih ({selectedBankIds.size} soal)
+                          </Button>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
                 )}
 
                 {/* AI Generate */}
@@ -1137,6 +1366,7 @@ const Admin = () => {
                                       {q.topic && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">{q.topic}</Badge>}
                                       {q.svg_content && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">Grafik</Badge>}
                                       {q.image_url && !q.svg_content && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">Gambar</Badge>}
+                                      {q.exam_id !== selectedExam && <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-green-100 text-green-700 border-green-300">dari bank</Badge>}
                                     </div>
                                     <p className="text-xs font-medium leading-snug line-clamp-1 text-foreground">{q.question_text}</p>
                                     <p className="text-[10px] text-muted-foreground leading-tight mt-0.5 truncate">
@@ -1190,13 +1420,22 @@ const Admin = () => {
                                         <p className="text-xs text-blue-800 leading-relaxed">{q.explanation}</p>
                                       </div>
                                     )}
-                                    <div className="flex gap-2 pt-1">
+                                    <div className="flex gap-2 pt-1 flex-wrap">
                                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEdit(q)}>
                                         <Pencil className="h-3 w-3 mr-1" /> Edit
                                       </Button>
-                                      <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteQ(q.id)}>
-                                        <Trash2 className="h-3 w-3 mr-1" /> Hapus
+                                      <Button
+                                        size="sm" variant="outline"
+                                        className="h-7 text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
+                                        onClick={() => removeAssignment(q.id)}
+                                      >
+                                        <X className="h-3 w-3 mr-1" /> Lepas dari Tryout
                                       </Button>
+                                      {q.exam_id === selectedExam && (
+                                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteQ(q.id)}>
+                                          <Trash2 className="h-3 w-3 mr-1" /> Hapus
+                                        </Button>
+                                      )}
                                     </div>
                                   </div>
                                 )}
