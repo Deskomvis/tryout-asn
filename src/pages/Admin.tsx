@@ -146,6 +146,10 @@ const Admin = () => {
   const [keyStatus, setKeyStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
   const [keyMessage, setKeyMessage] = useState("");
 
+  const [lynkMerchantKey, setLynkMerchantKey] = useState("");
+  const [showLynkKey, setShowLynkKey] = useState(false);
+  const [savingLynkKey, setSavingLynkKey] = useState(false);
+
   const refresh = async () => {
     const { data: e } = await supabase.from("exams")
       .select("id,title,total_questions,description,duration,price,original_price,bundle_size,category,subcategory,exam_type,passing_score,cta_link,cover_image_url")
@@ -192,11 +196,14 @@ const Admin = () => {
 
   useEffect(() => { refresh(); }, [selectedExam]);
 
-  // Load saved API key on mount
+  // Load saved keys on mount
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("admin_settings").select("value").eq("key", "kie_api_key").maybeSingle();
-      if (data?.value) setKieApiKey(data.value);
+      const { data: rows } = await supabase.from("admin_settings").select("key,value").in("key", ["kie_api_key", "lynk_merchant_key"]);
+      (rows ?? []).forEach((r: any) => {
+        if (r.key === "kie_api_key") setKieApiKey(r.value);
+        if (r.key === "lynk_merchant_key") setLynkMerchantKey(r.value);
+      });
     })();
   }, []);
 
@@ -251,6 +258,19 @@ const Admin = () => {
       setKeyMessage(e?.message ?? "Terjadi kesalahan");
       toast.error("Gagal test koneksi");
     }
+  };
+
+  const saveLynkKey = async () => {
+    const trimmed = lynkMerchantKey.trim();
+    if (!trimmed) return toast.error("Masukkan Merchant Key terlebih dahulu");
+    setSavingLynkKey(true);
+    const { error } = await supabase.from("admin_settings").upsert(
+      { key: "lynk_merchant_key", value: trimmed, updated_at: new Date().toISOString() },
+      { onConflict: "key" }
+    );
+    setSavingLynkKey(false);
+    if (error) return toast.error("Gagal menyimpan: " + error.message);
+    toast.success("Lynk Merchant Key berhasil disimpan");
   };
 
   const approveTopup = async (t: Topup) => {
@@ -1133,19 +1153,6 @@ const Admin = () => {
 
           {/* ── LYNK WEBHOOK ── */}
           <TabsContent value="lynk" className="space-y-4">
-            {/* Info endpoint */}
-            <Card className="border-blue-200 bg-blue-50">
-              <CardContent className="pt-4 pb-4">
-                <p className="text-xs font-semibold text-blue-800 mb-1">Webhook Endpoint URL</p>
-                <p className="text-xs font-mono bg-white border border-blue-200 rounded px-3 py-2 break-all text-blue-900 select-all">
-                  {`https://equfmmkjtedbhyfypxwg.supabase.co/functions/v1/lynk-webhook`}
-                </p>
-                <p className="text-[11px] text-blue-700 mt-2">
-                  Daftarkan URL ini di pengaturan webhook Lynk. Sistem akan otomatis memberi akses exam ke pembeli sesuai UUID produk yang dikonfigurasi di bawah.
-                </p>
-              </CardContent>
-            </Card>
-
             {/* Header + tombol tambah */}
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-sm">Package Configurations ({lynkPackages.length})</h2>
@@ -1422,6 +1429,60 @@ const Admin = () => {
                     API key tersimpan. Klik "Simpan &amp; Cek Koneksi" untuk verifikasi ulang.
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Lynk Webhook Settings */}
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold">Lynk Webhook</h2>
+              </CardHeader>
+              <CardContent className="space-y-4 max-w-lg">
+                {/* Webhook URL */}
+                <div className="space-y-1.5">
+                  <Label>URL Webhook</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value="https://equfmmkjtedbhyfypxwg.supabase.co/functions/v1/lynk-webhook" className="text-xs font-mono bg-muted" />
+                    <Button variant="outline" size="sm" className="shrink-0" onClick={() => {
+                      navigator.clipboard.writeText("https://equfmmkjtedbhyfypxwg.supabase.co/functions/v1/lynk-webhook");
+                      toast.success("URL disalin");
+                    }}>Copy</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Daftarkan URL ini di pengaturan webhook Lynk.</p>
+                </div>
+
+                {/* Merchant Key */}
+                <div className="space-y-2">
+                  <Label>Merchant Key</Label>
+                  <div className="relative">
+                    <Input
+                      type={showLynkKey ? "text" : "password"}
+                      value={lynkMerchantKey}
+                      onChange={(e) => setLynkMerchantKey(e.target.value)}
+                      placeholder="Paste merchant key dari Lynk..."
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLynkKey(!showLynkKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showLynkKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Digunakan untuk memverifikasi bahwa request webhook benar-benar dari Lynk. Salin dari dashboard Lynk → Webhook → Merchant Key.
+                  </p>
+                  <Button onClick={saveLynkKey} disabled={savingLynkKey} className="gap-2">
+                    {savingLynkKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
+                    {savingLynkKey ? "Menyimpan..." : "Simpan Merchant Key"}
+                  </Button>
+                  {lynkMerchantKey && !savingLynkKey && (
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-800 flex items-center gap-2">
+                      <Check className="h-3.5 w-3.5 shrink-0" /> Merchant Key tersimpan.
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
