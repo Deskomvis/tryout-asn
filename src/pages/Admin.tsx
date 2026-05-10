@@ -65,6 +65,7 @@ type Question = {
   id: string; exam_id: string | null; question_text: string; options: string[];
   correct_answer: string; subtest: string; option_points: Record<string, number> | null;
   explanation?: string; image_url?: string | null; svg_content?: string | null; topic?: string | null;
+  source?: string | null;
 };
 
 type BankQuestion = {
@@ -142,6 +143,7 @@ const Admin = () => {
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
   const [filterSubtest, setFilterSubtest] = useState<"all" | "twk" | "tiu" | "tkp">("all");
   const [filterTopic, setFilterTopic] = useState("all");
+  const [filterSource, setFilterSource] = useState("all");
   const [addQuestionMode, setAddQuestionMode] = useState<null | "picker" | "manual" | "ai" | "bank">(null);
 
   // Bank soal picker
@@ -237,7 +239,7 @@ const Admin = () => {
       // Load questions via junction table
       const { data: asgn } = await (supabase as any)
         .from("exam_question_assignments")
-        .select("position, questions(id, exam_id, question_text, options, correct_answer, subtest, option_points, explanation, image_url, svg_content, topic)")
+        .select("position, questions(id, exam_id, question_text, options, correct_answer, subtest, option_points, explanation, image_url, svg_content, topic, source)")
         .eq("exam_id", selectedExam)
         .order("position");
       setQuestions(((asgn ?? []).map((d: any) => d.questions).filter(Boolean)) as Question[]);
@@ -448,7 +450,7 @@ const Admin = () => {
     const { error } = await supabase.from("exams").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Tryout dihapus");
-    if (selectedExam === id) { setSelectedExam(""); setFilterSubtest("all"); setFilterTopic("all"); }
+    if (selectedExam === id) { setSelectedExam(""); setFilterSubtest("all"); setFilterTopic("all"); setFilterSource("all"); }
     refresh();
   };
 
@@ -474,7 +476,7 @@ const Admin = () => {
     const payload: any = {
       exam_id: selectedExam, question_text: newQ.question_text.trim(),
       options, subtest: newQ.subtest, explanation: newQ.explanation.trim(), image_url: imageUrl || null,
-      topic: newQ.topic.trim() || null,
+      topic: newQ.topic.trim() || null, source: "manual",
     };
     if (newQ.subtest === "tkp") {
       payload.option_points = Object.fromEntries(optsRaw.map((o) => [o.v, o.p]));
@@ -903,7 +905,7 @@ const Admin = () => {
                 {exams.map((e) => (
                   <button
                     key={e.id}
-                    onClick={() => { setSelectedExam(e.id); setFilterSubtest("all"); setFilterTopic("all"); setAddQuestionMode(null); }}
+                    onClick={() => { setSelectedExam(e.id); setFilterSubtest("all"); setFilterTopic("all"); setFilterSource("all"); setAddQuestionMode(null); }}
                     className={cn(
                       "text-left rounded-lg border px-3 py-2.5 transition-all",
                       selectedExam === e.id
@@ -1390,6 +1392,12 @@ const Admin = () => {
                   const filtered = questions.filter((q) => {
                     if (filterSubtest !== "all" && q.subtest !== filterSubtest) return false;
                     if (filterTopic !== "all" && q.topic !== filterTopic) return false;
+                    if (filterSource !== "all") {
+                      const isBank = q.exam_id !== selectedExam;
+                      if (filterSource === "bank" && !isBank) return false;
+                      if (filterSource === "manual" && (isBank || q.source === "ai")) return false;
+                      if (filterSource === "ai" && (isBank || q.source !== "ai")) return false;
+                    }
                     return true;
                   });
                   return (
@@ -1430,9 +1438,20 @@ const Admin = () => {
                                 </SelectContent>
                               </Select>
                             )}
-                            {(filterSubtest !== "all" || filterTopic !== "all") && (
+                            <Select value={filterSource} onValueChange={setFilterSource}>
+                              <SelectTrigger className="h-7 text-xs w-32">
+                                <SelectValue placeholder="Semua sumber" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">Semua sumber</SelectItem>
+                                <SelectItem value="manual">Dari Manual</SelectItem>
+                                <SelectItem value="ai">Dari AI</SelectItem>
+                                <SelectItem value="bank">Dari Bank</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {(filterSubtest !== "all" || filterTopic !== "all" || filterSource !== "all") && (
                               <button
-                                onClick={() => { setFilterSubtest("all"); setFilterTopic("all"); }}
+                                onClick={() => { setFilterSubtest("all"); setFilterTopic("all"); setFilterSource("all"); }}
                                 className="text-[10px] text-primary hover:underline shrink-0"
                               >
                                 Reset
@@ -1469,7 +1488,12 @@ const Admin = () => {
                                       {q.topic && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">{q.topic}</Badge>}
                                       {q.svg_content && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">Grafik</Badge>}
                                       {q.image_url && !q.svg_content && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">Gambar</Badge>}
-                                      {q.exam_id !== selectedExam && <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-green-100 text-green-700 border-green-300">dari bank</Badge>}
+                                      {q.exam_id !== selectedExam
+                                        ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-green-100 text-green-700 border-green-300">Dari Bank</Badge>
+                                        : q.source === "ai"
+                                          ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-purple-100 text-purple-700 border-purple-300">Dari AI</Badge>
+                                          : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-gray-100 text-gray-600 border-gray-300">Dari Manual</Badge>
+                                      }
                                     </div>
                                     <p className="text-xs font-medium leading-snug line-clamp-1 text-foreground">{q.question_text}</p>
                                     <p className="text-[10px] text-muted-foreground leading-tight mt-0.5 truncate">

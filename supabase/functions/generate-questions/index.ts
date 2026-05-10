@@ -423,6 +423,7 @@ Deno.serve(async (req: Request) => {
           explanation: q.explanation || "",
           image_url: image_url || null,
           svg_content: svgContent,
+          source: "ai",
         };
 
         if (subtest === "tkp") {

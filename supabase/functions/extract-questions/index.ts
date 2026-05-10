@@ -160,6 +160,7 @@ Ekstrak semua soal. Return sebagai JSON array.`;
       topic: q.topic?.trim() || topic || null,
       explanation: q.explanation?.trim() || null,
       option_points: null,
+      source: "ai",
     });
   }
 
