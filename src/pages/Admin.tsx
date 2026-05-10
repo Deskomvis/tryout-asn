@@ -91,6 +91,14 @@ type MatQueueItem = {
   errorMsg?: string;
 };
 
+type ChunkStatus = {
+  index: number;
+  charCount: number;
+  status: "idle" | "processing" | "done" | "error";
+  count: number;
+  errorMsg?: string;
+};
+
 type LynkPackage = {
   id: string; lynk_uuid: string; exam_id: string | null; title: string;
   is_active: boolean; description?: string | null;
@@ -154,8 +162,8 @@ const Admin = () => {
   // Ekstrak soal dari materi
   const [extractPanelId, setExtractPanelId] = useState<string | null>(null);
   const [extractExamId, setExtractExamId] = useState("");
-  const [extractProgress, setExtractProgress] = useState<{ current: number; total: number; count: number } | null>(null);
-  const [extractResults, setExtractResults] = useState<Record<string, { count: number }>>({});
+  const [extractChunks, setExtractChunks] = useState<Record<string, ChunkStatus[]>>({});
+  const [extractRunning, setExtractRunning] = useState(false);
 
   // Lynk packages
   const [lynkPackages, setLynkPackages] = useState<LynkPackage[]>([]);
@@ -700,51 +708,74 @@ const Admin = () => {
     return chunks;
   };
 
-  const doExtractQuestions = async (material: Material) => {
+  const initExtractChunks = (material: Material) => {
+    const chunks = splitTextIntoChunks(material.extracted_text);
+    setExtractChunks((prev) => ({
+      ...prev,
+      [material.id]: chunks.map((c, i) => ({ index: i, charCount: c.length, status: "idle", count: 0 })),
+    }));
+  };
+
+  const resetExtractChunks = (material: Material) => {
+    const chunks = splitTextIntoChunks(material.extracted_text);
+    setExtractChunks((prev) => ({
+      ...prev,
+      [material.id]: chunks.map((c, i) => ({ index: i, charCount: c.length, status: "idle", count: 0 })),
+    }));
+  };
+
+  const doExtractQuestions = async (material: Material, onlyIdle = true) => {
     if (!extractExamId) return toast.error("Pilih tryout tujuan terlebih dahulu");
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
     if (!token) return toast.error("Sesi tidak ditemukan");
 
     const chunks = splitTextIntoChunks(material.extracted_text);
-    setExtractProgress({ current: 0, total: chunks.length, count: 0 });
+    const current = extractChunks[material.id] ?? chunks.map((c, i) => ({ index: i, charCount: c.length, status: "idle" as const, count: 0 }));
+    const toProcess = onlyIdle
+      ? current.filter((cs) => cs.status === "idle" || cs.status === "error")
+      : current;
 
-    let totalCount = 0;
-    let hasError = false;
+    if (toProcess.length === 0) {
+      toast.info("Semua bagian sudah selesai diproses.");
+      return;
+    }
 
-    for (let i = 0; i < chunks.length; i++) {
-      setExtractProgress({ current: i + 1, total: chunks.length, count: totalCount });
+    setExtractRunning(true);
+
+    for (const cs of toProcess) {
+      setExtractChunks((prev) => ({
+        ...prev,
+        [material.id]: prev[material.id].map((c) => c.index === cs.index ? { ...c, status: "processing" } : c),
+      }));
       try {
         const { data, error } = await supabase.functions.invoke("extract-questions", {
-          body: {
-            text_chunk: chunks[i],
-            exam_id: extractExamId,
-            category: material.category,
-            topic: material.topic ?? undefined,
-          },
+          body: { text_chunk: chunks[cs.index], exam_id: extractExamId, category: material.category, topic: material.topic ?? undefined },
           headers: { Authorization: `Bearer ${token}` },
         });
         if (error || data?.error) {
-          toast.error(`Bagian ${i + 1}: ${data?.error ?? error?.message ?? "Gagal"}`);
-          hasError = true;
-          continue;
+          const msg = data?.error ?? error?.message ?? "Gagal";
+          setExtractChunks((prev) => ({
+            ...prev,
+            [material.id]: prev[material.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: msg } : c),
+          }));
+        } else {
+          setExtractChunks((prev) => ({
+            ...prev,
+            [material.id]: prev[material.id].map((c) => c.index === cs.index ? { ...c, status: "done", count: data.count ?? 0, errorMsg: undefined } : c),
+          }));
         }
-        totalCount += data.count ?? 0;
       } catch (e: any) {
-        toast.error(`Bagian ${i + 1}: ${e.message ?? "Error"}`);
-        hasError = true;
+        const msg = e.message ?? "Error";
+        setExtractChunks((prev) => ({
+          ...prev,
+          [material.id]: prev[material.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: msg } : c),
+        }));
       }
     }
 
-    setExtractProgress(null);
-    if (totalCount > 0) {
-      toast.success(`✓ ${totalCount} soal diekstrak dari "${material.title}"`);
-      setExtractResults((r) => ({ ...r, [material.id]: { count: totalCount } }));
-      setExtractPanelId(null);
-      refresh();
-    } else if (!hasError) {
-      toast.warning("Tidak ada soal yang berhasil diekstrak. Coba cek format teks materi.");
-    }
+    setExtractRunning(false);
+    refresh();
   };
 
   const addLynkPkg = async () => {
@@ -1730,7 +1761,9 @@ const Admin = () => {
                   {materials.map((m) => {
                     const isExpanded = matExpanded.has(m.id);
                     const isExtractOpen = extractPanelId === m.id;
-                    const result = extractResults[m.id];
+                    const mChunks = extractChunks[m.id];
+                    const totalExtracted = mChunks ? mChunks.reduce((s, c) => s + (c.status === "done" ? c.count : 0), 0) : 0;
+                    const allDone = mChunks && mChunks.length > 0 && mChunks.every((c) => c.status === "done");
                     return (
                       <div key={m.id} className="px-4 py-3 space-y-2">
                         <div className="flex items-start gap-3">
@@ -1741,9 +1774,9 @@ const Admin = () => {
                               </Badge>
                               {m.topic && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{m.topic}</Badge>}
                               <span className="text-sm font-semibold">{m.title}</span>
-                              {result && (
+                              {totalExtracted > 0 && (
                                 <Badge className="text-[9px] px-1 h-4 bg-green-100 text-green-700 border-green-300">
-                                  ✓ {result.count} soal diekstrak
+                                  ✓ {totalExtracted} soal{allDone ? "" : " (sebagian)"}
                                 </Badge>
                               )}
                             </div>
@@ -1774,8 +1807,13 @@ const Admin = () => {
                               size="sm" variant="outline"
                               className={cn("h-7 text-xs gap-1", isExtractOpen && "border-primary text-primary")}
                               onClick={() => {
-                                setExtractPanelId(isExtractOpen ? null : m.id);
-                                setExtractExamId("");
+                                if (isExtractOpen) {
+                                  setExtractPanelId(null);
+                                } else {
+                                  setExtractPanelId(m.id);
+                                  setExtractExamId("");
+                                  if (!extractChunks[m.id]) initExtractChunks(m);
+                                }
                               }}
                             >
                               <Sparkles className="h-3 w-3" />
@@ -1794,13 +1832,18 @@ const Admin = () => {
                               <Sparkles className="h-3.5 w-3.5" />
                               Ekstrak soal dari "{m.title}" ke bank soal
                             </p>
-                            <p className="text-[11px] text-muted-foreground">
-                              AI akan membaca teks PDF ini dan mengekstrak semua soal persis seperti di sumber. Soal langsung masuk ke tryout yang dipilih.
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2">
+
+                            {/* Exam selector + action buttons */}
+                            <div className="flex flex-wrap items-end gap-2">
                               <div className="flex-1 min-w-48">
-                                <Label className="text-[10px] mb-1 block">Pilih tryout tujuan *</Label>
-                                <Select value={extractExamId} onValueChange={setExtractExamId}>
+                                <Label className="text-[10px] mb-1 block">Tryout tujuan *</Label>
+                                <Select
+                                  value={extractExamId}
+                                  onValueChange={(v) => {
+                                    setExtractExamId(v);
+                                    resetExtractChunks(m);
+                                  }}
+                                >
                                   <SelectTrigger className="h-8 text-xs bg-background">
                                     <SelectValue placeholder="Pilih tryout..." />
                                   </SelectTrigger>
@@ -1813,36 +1856,120 @@ const Admin = () => {
                                   </SelectContent>
                                 </Select>
                               </div>
-                              <div className="flex gap-2 pt-4">
-                                <Button
-                                  size="sm"
-                                  className="h-8 text-xs gap-1"
-                                  disabled={!!extractProgress || !extractExamId}
-                                  onClick={() => doExtractQuestions(m)}
-                                >
-                                  {extractProgress ? (
-                                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Bagian {extractProgress.current}/{extractProgress.total}...</>
-                                  ) : (
-                                    <><Sparkles className="h-3.5 w-3.5" /> Mulai Ekstrak</>
-                                  )}
-                                </Button>
-                                <Button size="sm" variant="outline" className="h-8 text-xs" disabled={!!extractProgress} onClick={() => setExtractPanelId(null)}>
-                                  Batal
+                              <div className="flex gap-1.5">
+                                {mChunks && mChunks.some((c) => c.status === "idle" || c.status === "error") && (
+                                  <Button
+                                    size="sm" className="h-8 text-xs gap-1"
+                                    disabled={extractRunning || !extractExamId}
+                                    onClick={() => doExtractQuestions(m, true)}
+                                  >
+                                    {extractRunning
+                                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Memproses...</>
+                                      : <><Sparkles className="h-3.5 w-3.5" /> {mChunks.every((c) => c.status === "idle") ? "Mulai Ekstrak" : "Lanjutkan"}</>
+                                    }
+                                  </Button>
+                                )}
+                                {mChunks && mChunks.some((c) => c.status === "done" || c.status === "error") && (
+                                  <Button
+                                    size="sm" variant="outline" className="h-8 text-xs gap-1"
+                                    disabled={extractRunning || !extractExamId}
+                                    onClick={() => { resetExtractChunks(m); }}
+                                    title="Reset semua bagian ke idle"
+                                  >
+                                    <RotateCcw className="h-3 w-3" />
+                                  </Button>
+                                )}
+                                {!mChunks && (
+                                  <Button
+                                    size="sm" className="h-8 text-xs gap-1"
+                                    disabled={!extractExamId}
+                                    onClick={() => { initExtractChunks(m); }}
+                                  >
+                                    <Sparkles className="h-3.5 w-3.5" /> Mulai Ekstrak
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="ghost" className="h-8 text-xs" disabled={extractRunning} onClick={() => setExtractPanelId(null)}>
+                                  Tutup
                                 </Button>
                               </div>
                             </div>
-                            {extractProgress && (
+
+                            {/* Per-chunk status rows */}
+                            {mChunks && (
                               <div className="space-y-1">
-                                <div className="h-1.5 rounded-full bg-primary/20 overflow-hidden">
+                                {mChunks.map((cs) => (
                                   <div
-                                    className="h-full bg-primary transition-all duration-500"
-                                    style={{ width: `${(extractProgress.current / extractProgress.total) * 100}%` }}
-                                  />
-                                </div>
-                                <p className="text-[11px] text-primary">
-                                  Memproses bagian {extractProgress.current} dari {extractProgress.total}
-                                  {extractProgress.count > 0 && ` · ${extractProgress.count} soal ditemukan`}
-                                </p>
+                                    key={cs.index}
+                                    className={cn(
+                                      "flex items-center gap-2 rounded px-2 py-1.5 text-[11px]",
+                                      cs.status === "done" && "bg-green-50 border border-green-200",
+                                      cs.status === "error" && "bg-red-50 border border-red-200",
+                                      cs.status === "processing" && "bg-primary/10 border border-primary/30",
+                                      cs.status === "idle" && "bg-background border border-border",
+                                    )}
+                                  >
+                                    <span className="font-medium text-muted-foreground w-16 shrink-0">
+                                      Bagian {cs.index + 1}
+                                    </span>
+                                    <span className="text-muted-foreground shrink-0">
+                                      {cs.charCount.toLocaleString("id-ID")} kar
+                                    </span>
+                                    <span className="flex-1" />
+                                    {cs.status === "idle" && <span className="text-muted-foreground">belum diproses</span>}
+                                    {cs.status === "processing" && <span className="text-primary flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> memproses...</span>}
+                                    {cs.status === "done" && (
+                                      <span className="text-green-700 flex items-center gap-1">
+                                        <Check className="h-3 w-3" />
+                                        {cs.count > 0 ? `${cs.count} soal` : "0 soal (tidak ada soal ditemukan)"}
+                                      </span>
+                                    )}
+                                    {cs.status === "error" && (
+                                      <span className="text-red-600 flex items-center gap-1" title={cs.errorMsg}>
+                                        <X className="h-3 w-3" /> Gagal{cs.errorMsg ? ` — ${cs.errorMsg.slice(0, 60)}` : ""}
+                                      </span>
+                                    )}
+                                    {(cs.status === "idle" || cs.status === "error") && !extractRunning && extractExamId && (
+                                      <button
+                                        className="ml-1 text-[10px] text-primary underline underline-offset-2 hover:no-underline"
+                                        onClick={async () => {
+                                          const chunks = splitTextIntoChunks(m.extracted_text);
+                                          const { data: { session } } = await supabase.auth.getSession();
+                                          const token = session?.access_token;
+                                          if (!token) return toast.error("Sesi tidak ditemukan");
+                                          setExtractRunning(true);
+                                          setExtractChunks((prev) => ({
+                                            ...prev,
+                                            [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "processing" } : c),
+                                          }));
+                                          try {
+                                            const { data, error } = await supabase.functions.invoke("extract-questions", {
+                                              body: { text_chunk: chunks[cs.index], exam_id: extractExamId, category: m.category, topic: m.topic ?? undefined },
+                                              headers: { Authorization: `Bearer ${token}` },
+                                            });
+                                            if (error || data?.error) {
+                                              const msg = data?.error ?? error?.message ?? "Gagal";
+                                              setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: msg } : c) }));
+                                            } else {
+                                              setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "done", count: data.count ?? 0, errorMsg: undefined } : c) }));
+                                            }
+                                          } catch (e: any) {
+                                            setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: e.message ?? "Error" } : c) }));
+                                          }
+                                          setExtractRunning(false);
+                                          refresh();
+                                        }}
+                                      >
+                                        Proses
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                                {mChunks.length > 0 && (
+                                  <p className="text-[10px] text-muted-foreground pt-1">
+                                    {mChunks.filter((c) => c.status === "done").length}/{mChunks.length} bagian selesai
+                                    {totalExtracted > 0 && ` · ${totalExtracted} soal total`}
+                                  </p>
+                                )}
                               </div>
                             )}
                           </div>
