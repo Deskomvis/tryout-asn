@@ -1586,12 +1586,41 @@ const Admin = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>Kategori *</Label>
-                      <Select value={newExam.category} onValueChange={(v) => setNewExam({ ...newExam, category: v })}>
+                      <Select value={newExam.category} onValueChange={(v) => setNewExam({ ...newExam, category: v, subcategory: "" })}>
                         <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
                         <SelectContent><SelectItem value="cpns">CPNS</SelectItem><SelectItem value="pppk">PPPK</SelectItem></SelectContent>
                       </Select>
                     </div>
-                    <div><Label>Subkategori *</Label><Input placeholder="cth: SKD, SKB Bidan" maxLength={80} value={newExam.subcategory} onChange={(e) => setNewExam({ ...newExam, subcategory: e.target.value })} /></div>
+                    <div>
+                      <Label>Subkategori *</Label>
+                      {(() => {
+                        const opts = Array.from(new Set(exams.filter((e) => e.category === newExam.category).map((e) => e.subcategory).filter(Boolean)));
+                        const inList = opts.includes(newExam.subcategory);
+                        const showInput = !inList;
+                        return (
+                          <div className="space-y-1.5">
+                            <Select
+                              value={inList ? newExam.subcategory : (opts.length > 0 ? "__lainnya__" : "")}
+                              onValueChange={(v) => setNewExam({ ...newExam, subcategory: v === "__lainnya__" ? "" : v })}
+                            >
+                              <SelectTrigger><SelectValue placeholder="Pilih subkategori..." /></SelectTrigger>
+                              <SelectContent>
+                                {opts.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                <SelectItem value="__lainnya__">Lainnya (ketik sendiri)...</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {(showInput || opts.length === 0) && (
+                              <Input
+                                placeholder="cth: SKD, SKB Bidan"
+                                maxLength={80}
+                                value={newExam.subcategory}
+                                onChange={(e) => setNewExam({ ...newExam, subcategory: e.target.value })}
+                              />
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Skor Lulus</Label><Input type="number" placeholder="0 = tidak ada batas" value={newExam.passing_score} onChange={(e) => setNewExam({ ...newExam, passing_score: +e.target.value })} /></div>
@@ -2504,14 +2533,39 @@ const Admin = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Kategori *</Label>
-                  <Select value={editExam.category} onValueChange={(v) => setEditExam({ ...editExam, category: v })}>
+                  <Select value={editExam.category} onValueChange={(v) => setEditExam({ ...editExam, category: v, subcategory: "" })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="cpns">CPNS</SelectItem><SelectItem value="pppk">PPPK</SelectItem></SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label>Subkategori *</Label>
-                  <Input value={editExam.subcategory} onChange={(e) => setEditExam({ ...editExam, subcategory: e.target.value })} />
+                  {(() => {
+                    const opts = Array.from(new Set(exams.filter((e) => e.category === editExam.category).map((e) => e.subcategory).filter(Boolean)));
+                    const inList = opts.includes(editExam.subcategory);
+                    const showInput = !inList;
+                    return (
+                      <div className="space-y-1.5">
+                        <Select
+                          value={inList ? editExam.subcategory : "__lainnya__"}
+                          onValueChange={(v) => setEditExam({ ...editExam, subcategory: v === "__lainnya__" ? "" : v })}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Pilih subkategori..." /></SelectTrigger>
+                          <SelectContent>
+                            {opts.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            <SelectItem value="__lainnya__">Lainnya (ketik sendiri)...</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {showInput && (
+                          <Input
+                            placeholder="Ketik subkategori baru..."
+                            value={editExam.subcategory}
+                            onChange={(e) => setEditExam({ ...editExam, subcategory: e.target.value })}
+                          />
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
