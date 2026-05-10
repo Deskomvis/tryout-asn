@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -6,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
@@ -118,7 +119,15 @@ const emptyNewQ = () => ({
   pa: 5, pb: 4, pc: 3, pd: 2, pe: 1, explanation: "", image_url: "", topic: "",
 });
 
+const VALID_TABS = ["questions", "exams", "materi", "lynk", "scores", "topups", "balances", "settings"] as const;
+
 const Admin = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (VALID_TABS as readonly string[]).includes(searchParams.get("tab") ?? "")
+    ? searchParams.get("tab")!
+    : "questions";
+  const setActiveTab = (tab: string) => setSearchParams({ tab }, { replace: true });
+
   const [exams, setExams] = useState<Exam[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
@@ -884,17 +893,7 @@ const Admin = () => {
       <div className="w-full overflow-x-hidden">
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
 
-        <Tabs defaultValue="questions" className="mt-6">
-          <TabsList className="flex-wrap">
-            <TabsTrigger value="questions">Manajemen Soal</TabsTrigger>
-            <TabsTrigger value="exams">Tryout</TabsTrigger>
-            <TabsTrigger value="materi">Materi</TabsTrigger>
-            <TabsTrigger value="lynk">Lynk Webhook</TabsTrigger>
-            <TabsTrigger value="scores">Skor User</TabsTrigger>
-            <TabsTrigger value="topups">History Transaksi</TabsTrigger>
-            <TabsTrigger value="balances">Semua User</TabsTrigger>
-            <TabsTrigger value="settings">Pengaturan</TabsTrigger>
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
 
           {/* ── MANAJEMEN SOAL ── */}
           <TabsContent value="questions" className="space-y-4">
