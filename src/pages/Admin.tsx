@@ -1600,8 +1600,20 @@ const Admin = () => {
                   <div><Label>Judul *</Label><Input placeholder="cth: SKD CPNS Premium - Paket 1" value={newExam.title} onChange={(e) => setNewExam({ ...newExam, title: e.target.value })} /></div>
                   <div><Label>Deskripsi</Label><Textarea placeholder="Ringkasan singkat" value={newExam.description} onChange={(e) => setNewExam({ ...newExam, description: e.target.value })} rows={2} /></div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Durasi (detik)</Label><Input type="number" value={newExam.duration} onChange={(e) => setNewExam({ ...newExam, duration: +e.target.value })} /></div>
-                    <div><Label>Bundling (jumlah tryout)</Label><Input type="number" min={1} value={newExam.bundle_size} onChange={(e) => setNewExam({ ...newExam, bundle_size: Math.max(1, +e.target.value) })} /></div>
+                    <div>
+                      <Label>Durasi (detik) <span className="text-muted-foreground text-xs font-normal">— otomatis 60 menit/paket</span></Label>
+                      <Input type="number" value={newExam.duration} onChange={(e) => setNewExam({ ...newExam, duration: +e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Paket</Label>
+                      <Input
+                        type="number" min={1} value={newExam.bundle_size}
+                        onChange={(e) => {
+                          const n = Math.max(1, +e.target.value);
+                          setNewExam({ ...newExam, bundle_size: n, duration: n * 3600 });
+                        }}
+                      />
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Harga (Rp)</Label><Input type="number" placeholder="0 = gratis" value={newExam.price} onChange={(e) => setNewExam({ ...newExam, price: +e.target.value })} /></div>
@@ -2594,12 +2606,18 @@ const Admin = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Durasi (detik)</Label>
+                  <Label>Durasi (detik) <span className="text-muted-foreground text-xs font-normal">— otomatis 60 menit/paket</span></Label>
                   <Input type="number" value={editExam.duration} onChange={(e) => setEditExam({ ...editExam, duration: +e.target.value })} />
                 </div>
                 <div>
-                  <Label>Bundling</Label>
-                  <Input type="number" min={1} value={editExam.bundle_size} onChange={(e) => setEditExam({ ...editExam, bundle_size: Math.max(1, +e.target.value) })} />
+                  <Label>Paket</Label>
+                  <Input
+                    type="number" min={1} value={editExam.bundle_size}
+                    onChange={(e) => {
+                      const n = Math.max(1, +e.target.value);
+                      setEditExam({ ...editExam, bundle_size: n, duration: n * 3600 });
+                    }}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
