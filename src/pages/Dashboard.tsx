@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Package, Trophy, ArrowUpRight } from "lucide-react";
+import { Package, Trophy, ArrowUpRight, ShoppingBag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
@@ -16,18 +16,44 @@ type LeaderRow = {
   exams: { title: string } | null;
 };
 
+const stats = [
+  {
+    label: "Paket Saya",
+    icon: Package,
+    gradient: "from-blue-500 to-indigo-600",
+    to: "/paket-saya",
+    linkText: "Lihat paket saya",
+  },
+  {
+    label: "Leaderboard",
+    icon: Trophy,
+    gradient: "from-amber-500 to-orange-600",
+    to: "/leaderboard",
+    linkText: "Lihat ranking",
+  },
+  {
+    label: "Beli Paket Tryout",
+    icon: ShoppingBag,
+    gradient: "from-emerald-500 to-teal-600",
+    to: "/beli-paket",
+    linkText: "Beli paket tryout",
+    staticValue: null,
+  },
+] as const;
+
 const Dashboard = () => {
   const { user } = useAuth();
-  const [scoreCount, setScoreCount] = useState(0);
+  const [paketCount, setPaketCount] = useState(0);
+  const [leaderCount, setLeaderCount] = useState(0);
   const [leaders, setLeaders] = useState<LeaderRow[]>([]);
 
   useEffect(() => {
     if (!user) return;
     supabase
-      .from("user_scores")
+      .from("exam_purchases")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
-      .then(({ count }) => setScoreCount(count ?? 0));
+      .then(({ count }) => setPaketCount(count ?? 0));
   }, [user]);
 
   useEffect(() => {
@@ -36,13 +62,18 @@ const Dashboard = () => {
       .select("id, score, user_id, profiles(full_name), exams(title)")
       .order("score", { ascending: false })
       .limit(5)
-      .then(({ data }) => setLeaders((data as any) ?? []));
+      .then(({ data }) => {
+        const rows = (data as any) ?? [];
+        setLeaders(rows);
+        setLeaderCount(rows.length);
+      });
   }, []);
 
-  const stats = [
-    { label: "Paket Saya", value: scoreCount, icon: Package, gradient: "from-blue-500 to-indigo-600" },
-    { label: "Leaderboard", value: leaders.length, icon: Trophy, gradient: "from-amber-500 to-orange-600", to: "/leaderboard" as const },
-  ];
+  const values: Record<string, number | null> = {
+    "Paket Saya": paketCount,
+    "Leaderboard": leaderCount,
+    "Beli Paket Tryout": null,
+  };
 
   return (
     <AppLayout>
@@ -56,26 +87,9 @@ const Dashboard = () => {
 
       <h2 className="mt-8 text-lg font-semibold text-foreground">Home</h2>
 
-      <div className="mt-3 grid gap-5 sm:grid-cols-2">
+      <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((s, i) => {
-          const inner = (
-            <div className={`relative rounded-2xl bg-gradient-to-br ${s.gradient} p-5 text-white shadow-lg`}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-white/90">{s.label}</p>
-                  <p className="mt-1 text-3xl font-bold">{s.value}</p>
-                </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/20">
-                  <s.icon className="h-7 w-7" aria-hidden="true" />
-                </div>
-              </div>
-              {s.to && (
-                <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-white/90">
-                  Lihat ranking <ArrowUpRight className="h-3 w-3" />
-                </span>
-              )}
-            </div>
-          );
+          const val = values[s.label];
           return (
             <motion.div
               key={s.label}
@@ -84,7 +98,26 @@ const Dashboard = () => {
               transition={{ duration: 0.4, delay: i * 0.08 }}
               whileHover={{ y: -4 }}
             >
-              {s.to ? <Link to={s.to} className="block">{inner}</Link> : inner}
+              <Link to={s.to} className="block">
+                <div className={`relative rounded-2xl bg-gradient-to-br ${s.gradient} p-5 text-white shadow-lg`}>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-white/90">{s.label}</p>
+                      {val !== null ? (
+                        <p className="mt-1 text-3xl font-bold">{val}</p>
+                      ) : (
+                        <p className="mt-1 text-3xl font-bold">→</p>
+                      )}
+                    </div>
+                    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/20">
+                      <s.icon className="h-7 w-7" aria-hidden="true" />
+                    </div>
+                  </div>
+                  <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-white/90">
+                    {s.linkText} <ArrowUpRight className="h-3 w-3" />
+                  </span>
+                </div>
+              </Link>
             </motion.div>
           );
         })}
@@ -122,7 +155,6 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </section>
-
     </AppLayout>
   );
 };
