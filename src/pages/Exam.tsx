@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -10,7 +9,15 @@ import { Timer, CheckCircle2, Circle, Flag } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-type Q = { id: string; question_text: string; options: string[]; subtest?: string; explanation?: string; image_url?: string | null; svg_content?: string | null };
+type Q = {
+  id: string;
+  question_text: string;
+  options: string[];
+  subtest?: string;
+  explanation?: string;
+  image_url?: string | null;
+  svg_content?: string | null;
+};
 
 const formatTime = (s: number) => {
   const h = Math.floor(s / 3600);
@@ -22,12 +29,37 @@ const formatTime = (s: number) => {
 
 const getSubtestLabel = (subtest?: string) => {
   const labels: Record<string, string> = {
+    twk: "Tes Wawasan Kebangsaan",
+    tiu: "Tes Intelegensia Umum",
+    tkp: "Tes Karakteristik Pribadi",
     TWK: "Tes Wawasan Kebangsaan",
     TIU: "Tes Intelegensia Umum",
     TKP: "Tes Karakteristik Pribadi",
   };
   return labels[subtest || ""] || "Soal";
 };
+
+// Timer color: 7 segments proportional to total duration
+// Last 5 min (300s) = always red with pulse
+// Remaining 6 segments scaled proportionally
+const getTimerStyle = (timeLeft: number, totalDuration: number) => {
+  if (timeLeft <= 300) {
+    return { bg: "bg-red-600", text: "text-white", pulse: true };
+  }
+  const above = timeLeft - 300;
+  const usable = Math.max(totalDuration - 300, 1);
+  const ratio = above / usable; // 1 = full time, 0 = just above 5-min mark
+
+  if (ratio > 5 / 6) return { bg: "bg-blue-700",   text: "text-white", pulse: false };
+  if (ratio > 4 / 6) return { bg: "bg-blue-400",    text: "text-white", pulse: false };
+  if (ratio > 3 / 6) return { bg: "bg-green-700",   text: "text-white", pulse: false };
+  if (ratio > 2 / 6) return { bg: "bg-green-400",   text: "text-white", pulse: false };
+  if (ratio > 1 / 6) return { bg: "bg-yellow-400",  text: "text-gray-900", pulse: false };
+  return                      { bg: "bg-orange-500", text: "text-white", pulse: false };
+};
+
+const PROGRESS_KEY = (id: string) => `exam-progress-${id}`;
+const END_KEY      = (id: string) => `exam-end-${id}`;
 
 const Exam = () => {
   const { examId } = useParams();
@@ -41,6 +73,7 @@ const Exam = () => {
   const startedAt = useRef(Date.now());
   const endAtRef = useRef<number>(0);
   const submittedRef = useRef(false);
+  const totalDurationRef = useRef(0);
 
   const submit = useCallback(async (auto = false) => {
     if (submittedRef.current) return;
@@ -52,34 +85,60 @@ const Exam = () => {
     });
     setSubmitting(false);
     if (error) { toast.error(error.message); submittedRef.current = false; return; }
-    localStorage.removeItem(`exam-end-${examId}`);
+    localStorage.removeItem(END_KEY(examId!));
+    localStorage.removeItem(PROGRESS_KEY(examId!));
     localStorage.setItem(`exam-answers-${examId}`, JSON.stringify(answers));
     toast.success(auto ? `Waktu habis! Skor: ${data}` : `Selesai. Skor: ${data}`);
     navigate(`/exam-results/${examId}`);
   }, [examId, answers, navigate]);
 
+  // Load exam + questions, restore progress
   useEffect(() => {
     (async () => {
       const { data: e } = await supabase.from("exams").select("title,duration").eq("id", examId!).maybeSingle();
       if (!e) { toast.error("Ujian tidak ditemukan"); navigate("/dashboard"); return; }
       setExam(e);
-      const key = `exam-end-${examId}`;
+      totalDurationRef.current = e.duration;
+
+      const key = END_KEY(examId!);
       const stored = localStorage.getItem(key);
       let endAt: number;
       if (stored && Number(stored) > Date.now()) {
         endAt = Number(stored);
+        startedAt.current = Date.now() - (e.duration * 1000 - (endAt - Date.now()));
       } else {
         endAt = Date.now() + e.duration * 1000;
         localStorage.setItem(key, String(endAt));
       }
       endAtRef.current = endAt;
       setTimeLeft(Math.max(0, Math.round((endAt - Date.now()) / 1000)));
+
       const { data: qs } = await supabase.rpc("get_exam_questions", { _exam_id: examId! });
-      setQuestions((qs as any) ?? []);
+      const loaded: Q[] = (qs as any) ?? [];
+      setQuestions(loaded);
+
+      // Restore in-progress answers
+      const saved = localStorage.getItem(PROGRESS_KEY(examId!));
+      if (saved) {
+        try {
+          const restored: Record<string, string> = JSON.parse(saved);
+          setAnswers(restored);
+          // Jump to first unanswered question
+          const firstUnanswered = loaded.findIndex((q) => !restored[q.id]);
+          if (firstUnanswered !== -1) setCurrent(firstUnanswered);
+        } catch { /* ignore */ }
+      }
     })();
   }, [examId, navigate]);
 
-  // Timer based on absolute end time — unaffected by tab throttling
+  // Persist answers whenever they change
+  useEffect(() => {
+    if (examId && Object.keys(answers).length > 0) {
+      localStorage.setItem(PROGRESS_KEY(examId), JSON.stringify(answers));
+    }
+  }, [answers, examId]);
+
+  // Timer — absolute end time, syncs on tab visibility restore
   useEffect(() => {
     if (!exam) return;
     const tick = () => {
@@ -88,7 +147,7 @@ const Exam = () => {
     };
     tick();
     const t = setInterval(tick, 500);
-    const onVisible = () => tick();
+    const onVisible = () => { if (document.visibilityState === "visible") tick(); };
     document.addEventListener("visibilitychange", onVisible);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };
   }, [exam]);
@@ -97,62 +156,78 @@ const Exam = () => {
     if (exam && timeLeft === 0 && !submittedRef.current && questions.length > 0) submit(true);
   }, [timeLeft, exam, submit, questions.length]);
 
-  const answeredCount = useMemo(() => Object.keys(answers).filter(k => answers[k]).length, [answers]);
+  const answeredCount = useMemo(
+    () => Object.keys(answers).filter((k) => answers[k]).length,
+    [answers]
+  );
 
-  if (!exam) return <AppLayout><div className="flex items-center justify-center py-20">Memuat...</div></AppLayout>;
+  if (!exam) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-muted-foreground">Memuat ujian...</div>
+      </div>
+    );
+  }
+
   const q = questions[current];
+  const timerStyle = getTimerStyle(timeLeft, totalDurationRef.current || exam.duration);
 
   return (
-    <AppLayout>
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold">{exam.title}</h1>
-              <p className="text-sm text-muted-foreground">
-                Soal {current + 1} dari {questions.length} · Terjawab {answeredCount}/{questions.length}
-              </p>
-            </div>
-            <div className={cn(
-              "flex items-center gap-2 rounded-lg px-4 py-2 font-mono text-lg font-bold",
-              timeLeft < 60 ? "bg-destructive text-destructive-foreground animate-pulse" : "bg-primary text-primary-foreground"
-            )}>
-              <Timer className="h-5 w-5" /> {formatTime(timeLeft)}
-            </div>
+    <div className="min-h-screen bg-secondary/30">
+      {/* Sticky header */}
+      <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm px-4 md:px-6 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-bold leading-tight">{exam.title}</h1>
+            <p className="text-xs text-muted-foreground">
+              Soal {current + 1} dari {questions.length} · Terjawab {answeredCount}/{questions.length}
+            </p>
+          </div>
+          <div className={cn(
+            "flex items-center gap-2 rounded-xl px-4 py-2 font-mono text-xl font-bold shadow-md transition-colors duration-700 shrink-0",
+            timerStyle.bg, timerStyle.text,
+            timerStyle.pulse && "animate-pulse"
+          )}>
+            <Timer className="h-5 w-5" />
+            {formatTime(timeLeft)}
           </div>
         </div>
+      </header>
 
-        <Progress value={questions.length ? (answeredCount / questions.length) * 100 : 0} className="mb-6" />
+      <main className="px-4 py-5 md:px-6">
+        <Progress value={questions.length ? (answeredCount / questions.length) * 100 : 0} className="mb-5" />
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+        <div className="grid gap-5 lg:grid-cols-[1fr_260px]">
+          {/* Question card */}
           <AnimatePresence mode="wait">
             {q && (
               <motion.div
                 key={q.id}
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.2 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.18 }}
               >
                 <Card>
-                  <CardHeader>
-                    <div className="mb-3 flex items-center justify-between">
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Soal {current + 1} · {getSubtestLabel(q.subtest)}</div>
-                        <h2 className="mt-2 text-lg font-semibold">{q.question_text}</h2>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                          Soal {current + 1} · {getSubtestLabel(q.subtest)}
+                        </div>
+                        <h2 className="text-base font-semibold leading-snug">{q.question_text}</h2>
                       </div>
                       <button
                         type="button"
                         onClick={() => toast.info("Fitur laporkan soal sedang dalam pengembangan")}
-                        className="flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        className="shrink-0 flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
                       >
-                        <Flag className="h-4 w-4" />
+                        <Flag className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">Laporkan</span>
                       </button>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {/* SVG grafik atau gambar foto */}
                     {q.svg_content && (
                       <div className="mb-4 overflow-x-auto rounded-lg border bg-white p-3"
                         dangerouslySetInnerHTML={{ __html: q.svg_content }} />
@@ -169,7 +244,7 @@ const Exam = () => {
                           <button
                             key={opt}
                             type="button"
-                            onClick={() => setAnswers({ ...answers, [q.id]: opt })}
+                            onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: opt }))}
                             className={cn(
                               "flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors",
                               selected
@@ -188,13 +263,16 @@ const Exam = () => {
                         );
                       })}
                     </div>
-
-                    <div className="mt-8 flex justify-between gap-3">
-                      <Button variant="outline" size="lg" onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0}>← Sebelumnya</Button>
+                    <div className="mt-6 flex justify-between gap-3">
+                      <Button variant="outline" size="lg" onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0}>
+                        ← Sebelumnya
+                      </Button>
                       {current < questions.length - 1 ? (
                         <Button size="lg" onClick={() => setCurrent((c) => c + 1)}>Selanjutnya →</Button>
                       ) : (
-                        <Button size="lg" onClick={() => submit(false)} disabled={submitting}>{submitting ? "Mengirim..." : "Selesai & Submit"}</Button>
+                        <Button size="lg" onClick={() => submit(false)} disabled={submitting}>
+                          {submitting ? "Mengirim..." : "Selesai & Submit"}
+                        </Button>
                       )}
                     </div>
                   </CardContent>
@@ -203,50 +281,48 @@ const Exam = () => {
             )}
           </AnimatePresence>
 
-          <Card className="h-fit lg:sticky lg:top-20">
-            <CardHeader>
-              <h3 className="font-semibold">Nomor Soal</h3>
-              <p className="mt-2 text-xs text-muted-foreground">
-                <CheckCircle2 className="mr-1 inline h-3 w-3 text-primary" /> Terjawab
-                <Circle className="ml-3 mr-1 inline h-3 w-3 text-muted-foreground" /> Belum
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-5 gap-2">
-                {questions.map((qq, i) => {
-                  const answered = !!answers[qq.id];
-                  const isCurrent = i === current;
-                  return (
-                    <button
-                      key={qq.id}
-                      onClick={() => setCurrent(i)}
-                      className={cn(
-                        "flex h-10 items-center justify-center rounded border text-sm font-semibold transition-all",
-                        isCurrent && "ring-2 ring-primary ring-offset-1",
-                        answered
-                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                          : "border-border bg-background text-foreground hover:bg-accent"
-                      )}
-                      aria-label={`Soal ${i + 1}${answered ? " (terjawab)" : ""}`}
-                    >
-                      {i + 1}
-                    </button>
-                  );
-                })}
-              </div>
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={() => submit(false)}
-                disabled={submitting}
-              >
-                {submitting ? "Mengirim..." : "Selesaikan Ujian"}
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Navigator sidebar */}
+          <div className="lg:sticky lg:top-[73px] h-fit">
+            <Card>
+              <CardHeader className="pb-2">
+                <h3 className="font-semibold">Nomor Soal</h3>
+                <p className="mt-1 text-xs text-muted-foreground flex items-center gap-3">
+                  <span><CheckCircle2 className="mr-1 inline h-3 w-3 text-primary" />Terjawab</span>
+                  <span><Circle className="mr-1 inline h-3 w-3 text-muted-foreground" />Belum</span>
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-5 gap-1.5">
+                  {questions.map((qq, i) => {
+                    const answered = !!answers[qq.id];
+                    const isCurrent = i === current;
+                    return (
+                      <button
+                        key={qq.id}
+                        onClick={() => setCurrent(i)}
+                        className={cn(
+                          "flex h-9 items-center justify-center rounded border text-sm font-semibold transition-all",
+                          isCurrent && "ring-2 ring-primary ring-offset-1",
+                          answered
+                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                            : "border-border bg-background text-foreground hover:bg-accent"
+                        )}
+                        aria-label={`Soal ${i + 1}${answered ? " (terjawab)" : ""}`}
+                      >
+                        {i + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+                <Button className="w-full" size="lg" onClick={() => submit(false)} disabled={submitting}>
+                  {submitting ? "Mengirim..." : "Selesaikan Ujian"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
-    </AppLayout>
+      </main>
+    </div>
   );
 };
 
