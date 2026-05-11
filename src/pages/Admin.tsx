@@ -96,6 +96,9 @@ const Admin = () => {
   const [globalBank, setGlobalBank] = useState<GlobalBankQ[]>([]);
   const [globalBankLoading, setGlobalBankLoading] = useState(false);
   const [globalBankFilter, setGlobalBankFilter] = useState({ subtest: "all", source: "all", assigned: "all", search: "" });
+  const [bankPage, setBankPage] = useState(0);
+  const [bankTotalCount, setBankTotalCount] = useState(0);
+  const BANK_PAGE_SIZE = 100;
   const [globalBankSelectedIds, setGlobalBankSelectedIds] = useState<Set<string>>(new Set());
   const [distributeOpen, setDistributeOpen] = useState(false);
   const [distributeTargetIds, setDistributeTargetIds] = useState<Set<string>>(new Set());
@@ -218,30 +221,55 @@ const Admin = () => {
     setBalances(allBalances);
   };
 
-  const loadGlobalBank = async () => {
+  const loadGlobalBank = async (page = 0, filter = globalBankFilter) => {
     setGlobalBankLoading(true);
-    // Fetch all questions
-    const { data: qs } = await supabase
+    const start = page * BANK_PAGE_SIZE;
+    const end = start + BANK_PAGE_SIZE - 1;
+
+    let query = supabase
       .from("questions")
-      .select("id, question_text, subtest, topic, source, exam_id")
-      .order("created_at", { ascending: false });
+      .select("id, question_text, subtest, topic, source, exam_id", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(start, end);
 
-    // Fetch assignment counts per question
-    const { data: asgns } = await (supabase as any)
-      .from("exam_question_assignments")
-      .select("question_id");
+    if (filter.subtest !== "all") query = query.eq("subtest", filter.subtest);
+    if (filter.source === "ai") query = query.eq("source", "ai");
+    else if (filter.source === "manual") query = (query as any).or("source.is.null,source.eq.manual");
+    if (filter.search) query = query.ilike("question_text", `%${filter.search}%`);
 
+    const { data: qs, count } = await query;
+
+    const pageIds = (qs ?? []).map((q: any) => q.id);
     const countMap: Record<string, number> = {};
-    (asgns ?? []).forEach((a: any) => {
-      countMap[a.question_id] = (countMap[a.question_id] ?? 0) + 1;
-    });
+    if (pageIds.length > 0) {
+      const { data: asgns } = await (supabase as any)
+        .from("exam_question_assignments")
+        .select("question_id")
+        .in("question_id", pageIds);
+      (asgns ?? []).forEach((a: any) => {
+        countMap[a.question_id] = (countMap[a.question_id] ?? 0) + 1;
+      });
+    }
 
     const result: GlobalBankQ[] = (qs ?? []).map((q: any) => ({
       ...q,
       assign_count: countMap[q.id] ?? 0,
     }));
     setGlobalBank(result);
+    setBankPage(page);
+    setBankTotalCount(count ?? 0);
     setGlobalBankLoading(false);
+  };
+
+  const handleBankFilterChange = (newFilter: typeof globalBankFilter) => {
+    setGlobalBankFilter(newFilter);
+    if (
+      newFilter.subtest !== globalBankFilter.subtest ||
+      newFilter.source !== globalBankFilter.source ||
+      newFilter.search !== globalBankFilter.search
+    ) {
+      loadGlobalBank(0, newFilter);
+    }
   };
 
   useEffect(() => { refresh(); }, [selectedExam]);
@@ -279,6 +307,8 @@ const Admin = () => {
   }, [extractChunks]);
 
   // Fetch actual question counts from DB per material (ground truth for old sessions)
+  // Stable string dep prevents re-running on every refresh() that creates a new materials array ref
+  const materialIdsKey = materials.map((m) => m.id).join(",");
   useEffect(() => {
     if (materials.length === 0) return;
     Promise.all(
@@ -292,7 +322,7 @@ const Admin = () => {
     ).then((results) => {
       setMaterialQuestionCounts(Object.fromEntries(results));
     });
-  }, [materials]);
+  }, [materialIdsKey]);
 
   // Upload image to Supabase Storage
   const uploadImage = async (file: File): Promise<string | null> => {
@@ -969,7 +999,7 @@ const Admin = () => {
 
   const addRandomFromBank = async (subtest: string, count: number) => {
     const assignedIds = new Set(questions.map((q) => q.id));
-    let query = (supabase as any).from("questions").select("id").limit(1000);
+    let query = (supabase as any).from("questions").select("id").range(0, 9999);
     if (subtest !== "all") query = query.eq("subtest", subtest);
     const { data } = await query;
     const pool = (data ?? []).filter((q: any) => !assignedIds.has(q.id));
@@ -1023,7 +1053,12 @@ const Admin = () => {
                 globalBank={globalBank}
                 globalBankLoading={globalBankLoading}
                 globalBankFilter={globalBankFilter}
+                onFilterChange={handleBankFilterChange}
                 setGlobalBankFilter={setGlobalBankFilter}
+                bankPage={bankPage}
+                bankTotalCount={bankTotalCount}
+                bankPageSize={BANK_PAGE_SIZE}
+                onPageChange={(page) => loadGlobalBank(page)}
                 globalBankSelectedIds={globalBankSelectedIds}
                 setGlobalBankSelectedIds={setGlobalBankSelectedIds}
                 distributeOpen={distributeOpen}
@@ -1050,7 +1085,7 @@ const Admin = () => {
                 emptyNewQ={emptyNewQ}
                 onAddQuestionToBank={addQuestionToBank}
                 onGenerateViaAI={generateViaAI}
-                onLoadGlobalBank={loadGlobalBank}
+                onLoadGlobalBank={() => loadGlobalBank(0)}
                 onBulkDistribute={bulkDistribute}
                 onBulkDeleteQuestions={bulkDeleteQuestions}
               />

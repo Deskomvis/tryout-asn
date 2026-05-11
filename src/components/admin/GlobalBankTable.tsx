@@ -1,4 +1,4 @@
-import { Loader2, Plus, RotateCcw, Trash2, X, Pencil, Sparkles, Check } from "lucide-react";
+import { Loader2, Plus, RotateCcw, Trash2, X, Pencil, Sparkles, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,12 @@ interface GlobalBankTableProps {
   globalBank: GlobalBankQ[];
   globalBankLoading: boolean;
   globalBankFilter: { subtest: string; source: string; assigned: string; search: string };
+  onFilterChange: (filter: { subtest: string; source: string; assigned: string; search: string }) => void;
   setGlobalBankFilter: React.Dispatch<React.SetStateAction<{ subtest: string; source: string; assigned: string; search: string }>>;
+  bankPage: number;
+  bankTotalCount: number;
+  bankPageSize: number;
+  onPageChange: (page: number) => void;
   globalBankSelectedIds: Set<string>;
   setGlobalBankSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   distributeOpen: boolean;
@@ -28,7 +33,6 @@ interface GlobalBankTableProps {
   exams: Exam[];
   bankListMode: null | "manual" | "ai";
   setBankListMode: React.Dispatch<React.SetStateAction<null | "manual" | "ai">>;
-  // New question form (shared state from Admin)
   newQ: {
     question_text: string; a: string; b: string; c: string; d: string; e: string;
     correct: string; subtest: string; pa: number; pb: number; pc: number; pd: number; pe: number;
@@ -36,7 +40,6 @@ interface GlobalBankTableProps {
   };
   setNewQ: React.Dispatch<React.SetStateAction<any>>;
   newQUploadingImg: boolean;
-  // AI gen state
   aiGen: {
     subtest: "twk" | "tiu" | "tkp"; topic: string; count: number;
   };
@@ -58,7 +61,12 @@ export function GlobalBankTable({
   globalBank,
   globalBankLoading,
   globalBankFilter,
+  onFilterChange,
   setGlobalBankFilter,
+  bankPage,
+  bankTotalCount,
+  bankPageSize,
+  onPageChange,
   globalBankSelectedIds,
   setGlobalBankSelectedIds,
   distributeOpen,
@@ -89,6 +97,15 @@ export function GlobalBankTable({
   onBulkDistribute,
   onBulkDeleteQuestions,
 }: GlobalBankTableProps) {
+  const totalPages = Math.ceil(bankTotalCount / bankPageSize);
+
+  // Only assigned filter is client-side (within current page)
+  const filtered = globalBank.filter((q) => {
+    if (globalBankFilter.assigned === "unassigned" && q.assign_count > 0) return false;
+    if (globalBankFilter.assigned === "assigned" && q.assign_count === 0) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-4">
       {/* Header actions */}
@@ -96,7 +113,7 @@ export function GlobalBankTable({
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="font-semibold text-sm">
             Semua Soal
-            <span className="ml-1.5 text-muted-foreground font-normal">({globalBank.length})</span>
+            <span className="ml-1.5 text-muted-foreground font-normal">({bankTotalCount.toLocaleString()})</span>
           </h2>
           {globalBankSelectedIds.size > 0 && (
             <>
@@ -253,9 +270,9 @@ export function GlobalBankTable({
           className="h-7 text-xs w-52"
           placeholder="Cari soal..."
           value={globalBankFilter.search}
-          onChange={(e) => setGlobalBankFilter((f) => ({ ...f, search: e.target.value }))}
+          onChange={(e) => onFilterChange({ ...globalBankFilter, search: e.target.value })}
         />
-        <Select value={globalBankFilter.subtest} onValueChange={(v) => setGlobalBankFilter((f) => ({ ...f, subtest: v }))}>
+        <Select value={globalBankFilter.subtest} onValueChange={(v) => onFilterChange({ ...globalBankFilter, subtest: v })}>
           <SelectTrigger className="h-7 text-xs w-28"><SelectValue placeholder="Semua subtes" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua subtes</SelectItem>
@@ -264,7 +281,7 @@ export function GlobalBankTable({
             <SelectItem value="tkp">TKP</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={globalBankFilter.source} onValueChange={(v) => setGlobalBankFilter((f) => ({ ...f, source: v }))}>
+        <Select value={globalBankFilter.source} onValueChange={(v) => onFilterChange({ ...globalBankFilter, source: v })}>
           <SelectTrigger className="h-7 text-xs w-28"><SelectValue placeholder="Semua sumber" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua sumber</SelectItem>
@@ -281,7 +298,7 @@ export function GlobalBankTable({
           </SelectContent>
         </Select>
         {(globalBankFilter.subtest !== "all" || globalBankFilter.source !== "all" || globalBankFilter.assigned !== "all" || globalBankFilter.search) && (
-          <button onClick={() => setGlobalBankFilter({ subtest: "all", source: "all", assigned: "all", search: "" })} className="text-[10px] text-primary hover:underline">
+          <button onClick={() => onFilterChange({ subtest: "all", source: "all", assigned: "all", search: "" })} className="text-[10px] text-primary hover:underline">
             Reset
           </button>
         )}
@@ -299,99 +316,135 @@ export function GlobalBankTable({
             <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
           ) : (
             <div className="divide-y divide-border">
-              {(() => {
-                const filtered = globalBank.filter((q) => {
-                  if (globalBankFilter.subtest !== "all" && q.subtest !== globalBankFilter.subtest) return false;
-                  if (globalBankFilter.source !== "all" && (q.source ?? "manual") !== globalBankFilter.source) return false;
-                  if (globalBankFilter.assigned === "unassigned" && q.assign_count > 0) return false;
-                  if (globalBankFilter.assigned === "assigned" && q.assign_count === 0) return false;
-                  if (globalBankFilter.search && !q.question_text.toLowerCase().includes(globalBankFilter.search.toLowerCase())) return false;
-                  return true;
-                });
-                if (filtered.length === 0) {
-                  return (
-                    <p className="text-center text-sm text-muted-foreground py-12">
-                      {globalBank.length === 0 ? "Bank soal kosong. Tambah soal via Materi & Ekstrak atau Per Tryout." : "Tidak ada soal yang cocok."}
-                    </p>
-                  );
-                }
-                const allFilteredSelected = filtered.length > 0 && filtered.every((q) => globalBankSelectedIds.has(q.id));
-                const someSelected = filtered.some((q) => globalBankSelectedIds.has(q.id));
-                return (
-                  <>
-                    {/* Select All row */}
-                    <div className="flex items-center gap-3 px-4 py-2 bg-muted/40 border-b">
-                      <input
-                        type="checkbox"
-                        checked={allFilteredSelected}
-                        ref={(el) => { if (el) el.indeterminate = someSelected && !allFilteredSelected; }}
-                        onChange={(e) => {
-                          const next = new Set(globalBankSelectedIds);
-                          if (e.target.checked) filtered.forEach((q) => next.add(q.id));
-                          else filtered.forEach((q) => next.delete(q.id));
-                          setGlobalBankSelectedIds(next);
-                        }}
-                        className="h-3.5 w-3.5 rounded accent-primary shrink-0 cursor-pointer"
-                      />
-                      <span className="text-xs text-muted-foreground">
-                        {allFilteredSelected
-                          ? `Semua ${filtered.length} soal dipilih`
-                          : someSelected
-                          ? `${globalBankSelectedIds.size} dipilih dari ${filtered.length} soal`
-                          : `Pilih semua ${filtered.length} soal`}
-                      </span>
-                    </div>
-                    {filtered.map((q) => {
-                      const isSelected = globalBankSelectedIds.has(q.id);
-                      return (
-                        <div
-                          key={q.id}
-                          className={cn("flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors", isSelected && "bg-primary/5")}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              const next = new Set(globalBankSelectedIds);
-                              e.target.checked ? next.add(q.id) : next.delete(q.id);
-                              setGlobalBankSelectedIds(next);
-                            }}
-                            className="h-3.5 w-3.5 rounded accent-primary shrink-0 cursor-pointer"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                              <Badge variant="outline" className="uppercase text-[9px] px-1 py-0 h-4 shrink-0">{q.subtest ?? "tiu"}</Badge>
-                              {q.topic && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">{q.topic}</Badge>}
-                              {(q.source ?? "manual") === "ai"
-                                ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-purple-100 text-purple-700 border-purple-300">Dari AI</Badge>
-                                : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-gray-100 text-gray-600 border-gray-300">Dari Manual</Badge>
-                              }
-                              {q.assign_count === 0
-                                ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-yellow-50 text-yellow-700 border-yellow-300">Belum di-assign</Badge>
-                                : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-blue-50 text-blue-700 border-blue-300">Di {q.assign_count} tryout</Badge>
-                              }
-                            </div>
-                            <p className="text-xs leading-snug line-clamp-2 text-foreground">{q.question_text}</p>
+              {filtered.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground py-12">
+                  {bankTotalCount === 0 ? "Bank soal kosong. Tambah soal via Materi & Ekstrak atau Per Tryout." : "Tidak ada soal yang cocok."}
+                </p>
+              ) : (
+                <>
+                  {/* Select All row */}
+                  <div className="flex items-center gap-3 px-4 py-2 bg-muted/40 border-b">
+                    <input
+                      type="checkbox"
+                      checked={filtered.length > 0 && filtered.every((q) => globalBankSelectedIds.has(q.id))}
+                      ref={(el) => {
+                        if (el) {
+                          const some = filtered.some((q) => globalBankSelectedIds.has(q.id));
+                          const all = filtered.every((q) => globalBankSelectedIds.has(q.id));
+                          el.indeterminate = some && !all;
+                        }
+                      }}
+                      onChange={(e) => {
+                        const next = new Set(globalBankSelectedIds);
+                        if (e.target.checked) filtered.forEach((q) => next.add(q.id));
+                        else filtered.forEach((q) => next.delete(q.id));
+                        setGlobalBankSelectedIds(next);
+                      }}
+                      className="h-3.5 w-3.5 rounded accent-primary shrink-0 cursor-pointer"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {filtered.every((q) => globalBankSelectedIds.has(q.id)) && filtered.length > 0
+                        ? `Semua ${filtered.length} soal di halaman ini dipilih`
+                        : filtered.some((q) => globalBankSelectedIds.has(q.id))
+                        ? `${globalBankSelectedIds.size} dipilih`
+                        : `Pilih semua ${filtered.length} soal di halaman ini`}
+                    </span>
+                  </div>
+                  {filtered.map((q) => {
+                    const isSelected = globalBankSelectedIds.has(q.id);
+                    return (
+                      <div
+                        key={q.id}
+                        className={cn("flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors", isSelected && "bg-primary/5")}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            const next = new Set(globalBankSelectedIds);
+                            e.target.checked ? next.add(q.id) : next.delete(q.id);
+                            setGlobalBankSelectedIds(next);
+                          }}
+                          className="h-3.5 w-3.5 rounded accent-primary shrink-0 cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                            <Badge variant="outline" className="uppercase text-[9px] px-1 py-0 h-4 shrink-0">{q.subtest ?? "tiu"}</Badge>
+                            {q.topic && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">{q.topic}</Badge>}
+                            {(q.source ?? "manual") === "ai"
+                              ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-purple-100 text-purple-700 border-purple-300">Dari AI</Badge>
+                              : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-gray-100 text-gray-600 border-gray-300">Dari Manual</Badge>
+                            }
+                            {q.assign_count === 0
+                              ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-yellow-50 text-yellow-700 border-yellow-300">Belum di-assign</Badge>
+                              : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-blue-50 text-blue-700 border-blue-300">Di {q.assign_count} tryout</Badge>
+                            }
                           </div>
-                          <Button
-                            size="sm" variant="outline" className="h-7 text-xs shrink-0 gap-1"
-                            onClick={() => {
-                              setGlobalBankSelectedIds(new Set([q.id]));
-                              setDistributeOpen(true);
-                            }}
-                          >
-                            <Plus className="h-3 w-3" /> Tryout
-                          </Button>
+                          <p className="text-xs leading-snug line-clamp-2 text-foreground">{q.question_text}</p>
                         </div>
-                      );
-                    })}
-                  </>
-                );
-              })()}
+                        <Button
+                          size="sm" variant="outline" className="h-7 text-xs shrink-0 gap-1"
+                          onClick={() => {
+                            setGlobalBankSelectedIds(new Set([q.id]));
+                            setDistributeOpen(true);
+                          }}
+                        >
+                          <Plus className="h-3 w-3" /> Tryout
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      {bankTotalCount > bankPageSize && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            Halaman {bankPage + 1} dari {totalPages} &bull; {bankTotalCount.toLocaleString()} soal total
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm" variant="outline" className="h-7 w-7 p-0"
+              onClick={() => onPageChange(bankPage - 1)}
+              disabled={bankPage === 0 || globalBankLoading}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+              let page = i;
+              if (totalPages > 7) {
+                if (bankPage <= 3) page = i;
+                else if (bankPage >= totalPages - 4) page = totalPages - 7 + i;
+                else page = bankPage - 3 + i;
+              }
+              return (
+                <Button
+                  key={page}
+                  size="sm"
+                  variant={page === bankPage ? "default" : "outline"}
+                  className="h-7 w-7 p-0 text-xs"
+                  onClick={() => onPageChange(page)}
+                  disabled={globalBankLoading}
+                >
+                  {page + 1}
+                </Button>
+              );
+            })}
+            <Button
+              size="sm" variant="outline" className="h-7 w-7 p-0"
+              onClick={() => onPageChange(bankPage + 1)}
+              disabled={bankPage >= totalPages - 1 || globalBankLoading}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation modal */}
       {deleteConfirmOpen && (
