@@ -1624,6 +1624,21 @@ const Admin = () => {
                                 )}
                               </div>
                               <div className="flex gap-1.5 shrink-0">
+                                {/* Re-extract button — only shown if previously extracted */}
+                                {totalExtracted > 0 && !isExtractOpen && (
+                                  <Button
+                                    size="sm" variant="outline"
+                                    className="h-7 w-7 p-0 text-orange-600 border-orange-300 hover:bg-orange-50"
+                                    title="Proses ulang ekstraksi (update SVG & soal)"
+                                    onClick={() => {
+                                      resetExtractChunks(m);
+                                      setExtractPanelId(m.id);
+                                      setExtractExamId("");
+                                    }}
+                                  >
+                                    <RotateCcw className="h-3 w-3" />
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm" variant="outline"
                                   className={cn("h-7 text-xs gap-1", isExtractOpen && "border-primary text-primary")}
@@ -1649,10 +1664,23 @@ const Admin = () => {
                             {/* Inline extract panel */}
                             {isExtractOpen && (
                               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
-                                <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
-                                  <Sparkles className="h-3.5 w-3.5" />
-                                  Ekstrak soal dari "{m.title}" ke bank soal
-                                </p>
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                    Ekstrak soal dari "{m.title}" ke bank soal
+                                  </p>
+                                  {mChunks && mChunks.some((c) => c.status === "done") && (
+                                    <button
+                                      className="flex items-center gap-1 text-[10px] text-orange-600 hover:text-orange-700 border border-orange-300 rounded px-2 py-1 bg-orange-50 hover:bg-orange-100 transition-colors"
+                                      title="Reset semua chunk ke idle lalu proses ulang seluruhnya"
+                                      onClick={() => resetExtractChunks(m)}
+                                      disabled={extractRunning}
+                                    >
+                                      <RotateCcw className="h-3 w-3" />
+                                      Reset & Proses Ulang Semua
+                                    </button>
+                                  )}
+                                </div>
 
                                 {/* Exam selector + action buttons */}
                                 <div className="flex flex-wrap items-end gap-2">
