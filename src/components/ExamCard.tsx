@@ -22,6 +22,7 @@ export type ExamLite = {
   original_price?: number | null;
   bundle_size?: number | null;
   cover_image_url?: string | null;
+  cta_link?: string | null;
 };
 
 type Mode = "buy" | "play";
@@ -47,28 +48,28 @@ export const ExamCard = ({
   const bundle = exam.bundle_size ?? 1;
 
   const handleBuy = async () => {
-    if (!isFree && balance < exam.price) {
-      toast.error("Saldo tidak cukup. Silakan topup terlebih dahulu.");
-      navigate("/topup");
-      return;
-    }
-    fbq.initiateCheckout({ content_ids: [exam.id], value: exam.price, currency: "IDR", num_items: 1 });
-    setBusy(true);
-    try {
-      await purchaseExam(exam.id);
-      await refresh();
-      if (isFree) {
+    if (isFree) {
+      fbq.initiateCheckout({ content_ids: [exam.id], value: 0, currency: "IDR", num_items: 1 });
+      setBusy(true);
+      try {
+        await purchaseExam(exam.id);
+        await refresh();
         fbq.lead({ content_name: exam.title });
-      } else {
-        fbq.purchase({ value: exam.price, currency: "IDR", content_ids: [exam.id], content_name: exam.title });
+        toast.success("Paket diaktifkan.");
+        onPurchased?.();
+        navigate("/paket-saya");
+      } catch (e) {
+        toast.error((e as Error).message);
+      } finally {
+        setBusy(false);
       }
-      toast.success(isFree ? "Paket diaktifkan." : `Berhasil! Rp ${exam.price.toLocaleString("id-ID")} terpotong.`);
-      onPurchased?.();
-      navigate("/paket-saya");
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
+    } else {
+      if (exam.cta_link) {
+        fbq.initiateCheckout({ content_ids: [exam.id], value: exam.price, currency: "IDR", num_items: 1 });
+        window.location.href = exam.cta_link;
+      } else {
+        toast.error("Link pembelian belum tersedia. Silakan hubungi admin.");
+      }
     }
   };
 
@@ -134,11 +135,18 @@ export const ExamCard = ({
                 <Link to={`/exam/${exam.id}`}>Mulai Tryout</Link>
               </Button>
             ) : (
-              <Button onClick={handleBuy} disabled={busy} className="w-full gap-2 rounded-full">
-                {busy ? "Memproses..." : isFree ? "Aktifkan Gratis" : (
-                  <><Wallet className="h-4 w-4" /> Beli Rp {exam.price.toLocaleString("id-ID")}</>
+              <div className="space-y-2 text-center">
+                <Button onClick={handleBuy} disabled={busy} className="w-full gap-2 rounded-full">
+                  {busy ? "Memproses..." : isFree ? "Aktifkan Gratis" : (
+                    <><Wallet className="h-4 w-4" /> Beli Rp {exam.price.toLocaleString("id-ID")}</>
+                  )}
+                </Button>
+                {!isFree && (
+                  <p className="text-[10px] text-muted-foreground">
+                    *Bayar di Lynk.id dengan email yg sama.
+                  </p>
                 )}
-              </Button>
+              </div>
             )}
           </div>
         </CardContent>

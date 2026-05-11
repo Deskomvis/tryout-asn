@@ -1,1 +1,4 @@
 project_id = "equfmmkjtedbhyfypxwg"
+
+[functions.lynk-webhook]
+verify_jwt = false
