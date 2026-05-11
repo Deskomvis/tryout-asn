@@ -66,7 +66,7 @@ const BeliPaket = () => {
     return (
       <AppLayout>
         <PageHeader title="Pilih Kategori" breadcrumbs={[{ label: "Beli Paket" }]} />
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {categories.map((c, i) => (
             <motion.button
               key={c.id}
@@ -75,14 +75,14 @@ const BeliPaket = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: i * 0.1 }}
-              whileHover={{ scale: 1.03, y: -4 }}
+              whileHover={{ scale: 1.02, y: -3 }}
               whileTap={{ scale: 0.97 }}
-              className="group relative overflow-hidden rounded-3xl shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="group relative overflow-hidden rounded-2xl shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <img
                 src={c.image}
                 alt={`Tryout ${c.label}`}
-                className="h-56 w-full object-contain transition-transform duration-300 group-hover:scale-105 sm:h-72"
+                className="h-44 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-52"
               />
             </motion.button>
           ))}
@@ -109,7 +109,7 @@ const BeliPaket = () => {
         >
           ← Kembali ke kategori
         </button>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {subcategories.map((s, i) => (
             <SubcategoryCard key={s} label={s} index={i} onClick={() => setStep({ ...step, subcategory: s })} />
           ))}
@@ -147,7 +147,7 @@ const BeliPaket = () => {
       {filteredExams.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">Belum ada paket pada kategori ini.</CardContent></Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filteredExams.map((e, i) => <ExamCard key={e.id} exam={e} index={i} mode="buy" />)}
         </div>
       )}
