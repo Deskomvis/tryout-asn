@@ -2036,8 +2036,6 @@ const Admin = () => {
                 })()}
               </>
             )}
-              </div>
-            )}
           </TabsContent>
 
           {/* ── TRYOUT ── */}
