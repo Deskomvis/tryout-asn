@@ -11,122 +11,24 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  Trash2, Wallet, Check, X, Plus, Sparkles, Loader2,
+  Trash2, Check, X, Plus, Sparkles, Loader2,
   Pencil, Image, Upload, Key, Eye, EyeOff, ChevronDown, ChevronUp,
-  BarChart2, LineChart, PieChart, Table2, RotateCcw, Copy,
-  BookOpen, FileText, AlertCircle,
+  RotateCcw, Copy,
+  BookOpen, FileText,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { extractTextFromFile } from "@/lib/extractPdfText";
-
-type ChartType = "none" | "bar" | "line" | "pie" | "table";
-
-const CHART_OPTIONS: { value: ChartType; label: string; icon: React.ElementType; desc: string }[] = [
-  { value: "none", label: "Teks Saja", icon: Sparkles, desc: "Soal pilihan ganda biasa" },
-  { value: "bar", label: "Bar Chart", icon: BarChart2, desc: "Grafik batang — data perbandingan" },
-  { value: "line", label: "Line Chart", icon: LineChart, desc: "Grafik garis — data tren/pertumbuhan" },
-  { value: "pie", label: "Pie Chart", icon: PieChart, desc: "Grafik lingkaran — distribusi/proporsi" },
-  { value: "table", label: "Tabel Data", icon: Table2, desc: "Tabel data numerik terstruktur" },
-];
-
-const TOPIC_OPTIONS = {
-  twk: [
-    { value: "pancasila", label: "Pancasila" },
-    { value: "uud1945", label: "UUD 1945" },
-    { value: "bhineka", label: "Bhinneka Tunggal Ika" },
-    { value: "nkri", label: "NKRI" },
-    { value: "bahasa", label: "Bahasa Indonesia" },
-  ],
-  tiu: [
-    { value: "analogi", label: "Analogi Verbal" },
-    { value: "silogisme", label: "Silogisme" },
-    { value: "logika", label: "Logika Formal" },
-    { value: "hitung", label: "Hitung Cepat" },
-    { value: "deret", label: "Deret Angka & Huruf" },
-    { value: "figural", label: "Figural / Spasial" },
-  ],
-  tkp: [
-    { value: "pelayanan", label: "Pelayanan Publik" },
-    { value: "jejaring", label: "Jejaring Kerja" },
-    { value: "sosial", label: "Sosial Budaya" },
-    { value: "profesionalisme", label: "Profesionalisme" },
-    { value: "antiradikalisme", label: "Anti Radikalisme" },
-    { value: "tik", label: "Teknologi Informasi & Komunikasi" },
-  ],
-} as const;
-
-type Exam = {
-  id: string; title: string; total_questions: number;
-  description?: string; duration: number; price: number; original_price?: number;
-  bundle_size: number; category: string; subcategory: string; exam_type?: string;
-  passing_score?: number; cta_link?: string | null; cover_image_url?: string | null;
-};
-type Question = {
-  id: string; exam_id: string | null; question_text: string; options: string[];
-  correct_answer: string; subtest: string; option_points: Record<string, number> | null;
-  explanation?: string; image_url?: string | null; svg_content?: string | null; topic?: string | null;
-  source?: string | null;
-};
-
-type BankQuestion = {
-  id: string; exam_id: string | null; question_text: string; subtest: string; topic?: string | null;
-};
-type Score = { id: string; score: number; completed_at: string; profiles: { username: string | null; email: string | null } | null; exams: { title: string } | null };
-type Topup = { id: string; user_id: string; amount: number; status: "pending" | "approved" | "rejected"; created_at: string; profiles: { username: string | null; email: string | null } | null };
-type UserBalance = { user_id: string; balance: number; profiles: { username: string | null; email: string | null } | null };
-type Purchase = { id: string; created_at: string; user_id: string; exam_id: string; profiles: { username: string | null; email: string | null } | null; exams: { title: string } | null };
-type Material = {
-  id: string; title: string; description?: string | null; file_name?: string | null;
-  category: string; topic?: string | null; extracted_text: string; char_count?: number | null;
-  created_at: string;
-};
-
-type MatQueueItem = {
-  id: string;
-  file: File;
-  status: "extracting" | "ready" | "error";
-  text: string;
-  title: string;
-  category: string;
-  topic: string;
-  errorMsg?: string;
-};
-
-type ChunkStatus = {
-  index: number;
-  charCount: number;
-  status: "idle" | "processing" | "done" | "error";
-  count: number;
-  svgCount?: number;
-  errorMsg?: string;
-};
-
-type LynkPackage = {
-  id: string; lynk_uuid: string; exam_id: string | null; title: string;
-  is_active: boolean; description?: string | null;
-  notification_title?: string | null; notification_message?: string | null;
-  exams?: { title: string } | null;
-};
-
-type EditQ = {
-  id: string; question_text: string; a: string; b: string; c: string; d: string; e: string;
-  correct: string; subtest: string; pa: number; pb: number; pc: number; pd: number; pe: number;
-  explanation: string; image_url: string; topic: string;
-};
-
-const emptyNewQ = () => ({
-  question_text: "", a: "", b: "", c: "", d: "", e: "", correct: "", subtest: "tiu" as const,
-  pa: 5, pb: 4, pc: 3, pd: 2, pe: 1, explanation: "", image_url: "", topic: "",
-});
-
-const VALID_TABS = ["bank", "exams", "scores", "topups", "balances", "settings"] as const;
-const BANK_VIEWS = ["list", "materi", "exam"] as const;
-
-type GlobalBankQ = {
-  id: string; question_text: string; subtest: string; topic?: string | null;
-  source?: string | null; exam_id: string | null; assign_count: number;
-};
+import {
+  ChartType, CHART_OPTIONS, TOPIC_OPTIONS,
+  Exam, Question, BankQuestion, Score, Topup, UserBalance, Purchase,
+  Material, MatQueueItem, ChunkStatus, LynkPackage, EditQ, GlobalBankQ,
+  emptyNewQ, VALID_TABS, BANK_VIEWS,
+} from "@/types/admin";
+import { splitTextIntoChunks } from "@/lib/adminUtils";
+import { AdminTabBar } from "@/components/admin/AdminTabBar";
+import { GlobalBankTable } from "@/components/admin/GlobalBankTable";
+import { MaterialRow } from "@/components/admin/MaterialRow";
 
 const Admin = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -838,25 +740,6 @@ const Admin = () => {
     toast.success("Materi dihapus"); refresh();
   };
 
-  const CHUNK_SIZE = 7000; // chars per request — keeps KIE API happy
-
-  const splitTextIntoChunks = (text: string): string[] => {
-    if (text.length <= CHUNK_SIZE) return [text];
-    const chunks: string[] = [];
-    let start = 0;
-    while (start < text.length) {
-      let end = Math.min(start + CHUNK_SIZE, text.length);
-      if (end < text.length) {
-        // Try to split at a newline near the boundary
-        const lastNl = text.lastIndexOf("\n", end);
-        if (lastNl > start + CHUNK_SIZE * 0.5) end = lastNl + 1;
-      }
-      chunks.push(text.slice(start, end));
-      start = end;
-    }
-    return chunks;
-  };
-
   const initExtractChunks = (material: Material) => {
     const chunks = splitTextIntoChunks(material.extracted_text);
     setExtractChunks((prev) => ({
@@ -1139,452 +1022,46 @@ const Admin = () => {
           {/* ── BANK SOAL ── */}
           <TabsContent value="bank" className="space-y-4">
             {/* Sub-navigation */}
-            <div className="flex gap-1 border-b pb-0">
-              {[
-                { value: "list", label: "Daftar Soal" },
-                { value: "materi", label: "Materi & Ekstrak" },
-                { value: "exam", label: "Per Tryout" },
-              ].map((item) => (
-                <button
-                  key={item.value}
-                  onClick={() => setBankView(item.value)}
-                  className={cn(
-                    "px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px",
-                    bankView === item.value
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            <AdminTabBar bankView={bankView} setBankView={setBankView} />
 
             {/* View: Daftar Soal (Global Bank) */}
             {bankView === "list" && (
-              <div className="space-y-4">
-                {/* Header actions */}
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="font-semibold text-sm">
-                      Semua Soal
-                      <span className="ml-1.5 text-muted-foreground font-normal">({globalBank.length})</span>
-                    </h2>
-                    {globalBankSelectedIds.size > 0 && (
-                      <>
-                        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setDistributeOpen(true)}>
-                          <Plus className="h-3 w-3" />
-                          Distribute ({globalBankSelectedIds.size})
-                        </Button>
-                        <Button
-                          size="sm" variant="destructive" className="h-7 text-xs gap-1"
-                          onClick={() => setDeleteConfirmOpen(true)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          Hapus ({globalBankSelectedIds.size})
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm" variant={bankListMode === "manual" ? "outline" : "default"} className="h-7 text-xs gap-1"
-                      onClick={() => setBankListMode((m) => m === "manual" ? null : "manual")}
-                    >
-                      <Pencil className="h-3 w-3" />
-                      {bankListMode === "manual" ? "Tutup" : "Tambah Manual"}
-                    </Button>
-                    <Button
-                      size="sm" variant={bankListMode === "ai" ? "outline" : "default"} className="h-7 text-xs gap-1"
-                      onClick={() => setBankListMode((m) => m === "ai" ? null : "ai")}
-                    >
-                      <Sparkles className="h-3 w-3" />
-                      {bankListMode === "ai" ? "Tutup" : "Generate AI"}
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={loadGlobalBank} disabled={globalBankLoading}>
-                      {globalBankLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Tambah Manual form (bank mode) */}
-                {bankListMode === "manual" && (
-                  <Card>
-                    <CardHeader><h3 className="font-semibold text-sm flex items-center gap-2"><Pencil className="h-4 w-4" /> Tambah Soal Manual ke Bank</h3></CardHeader>
-                    <CardContent className="space-y-3">
-                      {/* Reuse same newQ form fields — identical to Per Tryout manual form */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-xs">Subtes *</Label>
-                          <Select value={newQ.subtest} onValueChange={(v: any) => setNewQ({ ...newQ, subtest: v })}>
-                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="twk">TWK</SelectItem>
-                              <SelectItem value="tiu">TIU</SelectItem>
-                              <SelectItem value="tkp">TKP</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-xs">Topik</Label>
-                          <Input className="h-8 text-xs" placeholder="cth: Pancasila" value={newQ.topic} onChange={(e) => setNewQ({ ...newQ, topic: e.target.value })} />
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-xs">Pertanyaan *</Label>
-                        <Textarea rows={3} placeholder="Tulis pertanyaan..." value={newQ.question_text} onChange={(e) => setNewQ({ ...newQ, question_text: e.target.value })} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Pilihan Jawaban *</Label>
-                        {(["a","b","c","d","e"] as const).map((k) => (
-                          <div key={k} className="flex items-center gap-2">
-                            <span className="text-xs font-bold w-4 shrink-0">{k.toUpperCase()}.</span>
-                            <Input className="h-7 text-xs flex-1" placeholder={`Opsi ${k.toUpperCase()}`} value={newQ[k]} onChange={(e) => setNewQ({ ...newQ, [k]: e.target.value })} />
-                            {newQ.subtest !== "tkp" && (
-                              <button type="button" className={cn("h-7 px-2 rounded text-xs border transition-colors shrink-0", newQ.correct === newQ[k] && newQ[k] ? "bg-green-500 text-white border-green-500" : "border-border hover:bg-accent")} onClick={() => { if (newQ[k]) setNewQ({ ...newQ, correct: newQ[k] }); }}>✓</button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      {newQ.subtest !== "tkp" && <p className="text-[10px] text-muted-foreground">Klik ✓ di sebelah kanan opsi untuk menandai jawaban benar.</p>}
-                      <div>
-                        <Label className="text-xs">Pembahasan (opsional)</Label>
-                        <Textarea rows={2} placeholder="Jelaskan mengapa jawaban benar..." value={newQ.explanation} onChange={(e) => setNewQ({ ...newQ, explanation: e.target.value })} />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button onClick={addQuestionToBank} disabled={newQUploadingImg}>Tambah ke Bank</Button>
-                        <Button variant="outline" onClick={() => { setBankListMode(null); setNewQ(emptyNewQ()); }}>Batal</Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Generate AI form (bank mode) — reuse aiGen state, no selectedExam needed */}
-                {bankListMode === "ai" && (
-                  <Card className="border-primary/20 bg-primary/5">
-                    <CardHeader>
-                      <h3 className="font-semibold text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Generate Soal AI ke Bank</h3>
-                      <p className="text-xs text-muted-foreground">Soal yang digenerate langsung masuk ke Bank Soal tanpa perlu pilih tryout.</p>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <Label className="text-xs">Subtes *</Label>
-                          <Select value={aiGen.subtest} onValueChange={(v: any) => setAiGen((g) => ({ ...g, subtest: v, topic: v === "twk" ? "pancasila" : v === "tiu" ? "analogi" : "pelayanan" }))}>
-                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="twk">TWK</SelectItem>
-                              <SelectItem value="tiu">TIU</SelectItem>
-                              <SelectItem value="tkp">TKP</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-xs">Topik *</Label>
-                          <Select value={aiGen.topic} onValueChange={(v) => setAiGen((g) => ({ ...g, topic: v }))}>
-                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {(TOPIC_OPTIONS[aiGen.subtest] ?? []).map((t) => (
-                                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-xs">Jumlah</Label>
-                          <Input type="number" min={1} max={30} className="h-8 text-xs" value={aiGen.count} onChange={(e) => setAiGen((g) => ({ ...g, count: Math.max(1, Math.min(30, +e.target.value)) }))} />
-                        </div>
-                      </div>
-                      {aiStatus === "loading" && (
-                        <div className="flex items-center gap-2 text-sm text-primary">
-                          <Loader2 className="h-4 w-4 animate-spin" /> Generating {aiGen.count} soal {aiGen.subtest.toUpperCase()}...
-                        </div>
-                      )}
-                      {aiStatus === "done" && aiResult && (
-                        <div className="flex items-center gap-2 text-sm text-green-700">
-                          <Check className="h-4 w-4" /> {aiResult.count} soal berhasil ditambahkan ke bank
-                        </div>
-                      )}
-                      {aiStatus === "error" && (
-                        <div className="flex items-center gap-2 text-sm text-red-600">
-                          <AlertCircle className="h-4 w-4" /> {aiError}
-                        </div>
-                      )}
-                      <div className="flex gap-2">
-                        <Button onClick={() => generateViaAI(undefined)} disabled={aiStatus === "loading"}>
-                          {aiStatus === "loading" ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Generating...</> : <><Sparkles className="h-4 w-4 mr-1" /> Generate {aiGen.count} Soal</>}
-                        </Button>
-                        <Button variant="outline" onClick={() => { setBankListMode(null); setAiStatus("idle"); }}>Tutup</Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Filters */}
-                <div className="flex flex-wrap gap-2 items-center">
-                  <Input
-                    className="h-7 text-xs w-52"
-                    placeholder="Cari soal..."
-                    value={globalBankFilter.search}
-                    onChange={(e) => setGlobalBankFilter((f) => ({ ...f, search: e.target.value }))}
-                  />
-                  <Select value={globalBankFilter.subtest} onValueChange={(v) => setGlobalBankFilter((f) => ({ ...f, subtest: v }))}>
-                    <SelectTrigger className="h-7 text-xs w-28"><SelectValue placeholder="Semua subtes" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Semua subtes</SelectItem>
-                      <SelectItem value="twk">TWK</SelectItem>
-                      <SelectItem value="tiu">TIU</SelectItem>
-                      <SelectItem value="tkp">TKP</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={globalBankFilter.source} onValueChange={(v) => setGlobalBankFilter((f) => ({ ...f, source: v }))}>
-                    <SelectTrigger className="h-7 text-xs w-28"><SelectValue placeholder="Semua sumber" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Semua sumber</SelectItem>
-                      <SelectItem value="manual">Dari Manual</SelectItem>
-                      <SelectItem value="ai">Dari AI</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={globalBankFilter.assigned} onValueChange={(v) => setGlobalBankFilter((f) => ({ ...f, assigned: v }))}>
-                    <SelectTrigger className="h-7 text-xs w-32"><SelectValue placeholder="Semua status" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Semua status</SelectItem>
-                      <SelectItem value="unassigned">Belum di-assign</SelectItem>
-                      <SelectItem value="assigned">Sudah di-assign</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {(globalBankFilter.subtest !== "all" || globalBankFilter.source !== "all" || globalBankFilter.assigned !== "all" || globalBankFilter.search) && (
-                    <button onClick={() => setGlobalBankFilter({ subtest: "all", source: "all", assigned: "all", search: "" })} className="text-[10px] text-primary hover:underline">
-                      Reset
-                    </button>
-                  )}
-                  {globalBankSelectedIds.size > 0 && (
-                    <button onClick={() => setGlobalBankSelectedIds(new Set())} className="text-[10px] text-muted-foreground hover:underline ml-auto">
-                      Batal pilih semua
-                    </button>
-                  )}
-                </div>
-
-                {/* Question list */}
-                <Card className="overflow-hidden">
-                  <CardContent className="p-0">
-                    {globalBankLoading ? (
-                      <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                    ) : (
-                      <div className="divide-y divide-border">
-                        {(() => {
-                          const filtered = globalBank.filter((q) => {
-                            if (globalBankFilter.subtest !== "all" && q.subtest !== globalBankFilter.subtest) return false;
-                            if (globalBankFilter.source !== "all" && (q.source ?? "manual") !== globalBankFilter.source) return false;
-                            if (globalBankFilter.assigned === "unassigned" && q.assign_count > 0) return false;
-                            if (globalBankFilter.assigned === "assigned" && q.assign_count === 0) return false;
-                            if (globalBankFilter.search && !q.question_text.toLowerCase().includes(globalBankFilter.search.toLowerCase())) return false;
-                            return true;
-                          });
-                          if (filtered.length === 0) {
-                            return (
-                              <p className="text-center text-sm text-muted-foreground py-12">
-                                {globalBank.length === 0 ? "Bank soal kosong. Tambah soal via Materi & Ekstrak atau Per Tryout." : "Tidak ada soal yang cocok."}
-                              </p>
-                            );
-                          }
-                          const allFilteredSelected = filtered.length > 0 && filtered.every((q) => globalBankSelectedIds.has(q.id));
-                          const someSelected = filtered.some((q) => globalBankSelectedIds.has(q.id));
-                          return (
-                            <>
-                              {/* Select All row */}
-                              <div className="flex items-center gap-3 px-4 py-2 bg-muted/40 border-b">
-                                <input
-                                  type="checkbox"
-                                  checked={allFilteredSelected}
-                                  ref={(el) => { if (el) el.indeterminate = someSelected && !allFilteredSelected; }}
-                                  onChange={(e) => {
-                                    const next = new Set(globalBankSelectedIds);
-                                    if (e.target.checked) filtered.forEach((q) => next.add(q.id));
-                                    else filtered.forEach((q) => next.delete(q.id));
-                                    setGlobalBankSelectedIds(next);
-                                  }}
-                                  className="h-3.5 w-3.5 rounded accent-primary shrink-0 cursor-pointer"
-                                />
-                                <span className="text-xs text-muted-foreground">
-                                  {allFilteredSelected
-                                    ? `Semua ${filtered.length} soal dipilih`
-                                    : someSelected
-                                    ? `${globalBankSelectedIds.size} dipilih dari ${filtered.length} soal`
-                                    : `Pilih semua ${filtered.length} soal`}
-                                </span>
-                              </div>
-                              {filtered.map((q) => {
-                            const isSelected = globalBankSelectedIds.has(q.id);
-                            return (
-                              <div
-                                key={q.id}
-                                className={cn("flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors", isSelected && "bg-primary/5")}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    const next = new Set(globalBankSelectedIds);
-                                    e.target.checked ? next.add(q.id) : next.delete(q.id);
-                                    setGlobalBankSelectedIds(next);
-                                  }}
-                                  className="h-3.5 w-3.5 rounded accent-primary shrink-0 cursor-pointer"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                                    <Badge variant="outline" className="uppercase text-[9px] px-1 py-0 h-4 shrink-0">{q.subtest ?? "tiu"}</Badge>
-                                    {q.topic && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">{q.topic}</Badge>}
-                                    {(q.source ?? "manual") === "ai"
-                                      ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-purple-100 text-purple-700 border-purple-300">Dari AI</Badge>
-                                      : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-gray-100 text-gray-600 border-gray-300">Dari Manual</Badge>
-                                    }
-                                    {q.assign_count === 0
-                                      ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-yellow-50 text-yellow-700 border-yellow-300">Belum di-assign</Badge>
-                                      : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-blue-50 text-blue-700 border-blue-300">Di {q.assign_count} tryout</Badge>
-                                    }
-                                  </div>
-                                  <p className="text-xs leading-snug line-clamp-2 text-foreground">{q.question_text}</p>
-                                </div>
-                                <Button
-                                  size="sm" variant="outline" className="h-7 text-xs shrink-0 gap-1"
-                                  onClick={() => {
-                                    setGlobalBankSelectedIds(new Set([q.id]));
-                                    setDistributeOpen(true);
-                                  }}
-                                >
-                                  <Plus className="h-3 w-3" /> Tryout
-                                </Button>
-                              </div>
-                            );
-                          })}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Re-extract confirmation modal */}
-                {reExtractConfirmMat && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget && !reExtracting) setReExtractConfirmMat(null); }}>
-                    <div className="bg-background rounded-xl shadow-xl w-full max-w-sm">
-                      <div className="flex items-center justify-between border-b px-6 py-4">
-                        <h2 className="font-semibold flex items-center gap-2">
-                          <RotateCcw className="h-4 w-4 text-orange-500" /> Proses Ulang Ekstraksi
-                        </h2>
-                        {!reExtracting && <button onClick={() => setReExtractConfirmMat(null)}><X className="h-5 w-5" /></button>}
-                      </div>
-                      <div className="p-6 space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                          Soal lama dari materi <span className="font-semibold text-foreground">"{reExtractConfirmMat.title}"</span> akan dihapus dan digantikan hasil ekstraksi baru (dengan SVG untuk soal bergambar).
-                        </p>
-                        {reExtractStats && reExtractStats.total > 0 ? (
-                          <div className="rounded-lg border bg-muted/40 px-4 py-3 space-y-1 text-sm">
-                            <p><span className="font-semibold">{reExtractStats.total}</span> soal lama akan dihapus dari bank soal</p>
-                            {reExtractStats.assigned > 0 && (
-                              <p className="text-orange-600 font-medium">⚠ {reExtractStats.assigned} assignment ke tryout juga ikut terhapus</p>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-                            Belum ada soal dari materi ini — akan langsung proses baru.
-                          </div>
-                        )}
-                        <div className="flex gap-2 justify-end">
-                          <Button variant="outline" onClick={() => setReExtractConfirmMat(null)} disabled={reExtracting}>Batal</Button>
-                          <Button
-                            className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
-                            onClick={confirmReExtract}
-                            disabled={reExtracting}
-                          >
-                            {reExtracting
-                              ? <><Loader2 className="h-4 w-4 animate-spin" /> Menghapus soal lama...</>
-                              : <><RotateCcw className="h-4 w-4" /> Ya, Hapus & Proses Ulang</>}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Delete confirmation modal */}
-                {deleteConfirmOpen && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget && !deleting) setDeleteConfirmOpen(false); }}>
-                    <div className="bg-background rounded-xl shadow-xl w-full max-w-sm">
-                      <div className="flex items-center justify-between border-b px-6 py-4">
-                        <h2 className="font-semibold text-destructive flex items-center gap-2">
-                          <Trash2 className="h-4 w-4" /> Hapus Soal
-                        </h2>
-                        {!deleting && <button onClick={() => setDeleteConfirmOpen(false)}><X className="h-5 w-5" /></button>}
-                      </div>
-                      <div className="p-6 space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                          Anda akan menghapus <span className="font-semibold text-foreground">{globalBankSelectedIds.size} soal</span> dari bank soal secara permanen. Soal yang sudah di-assign ke tryout manapun juga akan dihapus dari tryout tersebut.
-                        </p>
-                        <p className="text-sm font-semibold text-destructive">Tindakan ini tidak dapat dibatalkan.</p>
-                        <div className="flex gap-2 justify-end">
-                          <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} disabled={deleting}>Batal</Button>
-                          <Button variant="destructive" onClick={bulkDeleteQuestions} disabled={deleting} className="gap-2">
-                            {deleting ? <><Loader2 className="h-4 w-4 animate-spin" /> Menghapus...</> : <><Trash2 className="h-4 w-4" /> Ya, Hapus</>}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Distribute modal */}
-                {distributeOpen && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) setDistributeOpen(false); }}>
-                    <div className="bg-background rounded-xl shadow-xl w-full max-w-md max-h-[80vh] overflow-y-auto">
-                      <div className="flex items-center justify-between border-b px-6 py-4">
-                        <h2 className="font-semibold">Distribute ke Tryout</h2>
-                        <button onClick={() => setDistributeOpen(false)}><X className="h-5 w-5" /></button>
-                      </div>
-                      <div className="p-6 space-y-3">
-                        <p className="text-sm text-muted-foreground">{globalBankSelectedIds.size} soal akan ditambahkan ke tryout yang dipilih di bawah (duplikat diabaikan otomatis).</p>
-                        <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                          {exams.map((ex) => {
-                            const isTarget = distributeTargetIds.has(ex.id);
-                            return (
-                              <label key={ex.id} className={cn("flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors", isTarget ? "border-primary bg-primary/5" : "border-border hover:bg-accent")}>
-                                <input
-                                  type="checkbox"
-                                  checked={isTarget}
-                                  onChange={(e) => {
-                                    const next = new Set(distributeTargetIds);
-                                    e.target.checked ? next.add(ex.id) : next.delete(ex.id);
-                                    setDistributeTargetIds(next);
-                                  }}
-                                  className="h-3.5 w-3.5 accent-primary"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium leading-tight">{ex.title}</p>
-                                  <p className="text-[10px] text-muted-foreground">{ex.total_questions} soal saat ini</p>
-                                </div>
-                              </label>
-                            );
-                          })}
-                        </div>
-                        <div className="flex gap-2 pt-2">
-                          <Button
-                            onClick={bulkDistribute}
-                            disabled={distributing || distributeTargetIds.size === 0 || globalBankSelectedIds.size === 0}
-                            className="flex-1"
-                          >
-                            {distributing ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Memproses...</> : `Distribute ke ${distributeTargetIds.size} Tryout`}
-                          </Button>
-                          <Button variant="outline" onClick={() => setDistributeOpen(false)}>Batal</Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <GlobalBankTable
+                globalBank={globalBank}
+                globalBankLoading={globalBankLoading}
+                globalBankFilter={globalBankFilter}
+                setGlobalBankFilter={setGlobalBankFilter}
+                globalBankSelectedIds={globalBankSelectedIds}
+                setGlobalBankSelectedIds={setGlobalBankSelectedIds}
+                distributeOpen={distributeOpen}
+                setDistributeOpen={setDistributeOpen}
+                distributeTargetIds={distributeTargetIds}
+                setDistributeTargetIds={setDistributeTargetIds}
+                distributing={distributing}
+                deleteConfirmOpen={deleteConfirmOpen}
+                setDeleteConfirmOpen={setDeleteConfirmOpen}
+                deleting={deleting}
+                exams={exams}
+                bankListMode={bankListMode}
+                setBankListMode={setBankListMode}
+                newQ={newQ}
+                setNewQ={setNewQ}
+                newQUploadingImg={newQUploadingImg}
+                aiGen={aiGen}
+                setAiGen={setAiGen}
+                aiStatus={aiStatus}
+                setAiStatus={setAiStatus}
+                aiResult={aiResult}
+                aiError={aiError}
+                TOPIC_OPTIONS={TOPIC_OPTIONS}
+                emptyNewQ={emptyNewQ}
+                onAddQuestionToBank={addQuestionToBank}
+                onGenerateViaAI={generateViaAI}
+                onLoadGlobalBank={loadGlobalBank}
+                onBulkDistribute={bulkDistribute}
+                onBulkDeleteQuestions={bulkDeleteQuestions}
+              />
             )}
-
             {/* View: Materi & Ekstrak */}
             {bankView === "materi" && (
               <div className="space-y-4">
@@ -1706,245 +1183,29 @@ const Admin = () => {
                         const chunkCount = mChunks ? mChunks.reduce((s, c) => s + (c.status === "done" ? c.count : 0), 0) : 0;
                         const dbCount = materialQuestionCounts[m.id] ?? 0;
                         const displayCount = Math.max(chunkCount, dbCount);
-                        const allDone = mChunks && mChunks.length > 0 && mChunks.every((c) => c.status === "done");
                         return (
-                          <div key={m.id} className="px-4 py-3 space-y-2">
-                            <div className="flex items-start gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <Badge variant="outline" className="text-[9px] uppercase px-1 h-4 shrink-0">
-                                    {m.category === "general" ? "Umum" : m.category.toUpperCase()}
-                                  </Badge>
-                                  {m.topic && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{m.topic}</Badge>}
-                                  <span className="text-sm font-semibold">{m.title}</span>
-                                  {displayCount > 0 && (
-                                    <Badge className="text-[9px] px-1 h-4 bg-green-100 text-green-700 border-green-300 border">
-                                      ✓ {displayCount} soal{mChunks && !allDone ? " (sebagian)" : ""}
-                                    </Badge>
-                                  )}
-                                </div>
-                                {m.description && <p className="text-[11px] text-muted-foreground mt-0.5">{m.description}</p>}
-                                <p className="text-[10px] text-muted-foreground mt-0.5">
-                                  {m.file_name && <span className="mr-2">📄 {m.file_name}</span>}
-                                  {(m.char_count ?? 0).toLocaleString("id-ID")} karakter ·{" "}
-                                  {new Date(m.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
-                                </p>
-                                <button
-                                  onClick={() => {
-                                    const next = new Set(matExpanded);
-                                    isExpanded ? next.delete(m.id) : next.add(m.id);
-                                    setMatExpanded(next);
-                                  }}
-                                  className="mt-1 text-[11px] text-primary hover:underline"
-                                >
-                                  {isExpanded ? "Sembunyikan teks ▲" : "Lihat preview teks ▼"}
-                                </button>
-                                {isExpanded && (
-                                  <div className="mt-2 rounded border bg-muted/30 p-3 text-xs whitespace-pre-wrap line-clamp-10 max-h-48 overflow-y-auto">
-                                    {m.extracted_text.slice(0, 2000)}{m.extracted_text.length > 2000 ? "\n\n[... terpotong, total " + m.char_count?.toLocaleString() + " karakter]" : ""}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex gap-1.5 shrink-0">
-                                {/* Re-extract button — only shown if previously extracted */}
-                                {displayCount > 0 && !isExtractOpen && (
-                                  <Button
-                                    size="sm" variant="outline"
-                                    className="h-7 w-7 p-0 text-orange-600 border-orange-300 hover:bg-orange-50"
-                                    title="Proses ulang ekstraksi — hapus soal lama, insert soal baru"
-                                    onClick={() => prepareReExtract(m)}
-                                  >
-                                    <RotateCcw className="h-3 w-3" />
-                                  </Button>
-                                )}
-                                <Button
-                                  size="sm" variant="outline"
-                                  className={cn("h-7 text-xs gap-1", isExtractOpen && "border-primary text-primary")}
-                                  onClick={() => {
-                                    if (isExtractOpen) {
-                                      setExtractPanelId(null);
-                                    } else {
-                                      setExtractPanelId(m.id);
-                                      setExtractExamId("");
-                                      if (!extractChunks[m.id]) initExtractChunks(m);
-                                    }
-                                  }}
-                                >
-                                  <Sparkles className="h-3 w-3" />
-                                  Ekstrak Soal
-                                </Button>
-                                <Button size="sm" variant="destructive" className="h-7 w-7 p-0" onClick={() => deleteMaterial(m.id)}>
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* Inline extract panel */}
-                            {isExtractOpen && (
-                              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
-                                <div className="flex items-center justify-between gap-2 flex-wrap">
-                                  <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
-                                    <Sparkles className="h-3.5 w-3.5" />
-                                    Ekstrak soal dari "{m.title}" ke bank soal
-                                  </p>
-                                  {mChunks && mChunks.some((c) => c.status === "done") && (
-                                    <button
-                                      className="flex items-center gap-1 text-[10px] text-orange-600 hover:text-orange-700 border border-orange-300 rounded px-2 py-1 bg-orange-50 hover:bg-orange-100 transition-colors"
-                                      title="Hapus soal lama dari materi ini, lalu proses ulang semua chunk"
-                                      onClick={() => prepareReExtract(m)}
-                                      disabled={extractRunning}
-                                    >
-                                      <RotateCcw className="h-3 w-3" />
-                                      Reset & Proses Ulang Semua
-                                    </button>
-                                  )}
-                                </div>
-
-                                {/* Exam selector + action buttons */}
-                                <div className="flex flex-wrap items-end gap-2">
-                                  <div className="flex-1 min-w-48">
-                                    <Label className="text-[10px] mb-1 block">Tryout tujuan (opsional)</Label>
-                                    <Select
-                                      value={extractExamId || "__none__"}
-                                      onValueChange={(v) => {
-                                        setExtractExamId(v === "__none__" ? "" : v);
-                                        resetExtractChunks(m);
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-8 text-xs bg-background">
-                                        <SelectValue placeholder="Pilih tryout..." />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="__none__">Tanpa assign — masuk bank saja</SelectItem>
-                                        {exams.map((ex) => (
-                                          <SelectItem key={ex.id} value={ex.id}>
-                                            {ex.title.slice(0, 60)}{ex.title.length > 60 ? "..." : ""}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="flex gap-1.5">
-                                    {mChunks && mChunks.some((c) => c.status === "idle" || c.status === "error") && (
-                                      <Button
-                                        size="sm" className="h-8 text-xs gap-1"
-                                        disabled={extractRunning}
-                                        onClick={() => doExtractQuestions(m, true)}
-                                      >
-                                        {extractRunning
-                                          ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Memproses...</>
-                                          : <><Sparkles className="h-3.5 w-3.5" /> {mChunks.every((c) => c.status === "idle") ? "Mulai Ekstrak" : "Lanjutkan"}</>
-                                        }
-                                      </Button>
-                                    )}
-                                    {mChunks && mChunks.some((c) => c.status === "done" || c.status === "error") && (
-                                      <Button
-                                        size="sm" variant="outline" className="h-8 text-xs gap-1"
-                                        disabled={extractRunning}
-                                        onClick={() => { resetExtractChunks(m); }}
-                                        title="Reset semua bagian ke idle"
-                                      >
-                                        <RotateCcw className="h-3 w-3" />
-                                      </Button>
-                                    )}
-                                    {!mChunks && (
-                                      <Button
-                                        size="sm" className="h-8 text-xs gap-1"
-                                        onClick={() => { initExtractChunks(m); }}
-                                      >
-                                        <Sparkles className="h-3.5 w-3.5" /> Mulai Ekstrak
-                                      </Button>
-                                    )}
-                                    <Button size="sm" variant="ghost" className="h-8 text-xs" disabled={extractRunning} onClick={() => setExtractPanelId(null)}>
-                                      Tutup
-                                    </Button>
-                                  </div>
-                                </div>
-
-                                {/* Per-chunk status rows */}
-                                {mChunks && (
-                                  <div className="space-y-1">
-                                    {mChunks.map((cs) => (
-                                      <div
-                                        key={cs.index}
-                                        className={cn(
-                                          "flex items-center gap-2 rounded px-2 py-1.5 text-[11px]",
-                                          cs.status === "done" && "bg-green-50 border border-green-200",
-                                          cs.status === "error" && "bg-red-50 border border-red-200",
-                                          cs.status === "processing" && "bg-primary/10 border border-primary/30",
-                                          cs.status === "idle" && "bg-background border border-border",
-                                        )}
-                                      >
-                                        <span className="font-medium text-muted-foreground w-16 shrink-0">
-                                          Bagian {cs.index + 1}
-                                        </span>
-                                        <span className="text-muted-foreground shrink-0">
-                                          {cs.charCount.toLocaleString("id-ID")} kar
-                                        </span>
-                                        <span className="flex-1" />
-                                        {cs.status === "idle" && <span className="text-muted-foreground">belum diproses</span>}
-                                        {cs.status === "processing" && <span className="text-primary flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> memproses...</span>}
-                                        {cs.status === "done" && (
-                                          <span className="text-green-700 flex items-center gap-1">
-                                            <Check className="h-3 w-3" />
-                                            {cs.count > 0
-                                              ? `${cs.count} soal${cs.svgCount ? ` · ${cs.svgCount} bergambar SVG` : ""}`
-                                              : "0 soal (tidak ada soal ditemukan)"}
-                                          </span>
-                                        )}
-                                        {cs.status === "error" && (
-                                          <span className="text-red-600 flex items-center gap-1" title={cs.errorMsg}>
-                                            <X className="h-3 w-3" /> Gagal{cs.errorMsg ? ` — ${cs.errorMsg.slice(0, 60)}` : ""}
-                                          </span>
-                                        )}
-                                        {(cs.status === "idle" || cs.status === "error") && !extractRunning && (
-                                          <button
-                                            className="ml-1 text-[10px] text-primary underline underline-offset-2 hover:no-underline"
-                                            onClick={async () => {
-                                              const chunks = splitTextIntoChunks(m.extracted_text);
-                                              const { data: { session } } = await supabase.auth.getSession();
-                                              const token = session?.access_token;
-                                              if (!token) return toast.error("Sesi tidak ditemukan");
-                                              setExtractRunning(true);
-                                              setExtractChunks((prev) => ({
-                                                ...prev,
-                                                [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "processing" } : c),
-                                              }));
-                                              try {
-                                                const { data, error } = await supabase.functions.invoke("extract-questions", {
-                                                  body: { text_chunk: chunks[cs.index], exam_id: extractExamId || undefined, material_id: m.id, category: m.category, topic: m.topic ?? undefined },
-                                                  headers: { Authorization: `Bearer ${token}` },
-                                                });
-                                                if (error || data?.error) {
-                                                  const msg = data?.error ?? error?.message ?? "Gagal";
-                                                  setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: msg } : c) }));
-                                                } else {
-                                                  setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "done", count: data.count ?? 0, svgCount: data.with_svg ?? 0, errorMsg: undefined } : c) }));
-                                                }
-                                              } catch (e: any) {
-                                                setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: e.message ?? "Error" } : c) }));
-                                              }
-                                              setExtractRunning(false);
-                                              refresh();
-                                              loadGlobalBank();
-                                            }}
-                                          >
-                                            Proses
-                                          </button>
-                                        )}
-                                      </div>
-                                    ))}
-                                    {mChunks.length > 0 && (
-                                      <p className="text-[10px] text-muted-foreground pt-1">
-                                        {mChunks.filter((c) => c.status === "done").length}/{mChunks.length} bagian selesai
-                                        {totalExtracted > 0 && ` · ${totalExtracted} soal total`}
-                                      </p>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          <MaterialRow
+                            key={m.id}
+                            material={m}
+                            mChunks={mChunks}
+                            displayCount={displayCount}
+                            isExpanded={isExpanded}
+                            isExtractOpen={isExtractOpen}
+                            extractExamId={extractExamId}
+                            extractRunning={extractRunning}
+                            exams={exams}
+                            matExpanded={matExpanded}
+                            setMatExpanded={setMatExpanded}
+                            setExtractPanelId={setExtractPanelId}
+                            setExtractExamId={setExtractExamId}
+                            setExtractChunks={setExtractChunks}
+                            setExtractRunning={setExtractRunning}
+                            onPrepareReExtract={prepareReExtract}
+                            onInitExtractChunks={initExtractChunks}
+                            onResetExtractChunks={resetExtractChunks}
+                            onDoExtractQuestions={(mat, onlyIdle) => doExtractQuestions(mat, onlyIdle)}
+                            onDeleteMaterial={deleteMaterial}
+                          />
                         );
                       })}
                       {materials.length === 0 && (
@@ -3062,6 +2323,49 @@ const Admin = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Re-extract confirmation modal */}
+      {reExtractConfirmMat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget && !reExtracting) setReExtractConfirmMat(null); }}>
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <h2 className="font-semibold flex items-center gap-2">
+                <RotateCcw className="h-4 w-4 text-orange-500" /> Proses Ulang Ekstraksi
+              </h2>
+              {!reExtracting && <button onClick={() => setReExtractConfirmMat(null)}><X className="h-5 w-5" /></button>}
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Soal lama dari materi <span className="font-semibold text-foreground">"{reExtractConfirmMat.title}"</span> akan dihapus dan digantikan hasil ekstraksi baru (dengan SVG untuk soal bergambar).
+              </p>
+              {reExtractStats && reExtractStats.total > 0 ? (
+                <div className="rounded-lg border bg-muted/40 px-4 py-3 space-y-1 text-sm">
+                  <p><span className="font-semibold">{reExtractStats.total}</span> soal lama akan dihapus dari bank soal</p>
+                  {reExtractStats.assigned > 0 && (
+                    <p className="text-orange-600 font-medium">⚠ {reExtractStats.assigned} assignment ke tryout juga ikut terhapus</p>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                  Belum ada soal dari materi ini — akan langsung proses baru.
+                </div>
+              )}
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setReExtractConfirmMat(null)} disabled={reExtracting}>Batal</Button>
+                <Button
+                  className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
+                  onClick={confirmReExtract}
+                  disabled={reExtracting}
+                >
+                  {reExtracting
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Menghapus soal lama...</>
+                    : <><RotateCcw className="h-4 w-4" /> Ya, Hapus & Proses Ulang</>}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Question Modal */}
       {editQ && (
