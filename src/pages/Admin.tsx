@@ -188,6 +188,7 @@ const Admin = () => {
   const [extractExamId, setExtractExamId] = useState("");
   const [extractChunks, setExtractChunks] = useState<Record<string, ChunkStatus[]>>({});
   const [extractRunning, setExtractRunning] = useState(false);
+  const [materialQuestionCounts, setMaterialQuestionCounts] = useState<Record<string, number>>({});
 
   // Global bank list (Daftar Soal view)
   const [globalBank, setGlobalBank] = useState<GlobalBankQ[]>([]);
@@ -366,6 +367,37 @@ const Admin = () => {
       });
     })();
   }, []);
+
+  // Restore extract chunk progress from localStorage (survives tab switches)
+  useEffect(() => {
+    const saved = localStorage.getItem("admin-extract-chunks-v1");
+    if (saved) {
+      try { setExtractChunks(JSON.parse(saved)); } catch { /* ignore */ }
+    }
+  }, []);
+
+  // Persist extract chunks to localStorage whenever they change
+  useEffect(() => {
+    if (Object.keys(extractChunks).length > 0) {
+      localStorage.setItem("admin-extract-chunks-v1", JSON.stringify(extractChunks));
+    }
+  }, [extractChunks]);
+
+  // Fetch actual question counts from DB per material (ground truth for old sessions)
+  useEffect(() => {
+    if (materials.length === 0) return;
+    Promise.all(
+      materials.map(async (m) => {
+        const { count } = await supabase
+          .from("questions")
+          .select("*", { count: "exact", head: true })
+          .eq("material_id", m.id);
+        return [m.id, count ?? 0] as [string, number];
+      })
+    ).then((results) => {
+      setMaterialQuestionCounts(Object.fromEntries(results));
+    });
+  }, [materials]);
 
   // Upload image to Supabase Storage
   const uploadImage = async (file: File): Promise<string | null> => {
@@ -1671,7 +1703,9 @@ const Admin = () => {
                         const isExpanded = matExpanded.has(m.id);
                         const isExtractOpen = extractPanelId === m.id;
                         const mChunks = extractChunks[m.id];
-                        const totalExtracted = mChunks ? mChunks.reduce((s, c) => s + (c.status === "done" ? c.count : 0), 0) : 0;
+                        const chunkCount = mChunks ? mChunks.reduce((s, c) => s + (c.status === "done" ? c.count : 0), 0) : 0;
+                        const dbCount = materialQuestionCounts[m.id] ?? 0;
+                        const displayCount = Math.max(chunkCount, dbCount);
                         const allDone = mChunks && mChunks.length > 0 && mChunks.every((c) => c.status === "done");
                         return (
                           <div key={m.id} className="px-4 py-3 space-y-2">
@@ -1683,9 +1717,9 @@ const Admin = () => {
                                   </Badge>
                                   {m.topic && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{m.topic}</Badge>}
                                   <span className="text-sm font-semibold">{m.title}</span>
-                                  {totalExtracted > 0 && (
-                                    <Badge className="text-[9px] px-1 h-4 bg-green-100 text-green-700 border-green-300">
-                                      ✓ {totalExtracted} soal{allDone ? "" : " (sebagian)"}
+                                  {displayCount > 0 && (
+                                    <Badge className="text-[9px] px-1 h-4 bg-green-100 text-green-700 border-green-300 border">
+                                      ✓ {displayCount} soal{mChunks && !allDone ? " (sebagian)" : ""}
                                     </Badge>
                                   )}
                                 </div>
@@ -1713,7 +1747,7 @@ const Admin = () => {
                               </div>
                               <div className="flex gap-1.5 shrink-0">
                                 {/* Re-extract button — only shown if previously extracted */}
-                                {totalExtracted > 0 && !isExtractOpen && (
+                                {displayCount > 0 && !isExtractOpen && (
                                   <Button
                                     size="sm" variant="outline"
                                     className="h-7 w-7 p-0 text-orange-600 border-orange-300 hover:bg-orange-50"
