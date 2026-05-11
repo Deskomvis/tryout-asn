@@ -60,10 +60,7 @@ export const AppSidebar = () => {
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <GraduationCap className="h-5 w-5" aria-hidden="true" />
           </div>
-          <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="text-base font-bold text-sidebar-foreground">Ruang CASN</span>
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">CPNS · PPPK · SEKDIN</span>
-          </div>
+          <span className="text-base font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">Ruang CASN</span>
         </NavLink>
       </SidebarHeader>
 
