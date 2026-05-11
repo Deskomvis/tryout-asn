@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { purchaseExam } from "@/lib/payments";
 import { useBalance } from "@/hooks/useBalance";
+import { fbq } from "@/lib/metaPixel";
 
 export type ExamLite = {
   id: string;
@@ -51,10 +52,16 @@ export const ExamCard = ({
       navigate("/topup");
       return;
     }
+    fbq.initiateCheckout({ content_ids: [exam.id], value: exam.price, currency: "IDR", num_items: 1 });
     setBusy(true);
     try {
       await purchaseExam(exam.id);
       await refresh();
+      if (isFree) {
+        fbq.lead({ content_name: exam.title });
+      } else {
+        fbq.purchase({ value: exam.price, currency: "IDR", content_ids: [exam.id], content_name: exam.title });
+      }
       toast.success(isFree ? "Paket diaktifkan." : `Berhasil! Rp ${exam.price.toLocaleString("id-ID")} terpotong.`);
       onPurchased?.();
       navigate("/paket-saya");

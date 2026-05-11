@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpRight, Layers } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
@@ -7,6 +7,7 @@ import { ExamCard } from "@/components/ExamCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useExams } from "@/hooks/useExams";
+import { fbq } from "@/lib/metaPixel";
 
 const categories = [
   { id: "cpns", label: "CPNS", image: "/tryout-cpns.png" },
@@ -60,6 +61,15 @@ const BeliPaket = () => {
     }
     return list;
   }, [exams, step, search]);
+
+  useEffect(() => {
+    if (filteredExams.length > 0) {
+      fbq.viewContent({
+        content_name: `Paket ${step.subcategory ?? step.categoryId ?? "Tryout"}`,
+        content_ids: filteredExams.map((e) => e.id),
+      });
+    }
+  }, [filteredExams.length, step.subcategory, step.categoryId]);
 
   // Step 1: pick category
   if (!step.categoryId) {

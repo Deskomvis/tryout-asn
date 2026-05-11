@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { GraduationCap } from "lucide-react";
+import { fbq } from "@/lib/metaPixel";
 
 const usernameSchema = z
   .string()
@@ -85,6 +86,7 @@ const Auth = () => {
     });
     setLoading(false);
     if (error) return toast.error(error.message);
+    fbq.completeRegistration({ content_name: "Ruang CASN", status: true });
     toast.success("Akun dibuat. Silakan masuk.");
   };
 
