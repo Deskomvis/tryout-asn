@@ -1,7 +1,7 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home, LayoutGrid, FolderOpen, LogOut, GraduationCap,
-  Database, Package, BarChart2, Receipt, Users, Settings,
+  Database, Package, BarChart2, Receipt, Users, Settings, UserCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -21,6 +21,7 @@ const items = [
   { title: "Home", url: "/dashboard", icon: Home },
   { title: "Beli Paket Tryout", url: "/beli-paket", icon: LayoutGrid },
   { title: "Paket Saya", url: "/paket-saya", icon: FolderOpen },
+  { title: "Akun Saya", url: "/akun-saya", icon: UserCircle },
 ];
 
 const adminItems = [
