@@ -302,17 +302,36 @@ const ExamResults = () => {
                 </h2>
               </CardHeader>
               <CardContent className="grid gap-6 sm:grid-cols-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">Waktu Pengerjaan</p>
-                  <p className="mt-1 text-lg font-semibold">{formatTime(result.time_spent)}</p>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                    <Clock className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Selesai dalam</p>
+                    <p className="mt-0.5 text-lg font-semibold">{formatTime(result.time_spent)}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Soal Terjawab</p>
-                  <p className="mt-1 text-lg font-semibold">{result.answered_count}/{result.total_questions}</p>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Soal Terjawab</p>
+                    <p className="mt-0.5 text-lg font-semibold">
+                      {result.answered_count} <span className="text-sm font-normal text-muted-foreground">dari {result.total_questions} soal</span>
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Soal Tidak Terjawab</p>
-                  <p className="mt-1 text-lg font-semibold">{result.unanswered_count}/{result.total_questions}</p>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Soal Tidak Terjawab</p>
+                    <p className="mt-0.5 text-lg font-semibold">
+                      {result.unanswered_count} <span className="text-sm font-normal text-muted-foreground">dari {result.total_questions} soal</span>
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -446,66 +465,103 @@ const ExamResults = () => {
                       </button>
 
                       {isExpanded && (
-                        <div className="border-t px-6 py-4 space-y-4 bg-muted/30">
-                          {question.svg_content && (
-                            <div className="overflow-x-auto rounded-lg border bg-white p-2"
-                              dangerouslySetInnerHTML={{ __html: question.svg_content }} />
-                          )}
-                          {question.image_url && !question.svg_content && (
-                            <img src={question.image_url} alt="Gambar soal" className="max-h-48 rounded border object-contain w-full" />
-                          )}
-
-                          <div>
-                            <p className="text-sm font-semibold text-muted-foreground">Pertanyaan:</p>
-                            <p className="mt-2">{question.question_text}</p>
+                        <div className="border-t bg-muted/20">
+                          {/* Full question */}
+                          <div className="px-6 py-4 space-y-3 border-b">
+                            {question.svg_content && (
+                              <div className="overflow-x-auto rounded-lg border bg-white p-2"
+                                dangerouslySetInnerHTML={{ __html: question.svg_content }} />
+                            )}
+                            {question.image_url && !question.svg_content && (
+                              <img src={question.image_url} alt="Gambar soal" className="max-h-48 rounded border object-contain w-full" />
+                            )}
+                            <p className="text-sm leading-relaxed">{question.question_text}</p>
                           </div>
 
-                          <div>
-                            <p className="text-sm font-semibold text-muted-foreground mb-2">Pilihan Jawaban:</p>
+                          {/* Jawaban ringkasan */}
+                          <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x border-b">
+                            <div className="px-6 py-4">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Jawaban Anda</p>
+                              {userAnswer ? (
+                                <div className={cn(
+                                  "flex items-start gap-2 rounded-lg px-3 py-2 text-sm font-medium",
+                                  userAnswer === question.correct_answer
+                                    ? "bg-green-100 text-green-800 border border-green-300"
+                                    : "bg-red-100 text-red-800 border border-red-300"
+                                )}>
+                                  {userAnswer === question.correct_answer
+                                    ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                                    : <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />}
+                                  <span>{userAnswer}</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-yellow-50 border border-yellow-300 text-sm text-yellow-800">
+                                  <AlertCircle className="h-4 w-4 shrink-0" />
+                                  <span>Tidak dijawab</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="px-6 py-4">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Jawaban Benar</p>
+                              <div className="flex items-start gap-2 rounded-lg px-3 py-2 bg-green-100 border border-green-300 text-sm font-medium text-green-800">
+                                <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                                <span>{question.correct_answer}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Semua pilihan */}
+                          <div className="px-6 py-4 border-b">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Semua Pilihan</p>
                             <div className="space-y-2">
-                              {question.options.map((option) => (
-                                <div
-                                  key={option}
-                                  className={cn(
-                                    "p-3 rounded border text-sm",
-                                    userAnswer === option && option === question.correct_answer
-                                      ? "border-green-500 bg-green-50"
-                                      : userAnswer === option
-                                      ? "border-blue-500 bg-blue-50"
-                                      : option === question.correct_answer
-                                      ? "border-green-500 bg-green-50"
-                                      : "border-border"
-                                  )}
-                                >
-                                  <div className="flex items-start gap-2">
-                                    <span className="font-semibold">•</span>
-                                    <span>{option}</span>
-                                    {userAnswer === option && userAnswer !== question.correct_answer && (
-                                      <span className="ml-auto text-xs bg-blue-500 text-white px-2 py-1 rounded whitespace-nowrap">Jawaban Anda</span>
+                              {question.options.map((option) => {
+                                const isUserAnswer = userAnswer === option;
+                                const isCorrect = option === question.correct_answer;
+                                return (
+                                  <div
+                                    key={option}
+                                    className={cn(
+                                      "flex items-start gap-2 p-3 rounded-lg border text-sm",
+                                      isCorrect
+                                        ? "border-green-400 bg-green-50"
+                                        : isUserAnswer
+                                        ? "border-red-400 bg-red-50"
+                                        : "border-border bg-background"
                                     )}
-                                    {option === question.correct_answer && (
-                                      <span className="ml-auto text-xs bg-green-500 text-white px-2 py-1 rounded whitespace-nowrap">Jawaban Benar</span>
+                                  >
+                                    <span className={cn(
+                                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 mt-0.5",
+                                      isCorrect ? "border-green-500 bg-green-500" : isUserAnswer ? "border-red-400 bg-red-400" : "border-muted-foreground/30"
+                                    )}>
+                                      {isCorrect && <span className="h-2 w-2 rounded-full bg-white" />}
+                                      {isUserAnswer && !isCorrect && <span className="h-2 w-2 rounded-full bg-white" />}
+                                    </span>
+                                    <span className="flex-1">{option}</span>
+                                    {isCorrect && (
+                                      <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full shrink-0">Benar</span>
+                                    )}
+                                    {isUserAnswer && !isCorrect && (
+                                      <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full shrink-0">Jawaban Anda</span>
                                     )}
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
 
-                          {question.explanation && (
-                            <div className="bg-blue-50 border border-blue-200 rounded p-4">
-                              <p className="text-sm font-semibold text-blue-900 mb-2">Penjelasan:</p>
-                              <p className="text-sm text-blue-800">{question.explanation}</p>
+                          {/* Pembahasan */}
+                          {question.explanation ? (
+                            <div className="px-6 py-4">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Pembahasan / Alasan</p>
+                              <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
+                                <p className="text-sm text-blue-900 leading-relaxed">{question.explanation}</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="px-6 py-4">
+                              <p className="text-xs text-muted-foreground italic">Tidak ada pembahasan untuk soal ini.</p>
                             </div>
                           )}
-
-                          <div className="flex items-center gap-2 text-sm">
-                            {userAnswer
-                              ? userAnswer === question.correct_answer
-                                ? <><CheckCircle2 className="h-4 w-4 text-green-600" /><span className="text-green-700">Jawaban Anda benar!</span></>
-                                : <><AlertCircle className="h-4 w-4 text-red-600" /><span className="text-red-700">Jawaban Anda salah</span></>
-                              : <><AlertCircle className="h-4 w-4 text-yellow-600" /><span className="text-yellow-700">Soal tidak dijawab</span></>}
-                          </div>
                         </div>
                       )}
                     </Card>
