@@ -343,6 +343,13 @@ const Admin = () => {
     }
   }, [activeTab, bankView]);
 
+  // Auto-refresh bank list every 30s when on the list view
+  useEffect(() => {
+    if (activeTab !== "bank" || bankView !== "list") return;
+    const id = setInterval(() => { loadGlobalBank(); }, 30000);
+    return () => clearInterval(id);
+  }, [activeTab, bankView]);
+
   // Load saved keys on mount
   useEffect(() => {
     (async () => {
@@ -879,6 +886,7 @@ const Admin = () => {
 
     setExtractRunning(false);
     refresh();
+    loadGlobalBank();
   };
 
   const addLynkPkg = async () => {
@@ -955,6 +963,7 @@ const Admin = () => {
     setGlobalBankSelectedIds(new Set());
     setDistributeTargetIds(new Set());
     await refresh();
+    loadGlobalBank();
   };
 
   const loadBankQuestions = async () => {
@@ -1687,6 +1696,7 @@ const Admin = () => {
                                               }
                                               setExtractRunning(false);
                                               refresh();
+                                              loadGlobalBank();
                                             }}
                                           >
                                             Proses
