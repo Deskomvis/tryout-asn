@@ -320,7 +320,7 @@ Deno.serve(async (req: Request) => {
       material_text = null,
       material_title = null,
     } = body as {
-      exam_id: string; subtest: "twk" | "tiu" | "tkp";
+      exam_id?: string; subtest: "twk" | "tiu" | "tkp";
       topic: string; count: number;
       chart_type?: ChartType; image_url?: string | null;
       custom_instruction?: string | null;
@@ -328,8 +328,8 @@ Deno.serve(async (req: Request) => {
       material_title?: string | null;
     };
 
-    if (!exam_id || !subtest || !topic || !count) {
-      return json({ error: "exam_id, subtest, topic, count diperlukan" }, 400);
+    if (!subtest || !topic || !count) {
+      return json({ error: "subtest, topic, count diperlukan" }, 400);
     }
     if (!["twk", "tiu", "tkp"].includes(subtest)) {
       return json({ error: "subtest harus twk, tiu, atau tkp" }, 400);
@@ -416,7 +416,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const payload: Record<string, unknown> = {
-          exam_id,
+          exam_id: exam_id ?? null,
           question_text: q.question_text,
           options: q.options,
           subtest,
@@ -444,7 +444,7 @@ Deno.serve(async (req: Request) => {
       } catch { /* skip malformed */ }
     }
 
-    if (inserted.length > 0) {
+    if (inserted.length > 0 && exam_id) {
       const { count: currentCount } = await supabase
         .from("questions").select("*", { count: "exact", head: true }).eq("exam_id", exam_id);
       await supabase.from("exams").update({ total_questions: currentCount ?? inserted.length }).eq("id", exam_id);
