@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertCircle, CheckCircle2, RotateCcw, ChevronDown, ChevronUp,
-  Trophy, Medal, Clock, BookOpen,
+  Trophy, Medal, Clock, BookOpen, Lock, ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +26,7 @@ interface ExamResult {
   unanswered_count: number;
   total_questions: number;
   passing_score?: number;
+  price: number;
 }
 
 interface Question {
@@ -81,12 +82,17 @@ const ExamResults = () => {
 
         const { data: exam } = await supabase
           .from("exams")
-          .select("title, passing_score")
+          .select("title, passing_score, price")
           .eq("id", examId!)
           .maybeSingle();
 
-        const { data: questionsData } = await supabase.rpc("get_exam_questions", { _exam_id: examId! });
-        if (questionsData) setQuestions(questionsData);
+        const isFree = (exam?.price ?? 0) === 0;
+
+        // Only load questions for paid exams
+        if (!isFree) {
+          const { data: questionsData } = await supabase.rpc("get_exam_questions", { _exam_id: examId! });
+          if (questionsData) setQuestions(questionsData);
+        }
 
         const savedAnswers = localStorage.getItem(`exam-answers-${examId}`);
         if (savedAnswers) {
@@ -105,48 +111,50 @@ const ExamResults = () => {
           unanswered_count: data.unanswered_count || 0,
           total_questions: data.total_questions || 0,
           passing_score: exam?.passing_score || 0,
+          price: exam?.price ?? 0,
         });
 
-        // Fetch leaderboard — all exam_results for this exam
-        const { data: allResults } = await supabase
-          .from("exam_results")
-          .select("user_id, total_score, twk_score, tiu_score, tkp_score, time_spent")
-          .eq("exam_id", examId!)
-          .order("total_score", { ascending: false });
+        // Only fetch leaderboard for paid exams
+        if (!isFree) {
+          const { data: allResults } = await supabase
+            .from("exam_results")
+            .select("user_id, total_score, twk_score, tiu_score, tkp_score, time_spent")
+            .eq("exam_id", examId!)
+            .order("total_score", { ascending: false });
 
-        if (allResults && allResults.length > 0) {
-          const userIds = [...new Set(allResults.map((r: any) => r.user_id))];
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("id, username")
-            .in("id", userIds);
+          if (allResults && allResults.length > 0) {
+            const userIds = [...new Set(allResults.map((r: any) => r.user_id))];
+            const { data: profiles } = await supabase
+              .from("profiles")
+              .select("id, username")
+              .in("id", userIds);
 
-          const profileMap: Record<string, string> = {};
-          (profiles ?? []).forEach((p: any) => { profileMap[p.id] = p.username || "Anonim"; });
+            const profileMap: Record<string, string> = {};
+            (profiles ?? []).forEach((p: any) => { profileMap[p.id] = p.username || "Anonim"; });
 
-          // Keep best score per user
-          const bestPerUser: Record<string, any> = {};
-          for (const r of allResults as any[]) {
-            if (!bestPerUser[r.user_id] || r.total_score > bestPerUser[r.user_id].total_score) {
-              bestPerUser[r.user_id] = r;
+            const bestPerUser: Record<string, any> = {};
+            for (const r of allResults as any[]) {
+              if (!bestPerUser[r.user_id] || r.total_score > bestPerUser[r.user_id].total_score) {
+                bestPerUser[r.user_id] = r;
+              }
             }
+
+            const ranked: RankRow[] = Object.values(bestPerUser)
+              .sort((a: any, b: any) => b.total_score - a.total_score || a.time_spent - b.time_spent)
+              .map((r: any) => ({
+                user_id: r.user_id,
+                username: profileMap[r.user_id] || "Anonim",
+                total_score: r.total_score || 0,
+                twk_score: r.twk_score || 0,
+                tiu_score: r.tiu_score || 0,
+                tkp_score: r.tkp_score || 0,
+                time_spent: r.time_spent || 0,
+              }));
+
+            setRankings(ranked);
+            const idx = ranked.findIndex((r) => r.user_id === user?.id);
+            setMyRank(idx >= 0 ? idx + 1 : null);
           }
-
-          const ranked: RankRow[] = Object.values(bestPerUser)
-            .sort((a: any, b: any) => b.total_score - a.total_score || a.time_spent - b.time_spent)
-            .map((r: any) => ({
-              user_id: r.user_id,
-              username: profileMap[r.user_id] || "Anonim",
-              total_score: r.total_score || 0,
-              twk_score: r.twk_score || 0,
-              tiu_score: r.tiu_score || 0,
-              tkp_score: r.tkp_score || 0,
-              time_spent: r.time_spent || 0,
-            }));
-
-          setRankings(ranked);
-          const idx = ranked.findIndex((r) => r.user_id === user?.id);
-          setMyRank(idx >= 0 ? idx + 1 : null);
         }
       } catch (err) {
         console.error(err);
@@ -168,6 +176,7 @@ const ExamResults = () => {
     );
   }
 
+  const isFree = result.price === 0;
   const isPassed = result.total_score >= (result.passing_score || 0);
 
   const formatTime = (seconds: number) => {
@@ -185,6 +194,30 @@ const ExamResults = () => {
     return "text-muted-foreground";
   };
 
+  // CTA card for free exam upgrade prompt
+  const UpgradeCTA = ({ context }: { context: "ranking" | "pembahasan" }) => (
+    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-8 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+        <Lock className="h-7 w-7 text-amber-600" />
+      </div>
+      <div>
+        <p className="font-semibold text-foreground">
+          {context === "ranking" ? "Rangking tidak tersedia untuk paket gratis" : "Pembahasan dikunci untuk paket gratis"}
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {context === "ranking"
+            ? "Upgrade ke paket berbayar untuk melihat posisi kamu di antara peserta lain."
+            : "Upgrade ke paket berbayar untuk melihat jawaban benar dan penjelasan lengkap setiap soal."}
+        </p>
+      </div>
+      <Button asChild className="gap-2 rounded-full">
+        <Link to="/beli-paket">
+          <ShoppingBag className="h-4 w-4" /> Lihat Paket Berbayar
+        </Link>
+      </Button>
+    </div>
+  );
+
   return (
     <AppLayout>
       <div className="mx-auto max-w-4xl">
@@ -193,10 +226,25 @@ const ExamResults = () => {
           <p className="mt-1 text-muted-foreground">Hasil Ujian</p>
         </div>
 
+        {/* Free exam info banner */}
+        {isFree && (
+          <Alert className="mb-6 border-amber-300 bg-amber-50">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-800">
+              <span className="font-semibold">Paket Gratis — </span>
+              Skor ujian ini tidak masuk leaderboard dan pembahasan soal dikunci.
+              Beli paket berbayar untuk akses <strong>rangking peserta</strong> dan <strong>pembahasan lengkap</strong>.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Tabs defaultValue="hasil">
           <TabsList className="mb-6">
             <TabsTrigger value="hasil">Hasil</TabsTrigger>
-            <TabsTrigger value="pembahasan">Pembahasan</TabsTrigger>
+            <TabsTrigger value="pembahasan" className="gap-1.5">
+              {isFree && <Lock className="h-3.5 w-3.5" />}
+              Pembahasan
+            </TabsTrigger>
           </TabsList>
 
           {/* ─── TAB HASIL ─── */}
@@ -269,8 +317,10 @@ const ExamResults = () => {
               </CardContent>
             </Card>
 
-            {/* Ranking */}
-            {rankings.length > 0 && (
+            {/* Ranking — locked for free */}
+            {isFree ? (
+              <UpgradeCTA context="ranking" />
+            ) : rankings.length > 0 && (
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -278,9 +328,7 @@ const ExamResults = () => {
                       <Trophy className="h-4 w-4 text-yellow-500" /> Rangking Peserta
                     </h2>
                     {myRank !== null && (
-                      <span className="text-sm font-medium text-primary">
-                        Posisi Anda: #{myRank}
-                      </span>
+                      <span className="text-sm font-medium text-primary">Posisi Anda: #{myRank}</span>
                     )}
                   </div>
                 </CardHeader>
@@ -340,122 +388,131 @@ const ExamResults = () => {
 
             {/* Action */}
             <div className="flex gap-3 pb-8">
-              <Button
-                size="lg"
-                onClick={() => navigate("/paket-saya")}
-                className="gap-2"
-              >
+              <Button size="lg" onClick={() => navigate("/paket-saya")} className="gap-2">
                 <RotateCcw className="h-4 w-4" /> Kerjakan Ulang
               </Button>
+              {isFree && (
+                <Button size="lg" variant="outline" asChild className="gap-2">
+                  <Link to="/beli-paket">
+                    <ShoppingBag className="h-4 w-4" /> Beli Paket Berbayar
+                  </Link>
+                </Button>
+              )}
             </div>
           </TabsContent>
 
           {/* ─── TAB PEMBAHASAN ─── */}
           <TabsContent value="pembahasan">
-            <div className="space-y-3 pb-8">
-              {questions.length === 0 && (
-                <p className="text-muted-foreground py-8 text-center">Tidak ada soal untuk ditampilkan.</p>
-              )}
-              {questions.map((question, idx) => {
-                const isExpanded = expandedQuestions.has(question.id);
-                const userAnswer = userAnswers[question.id];
+            {isFree ? (
+              <div className="py-4 pb-8">
+                <UpgradeCTA context="pembahasan" />
+              </div>
+            ) : (
+              <div className="space-y-3 pb-8">
+                {questions.length === 0 && (
+                  <p className="text-muted-foreground py-8 text-center">Tidak ada soal untuk ditampilkan.</p>
+                )}
+                {questions.map((question, idx) => {
+                  const isExpanded = expandedQuestions.has(question.id);
+                  const userAnswer = userAnswers[question.id];
 
-                return (
-                  <Card key={question.id} className="overflow-hidden">
-                    <button
-                      onClick={() => {
-                        const s = new Set(expandedQuestions);
-                        isExpanded ? s.delete(question.id) : s.add(question.id);
-                        setExpandedQuestions(s);
-                      }}
-                      className="w-full px-6 py-4 flex items-start justify-between hover:bg-accent transition-colors text-left"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold">Soal {idx + 1}</p>
-                          {userAnswer
-                            ? userAnswer === question.correct_answer
-                              ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Benar</span>
-                              : <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Salah</span>
-                            : <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Tidak dijawab</span>}
+                  return (
+                    <Card key={question.id} className="overflow-hidden">
+                      <button
+                        onClick={() => {
+                          const s = new Set(expandedQuestions);
+                          isExpanded ? s.delete(question.id) : s.add(question.id);
+                          setExpandedQuestions(s);
+                        }}
+                        className="w-full px-6 py-4 flex items-start justify-between hover:bg-accent transition-colors text-left"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold">Soal {idx + 1}</p>
+                            {userAnswer
+                              ? userAnswer === question.correct_answer
+                                ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Benar</span>
+                                : <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Salah</span>
+                              : <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Tidak dijawab</span>}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {question.question_text.substring(0, 100)}
+                            {question.question_text.length > 100 ? "..." : ""}
+                          </p>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {question.question_text.substring(0, 100)}
-                          {question.question_text.length > 100 ? "..." : ""}
-                        </p>
-                      </div>
-                      {isExpanded
-                        ? <ChevronUp className="h-5 w-5 text-muted-foreground shrink-0 ml-4" />
-                        : <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0 ml-4" />}
-                    </button>
+                        {isExpanded
+                          ? <ChevronUp className="h-5 w-5 text-muted-foreground shrink-0 ml-4" />
+                          : <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0 ml-4" />}
+                      </button>
 
-                    {isExpanded && (
-                      <div className="border-t px-6 py-4 space-y-4 bg-muted/30">
-                        {question.svg_content && (
-                          <div className="overflow-x-auto rounded-lg border bg-white p-2"
-                            dangerouslySetInnerHTML={{ __html: question.svg_content }} />
-                        )}
-                        {question.image_url && !question.svg_content && (
-                          <img src={question.image_url} alt="Gambar soal" className="max-h-48 rounded border object-contain w-full" />
-                        )}
+                      {isExpanded && (
+                        <div className="border-t px-6 py-4 space-y-4 bg-muted/30">
+                          {question.svg_content && (
+                            <div className="overflow-x-auto rounded-lg border bg-white p-2"
+                              dangerouslySetInnerHTML={{ __html: question.svg_content }} />
+                          )}
+                          {question.image_url && !question.svg_content && (
+                            <img src={question.image_url} alt="Gambar soal" className="max-h-48 rounded border object-contain w-full" />
+                          )}
 
-                        <div>
-                          <p className="text-sm font-semibold text-muted-foreground">Pertanyaan:</p>
-                          <p className="mt-2">{question.question_text}</p>
-                        </div>
+                          <div>
+                            <p className="text-sm font-semibold text-muted-foreground">Pertanyaan:</p>
+                            <p className="mt-2">{question.question_text}</p>
+                          </div>
 
-                        <div>
-                          <p className="text-sm font-semibold text-muted-foreground mb-2">Pilihan Jawaban:</p>
-                          <div className="space-y-2">
-                            {question.options.map((option) => (
-                              <div
-                                key={option}
-                                className={cn(
-                                  "p-3 rounded border text-sm",
-                                  userAnswer === option && option === question.correct_answer
-                                    ? "border-green-500 bg-green-50"
-                                    : userAnswer === option
-                                    ? "border-blue-500 bg-blue-50"
-                                    : option === question.correct_answer
-                                    ? "border-green-500 bg-green-50"
-                                    : "border-border"
-                                )}
-                              >
-                                <div className="flex items-start gap-2">
-                                  <span className="font-semibold">•</span>
-                                  <span>{option}</span>
-                                  {userAnswer === option && userAnswer !== question.correct_answer && (
-                                    <span className="ml-auto text-xs bg-blue-500 text-white px-2 py-1 rounded whitespace-nowrap">Jawaban Anda</span>
+                          <div>
+                            <p className="text-sm font-semibold text-muted-foreground mb-2">Pilihan Jawaban:</p>
+                            <div className="space-y-2">
+                              {question.options.map((option) => (
+                                <div
+                                  key={option}
+                                  className={cn(
+                                    "p-3 rounded border text-sm",
+                                    userAnswer === option && option === question.correct_answer
+                                      ? "border-green-500 bg-green-50"
+                                      : userAnswer === option
+                                      ? "border-blue-500 bg-blue-50"
+                                      : option === question.correct_answer
+                                      ? "border-green-500 bg-green-50"
+                                      : "border-border"
                                   )}
-                                  {option === question.correct_answer && (
-                                    <span className="ml-auto text-xs bg-green-500 text-white px-2 py-1 rounded whitespace-nowrap">Jawaban Benar</span>
-                                  )}
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <span className="font-semibold">•</span>
+                                    <span>{option}</span>
+                                    {userAnswer === option && userAnswer !== question.correct_answer && (
+                                      <span className="ml-auto text-xs bg-blue-500 text-white px-2 py-1 rounded whitespace-nowrap">Jawaban Anda</span>
+                                    )}
+                                    {option === question.correct_answer && (
+                                      <span className="ml-auto text-xs bg-green-500 text-white px-2 py-1 rounded whitespace-nowrap">Jawaban Benar</span>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
+                          </div>
+
+                          {question.explanation && (
+                            <div className="bg-blue-50 border border-blue-200 rounded p-4">
+                              <p className="text-sm font-semibold text-blue-900 mb-2">Penjelasan:</p>
+                              <p className="text-sm text-blue-800">{question.explanation}</p>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 text-sm">
+                            {userAnswer
+                              ? userAnswer === question.correct_answer
+                                ? <><CheckCircle2 className="h-4 w-4 text-green-600" /><span className="text-green-700">Jawaban Anda benar!</span></>
+                                : <><AlertCircle className="h-4 w-4 text-red-600" /><span className="text-red-700">Jawaban Anda salah</span></>
+                              : <><AlertCircle className="h-4 w-4 text-yellow-600" /><span className="text-yellow-700">Soal tidak dijawab</span></>}
                           </div>
                         </div>
-
-                        {question.explanation && (
-                          <div className="bg-blue-50 border border-blue-200 rounded p-4">
-                            <p className="text-sm font-semibold text-blue-900 mb-2">Penjelasan:</p>
-                            <p className="text-sm text-blue-800">{question.explanation}</p>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2 text-sm">
-                          {userAnswer
-                            ? userAnswer === question.correct_answer
-                              ? <><CheckCircle2 className="h-4 w-4 text-green-600" /><span className="text-green-700">Jawaban Anda benar!</span></>
-                              : <><AlertCircle className="h-4 w-4 text-red-600" /><span className="text-red-700">Jawaban Anda salah</span></>
-                            : <><AlertCircle className="h-4 w-4 text-yellow-600" /><span className="text-yellow-700">Soal tidak dijawab</span></>}
-                        </div>
-                      </div>
-                    )}
-                  </Card>
-                );
-              })}
-            </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
