@@ -141,6 +141,7 @@ const Admin = () => {
   const [aiError, setAiError] = useState("");
   const [selectedParentExam, setSelectedParentExam] = useState<string | null>(null);
   const [expandedExams, setExpandedExams] = useState<Set<string>>(new Set());
+  const [selectedQIds, setSelectedQIds] = useState<Set<string>>(new Set());
 
   // Settings
   const [kieApiKey, setKieApiKey] = useState("");
@@ -1954,6 +1955,29 @@ const Admin = () => {
                             )}
                           </div>
 
+                          {/* Bulk actions */}
+                          {selectedQIds.size > 0 && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-7 text-xs shrink-0"
+                              onClick={async () => {
+                                if (confirm(`Hapus ${selectedQIds.size} soal terpilih?`)) {
+                                  const ids = Array.from(selectedQIds);
+                                  const { error } = await supabase.from("questions").delete().in("id", ids);
+                                  if (error) toast.error("Gagal menghapus soal");
+                                  else {
+                                    toast.success(`${selectedQIds.size} soal berhasil dihapus`);
+                                    setSelectedQIds(new Set());
+                                    fetchQuestions(selectedExam);
+                                  }
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" /> Hapus ({selectedQIds.size})
+                            </Button>
+                          )}
+
                           {/* Update Soal button */}
                           <Button
                             size="sm"
@@ -1965,6 +1989,18 @@ const Admin = () => {
                           </Button>
                         </div>
                       </CardHeader>
+                      <div className="bg-muted/30 px-4 py-1.5 border-b border-border flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary"
+                          checked={filtered.length > 0 && selectedQIds.size === filtered.length}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedQIds(new Set(filtered.map(q => q.id)));
+                            else setSelectedQIds(new Set());
+                          }}
+                        />
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase">Pilih Semua ({filtered.length})</span>
+                      </div>
                       <CardContent className="p-0">
                         <div className="divide-y divide-border">
                           {filtered.map((q, idx) => {
@@ -1972,11 +2008,27 @@ const Admin = () => {
                             const globalIdx = questions.indexOf(q) + 1;
                             return (
                               <div key={q.id} className="overflow-hidden">
-                                <button
-                                  className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-accent text-left transition-colors"
-                                  onClick={() => toggleExpand(q.id)}
-                                >
-                                  <span className="text-xs font-bold text-muted-foreground w-5 shrink-0">{globalIdx}.</span>
+                                  <div className="flex items-center gap-2 px-4 py-2.5 hover:bg-accent transition-colors">
+                                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                      <input
+                                        type="checkbox"
+                                        className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary"
+                                        checked={selectedQIds.has(q.id)}
+                                        onChange={(e) => {
+                                          setSelectedQIds(prev => {
+                                            const next = new Set(prev);
+                                            if (e.target.checked) next.add(q.id);
+                                            else next.delete(q.id);
+                                            return next;
+                                          });
+                                        }}
+                                      />
+                                      <span className="text-xs font-bold text-muted-foreground w-5">{globalIdx}.</span>
+                                    </div>
+                                    <button
+                                      className="flex-1 text-left min-w-0 overflow-hidden"
+                                      onClick={() => toggleExpand(q.id)}
+                                    >
                                   <div className="flex-1 min-w-0 overflow-hidden">
                                     <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                                       <Badge variant="outline" className="uppercase text-[9px] px-1 py-0 h-4 shrink-0">{q.subtest ?? "tiu"}</Badge>
@@ -1998,8 +2050,9 @@ const Admin = () => {
                                       {q.explanation ? " · Ada pembahasan" : ""}
                                     </p>
                                   </div>
-                                  {isExpanded ? <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-                                </button>
+                                    {isExpanded ? <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                                  </button>
+                                </div>
 
                                 {isExpanded && (
                                   <div className="px-4 pb-4 pt-2 bg-muted/30 space-y-2.5 overflow-hidden">
