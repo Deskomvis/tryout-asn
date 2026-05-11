@@ -95,9 +95,10 @@ Deno.serve(async (req) => {
   if (!roleRow) return json({ error: "Forbidden" }, 403);
 
   const body = await req.json();
-  const { text_chunk, exam_id, category, topic } = body as {
+  const { text_chunk, exam_id, material_id, category, topic } = body as {
     text_chunk: string;
     exam_id?: string;
+    material_id?: string;
     category?: string;
     topic?: string;
   };
@@ -200,6 +201,7 @@ Ekstrak semua soal. Untuk setiap soal yang memiliki data tabel/pola/grafik dalam
 
     valid.push({
       exam_id: exam_id ?? null,
+      material_id: material_id ?? null,
       question_text: q.question_text.trim(),
       options: opts,
       correct_answer: ans,

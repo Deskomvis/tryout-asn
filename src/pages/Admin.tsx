@@ -199,6 +199,9 @@ const Admin = () => {
   const [distributing, setDistributing] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [reExtractConfirmMat, setReExtractConfirmMat] = useState<Material | null>(null);
+  const [reExtractStats, setReExtractStats] = useState<{ total: number; assigned: number } | null>(null);
+  const [reExtracting, setReExtracting] = useState(false);
 
   // Lynk packages
   const [lynkPackages, setLynkPackages] = useState<LynkPackage[]>([]);
@@ -863,7 +866,7 @@ const Admin = () => {
       }));
       try {
         const { data, error } = await supabase.functions.invoke("extract-questions", {
-          body: { text_chunk: chunks[cs.index], exam_id: extractExamId || undefined, category: material.category, topic: material.topic ?? undefined },
+          body: { text_chunk: chunks[cs.index], exam_id: extractExamId || undefined, material_id: material.id, category: material.category, topic: material.topic ?? undefined },
           headers: { Authorization: `Bearer ${token}` },
         });
         if (error || data?.error) {
@@ -984,6 +987,48 @@ const Admin = () => {
     setGlobalBankSelectedIds(new Set());
     await refresh();
     loadGlobalBank();
+  };
+
+  // Open re-extract confirm modal — fetch stats first
+  const prepareReExtract = async (m: Material) => {
+    const { data: qRows } = await supabase
+      .from("questions").select("id").eq("material_id", m.id);
+    const qIds = (qRows ?? []).map((r: any) => r.id);
+    let assigned = 0;
+    if (qIds.length > 0) {
+      const { count } = await (supabase as any)
+        .from("exam_question_assignments")
+        .select("*", { count: "exact", head: true })
+        .in("question_id", qIds);
+      assigned = count ?? 0;
+    }
+    setReExtractStats({ total: qIds.length, assigned });
+    setReExtractConfirmMat(m);
+  };
+
+  // Delete old questions from material then reset + open panel
+  const confirmReExtract = async () => {
+    if (!reExtractConfirmMat) return;
+    setReExtracting(true);
+    const m = reExtractConfirmMat;
+
+    const { data: qRows } = await supabase
+      .from("questions").select("id").eq("material_id", m.id);
+    const qIds = (qRows ?? []).map((r: any) => r.id);
+
+    if (qIds.length > 0) {
+      await (supabase as any).from("exam_question_assignments").delete().in("question_id", qIds);
+      await supabase.from("questions").delete().in("id", qIds);
+    }
+
+    setReExtracting(false);
+    setReExtractConfirmMat(null);
+    setReExtractStats(null);
+    resetExtractChunks(m);
+    setExtractPanelId(m.id);
+    setExtractExamId("");
+    loadGlobalBank();
+    toast.success(`${qIds.length} soal lama dihapus. Siap proses ulang.`);
   };
 
   const loadBankQuestions = async () => {
@@ -1389,6 +1434,49 @@ const Admin = () => {
                   </CardContent>
                 </Card>
 
+                {/* Re-extract confirmation modal */}
+                {reExtractConfirmMat && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget && !reExtracting) setReExtractConfirmMat(null); }}>
+                    <div className="bg-background rounded-xl shadow-xl w-full max-w-sm">
+                      <div className="flex items-center justify-between border-b px-6 py-4">
+                        <h2 className="font-semibold flex items-center gap-2">
+                          <RotateCcw className="h-4 w-4 text-orange-500" /> Proses Ulang Ekstraksi
+                        </h2>
+                        {!reExtracting && <button onClick={() => setReExtractConfirmMat(null)}><X className="h-5 w-5" /></button>}
+                      </div>
+                      <div className="p-6 space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          Soal lama dari materi <span className="font-semibold text-foreground">"{reExtractConfirmMat.title}"</span> akan dihapus dan digantikan hasil ekstraksi baru (dengan SVG untuk soal bergambar).
+                        </p>
+                        {reExtractStats && reExtractStats.total > 0 ? (
+                          <div className="rounded-lg border bg-muted/40 px-4 py-3 space-y-1 text-sm">
+                            <p><span className="font-semibold">{reExtractStats.total}</span> soal lama akan dihapus dari bank soal</p>
+                            {reExtractStats.assigned > 0 && (
+                              <p className="text-orange-600 font-medium">⚠ {reExtractStats.assigned} assignment ke tryout juga ikut terhapus</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                            Belum ada soal dari materi ini — akan langsung proses baru.
+                          </div>
+                        )}
+                        <div className="flex gap-2 justify-end">
+                          <Button variant="outline" onClick={() => setReExtractConfirmMat(null)} disabled={reExtracting}>Batal</Button>
+                          <Button
+                            className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
+                            onClick={confirmReExtract}
+                            disabled={reExtracting}
+                          >
+                            {reExtracting
+                              ? <><Loader2 className="h-4 w-4 animate-spin" /> Menghapus soal lama...</>
+                              : <><RotateCcw className="h-4 w-4" /> Ya, Hapus & Proses Ulang</>}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Delete confirmation modal */}
                 {deleteConfirmOpen && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget && !deleting) setDeleteConfirmOpen(false); }}>
@@ -1629,12 +1717,8 @@ const Admin = () => {
                                   <Button
                                     size="sm" variant="outline"
                                     className="h-7 w-7 p-0 text-orange-600 border-orange-300 hover:bg-orange-50"
-                                    title="Proses ulang ekstraksi (update SVG & soal)"
-                                    onClick={() => {
-                                      resetExtractChunks(m);
-                                      setExtractPanelId(m.id);
-                                      setExtractExamId("");
-                                    }}
+                                    title="Proses ulang ekstraksi — hapus soal lama, insert soal baru"
+                                    onClick={() => prepareReExtract(m)}
                                   >
                                     <RotateCcw className="h-3 w-3" />
                                   </Button>
@@ -1672,8 +1756,8 @@ const Admin = () => {
                                   {mChunks && mChunks.some((c) => c.status === "done") && (
                                     <button
                                       className="flex items-center gap-1 text-[10px] text-orange-600 hover:text-orange-700 border border-orange-300 rounded px-2 py-1 bg-orange-50 hover:bg-orange-100 transition-colors"
-                                      title="Reset semua chunk ke idle lalu proses ulang seluruhnya"
-                                      onClick={() => resetExtractChunks(m)}
+                                      title="Hapus soal lama dari materi ini, lalu proses ulang semua chunk"
+                                      onClick={() => prepareReExtract(m)}
                                       disabled={extractRunning}
                                     >
                                       <RotateCcw className="h-3 w-3" />
@@ -1794,7 +1878,7 @@ const Admin = () => {
                                               }));
                                               try {
                                                 const { data, error } = await supabase.functions.invoke("extract-questions", {
-                                                  body: { text_chunk: chunks[cs.index], exam_id: extractExamId || undefined, category: m.category, topic: m.topic ?? undefined },
+                                                  body: { text_chunk: chunks[cs.index], exam_id: extractExamId || undefined, material_id: m.id, category: m.category, topic: m.topic ?? undefined },
                                                   headers: { Authorization: `Bearer ${token}` },
                                                 });
                                                 if (error || data?.error) {
