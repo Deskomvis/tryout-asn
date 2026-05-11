@@ -98,6 +98,7 @@ type ChunkStatus = {
   charCount: number;
   status: "idle" | "processing" | "done" | "error";
   count: number;
+  svgCount?: number;
   errorMsg?: string;
 };
 
@@ -874,7 +875,7 @@ const Admin = () => {
         } else {
           setExtractChunks((prev) => ({
             ...prev,
-            [material.id]: prev[material.id].map((c) => c.index === cs.index ? { ...c, status: "done", count: data.count ?? 0, errorMsg: undefined } : c),
+            [material.id]: prev[material.id].map((c) => c.index === cs.index ? { ...c, status: "done", count: data.count ?? 0, svgCount: data.with_svg ?? 0, errorMsg: undefined } : c),
           }));
         }
       } catch (e: any) {
@@ -1740,7 +1741,9 @@ const Admin = () => {
                                         {cs.status === "done" && (
                                           <span className="text-green-700 flex items-center gap-1">
                                             <Check className="h-3 w-3" />
-                                            {cs.count > 0 ? `${cs.count} soal` : "0 soal (tidak ada soal ditemukan)"}
+                                            {cs.count > 0
+                                              ? `${cs.count} soal${cs.svgCount ? ` · ${cs.svgCount} bergambar SVG` : ""}`
+                                              : "0 soal (tidak ada soal ditemukan)"}
                                           </span>
                                         )}
                                         {cs.status === "error" && (
@@ -1770,7 +1773,7 @@ const Admin = () => {
                                                   const msg = data?.error ?? error?.message ?? "Gagal";
                                                   setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: msg } : c) }));
                                                 } else {
-                                                  setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "done", count: data.count ?? 0, errorMsg: undefined } : c) }));
+                                                  setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "done", count: data.count ?? 0, svgCount: data.with_svg ?? 0, errorMsg: undefined } : c) }));
                                                 }
                                               } catch (e: any) {
                                                 setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: e.message ?? "Error" } : c) }));
