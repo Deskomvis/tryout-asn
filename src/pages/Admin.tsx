@@ -1111,6 +1111,14 @@ const Admin = () => {
       .eq("exam_id", selectedExam)
       .eq("question_id", questionId);
     if (error) return toast.error(error.message);
+    
+    // Sync count
+    const { count } = await (supabase as any)
+      .from("exam_question_assignments")
+      .select("*", { count: "exact", head: true })
+      .eq("exam_id", selectedExam);
+    await supabase.from("exams").update({ total_questions: count ?? 0 }).eq("id", selectedExam);
+    
     toast.success("Soal dilepas dari tryout ini");
     refresh();
   };
@@ -1962,13 +1970,24 @@ const Admin = () => {
                               variant="destructive"
                               className="h-7 text-xs shrink-0"
                               onClick={async () => {
-                                if (confirm(`Hapus ${selectedQIds.size} soal terpilih?`)) {
+                                if (confirm(`Lepas ${selectedQIds.size} soal terpilih dari paket ini? Soal akan tetap ada di bank soal.`)) {
                                   const ids = Array.from(selectedQIds);
-                                  const { error } = await supabase.from("questions").delete().in("id", ids);
-                                  if (error) toast.error("Gagal menghapus soal");
+                                  const { error } = await (supabase as any)
+                                    .from("exam_question_assignments")
+                                    .delete()
+                                    .eq("exam_id", selectedExam)
+                                    .in("question_id", ids);
+                                  
+                                  if (error) toast.error("Gagal melepas soal: " + error.message);
                                   else {
-                                    toast.success(`${selectedQIds.size} soal berhasil dihapus`);
+                                    toast.success(`${selectedQIds.size} soal berhasil dilepas dari paket`);
                                     setSelectedQIds(new Set());
+                                    // Sync count
+                                    const { count } = await (supabase as any)
+                                      .from("exam_question_assignments")
+                                      .select("*", { count: "exact", head: true })
+                                      .eq("exam_id", selectedExam);
+                                    await supabase.from("exams").update({ total_questions: count ?? 0 }).eq("id", selectedExam);
                                     fetchQuestions(selectedExam);
                                   }
                                 }
@@ -2104,13 +2123,8 @@ const Admin = () => {
                                         className="h-7 text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
                                         onClick={() => removeAssignment(q.id)}
                                       >
-                                        <X className="h-3 w-3 mr-1" /> Lepas dari Tryout
+                                        <Trash2 className="h-3 w-3 mr-1" /> Hapus dari Paket
                                       </Button>
-                                      {q.exam_id === selectedExam && (
-                                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteQ(q.id)}>
-                                          <Trash2 className="h-3 w-3 mr-1" /> Hapus
-                                        </Button>
-                                      )}
                                     </div>
                                   </div>
                                 )}
