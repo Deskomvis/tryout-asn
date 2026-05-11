@@ -139,7 +139,7 @@ const Admin = () => {
   const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [aiResult, setAiResult] = useState<{ count: number; requested: number } | null>(null);
   const [aiError, setAiError] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedParentExam, setSelectedParentExam] = useState<string | null>(null);
   const [expandedExams, setExpandedExams] = useState<Set<string>>(new Set());
 
   // Settings
@@ -1346,26 +1346,47 @@ const Admin = () => {
             {/* View: Per Tryout */}
             {bankView === "exam" && (
               <div className="space-y-4">
-                {/* Exam selector with Category Navigation */}
+                {/* Exam selector with Parent-Child Navigation */}
                 <div>
-                  {!selectedCategory ? (
+                  {!selectedParentExam ? (
                     <>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pilih Kategori Induk</p>
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                        {Array.from(new Set(exams.map(e => e.category || "Umum"))).sort().map((cat) => (
-                          <button
-                            key={cat}
-                            onClick={() => setSelectedCategory(cat)}
-                            className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-8 text-center transition-all hover:border-primary/50 hover:shadow-md hover:bg-accent"
-                          >
-                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                              <Package className="h-6 w-6" />
-                            </div>
-                            <span className="text-sm font-bold uppercase tracking-wider">{cat}</span>
-                            <span className="text-[10px] text-muted-foreground">{exams.filter(e => (e.category || "Umum") === cat).length} Paket</span>
-                          </button>
-                        ))}
-                        {exams.length === 0 && (
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pilih Paket Tryout Induk</p>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {exams
+                          .filter(e => !e.parent_exam_id)
+                          .sort((a, b) => a.title.localeCompare(b.title))
+                          .map((ex) => {
+                            const children = exams.filter(c => c.parent_exam_id === ex.id);
+                            return (
+                              <button
+                                key={ex.id}
+                                onClick={() => {
+                                  setSelectedParentExam(ex.id);
+                                  if (children.length === 0) {
+                                    setSelectedExam(ex.id);
+                                  } else {
+                                    setSelectedExam("");
+                                  }
+                                }}
+                                className={cn(
+                                  "flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-6 text-center transition-all hover:border-primary/50 hover:shadow-md hover:bg-accent",
+                                  selectedParentExam === ex.id && "border-primary bg-primary/5 ring-1 ring-primary"
+                                )}
+                              >
+                                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                  <Package className="h-6 w-6" />
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-sm font-bold uppercase tracking-tight block">{ex.title}</span>
+                                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 uppercase">{ex.category || "Umum"}</Badge>
+                                    <span className="text-[10px] text-muted-foreground">{children.length > 0 ? `${children.length} Sub-paket` : `${ex.total_questions} Soal`}</span>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        {exams.filter(e => !e.parent_exam_id).length === 0 && (
                           <p className="text-sm text-muted-foreground col-span-full py-8 text-center">Belum ada tryout. Buat di tab Tryout.</p>
                         )}
                       </div>
@@ -1374,38 +1395,57 @@ const Admin = () => {
                     <>
                       <div className="flex items-center justify-between mb-3">
                         <button
-                          onClick={() => { setSelectedCategory(null); setSelectedExam(""); }}
+                          onClick={() => { setSelectedParentExam(null); setSelectedExam(""); }}
                           className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
                         >
-                          <ChevronLeft className="h-3 w-3" /> Kembali ke Kategori
+                          <ChevronLeft className="h-3 w-3" /> Kembali ke Daftar Paket
                         </button>
-                        <Badge variant="outline" className="uppercase tracking-widest text-[10px]">{selectedCategory}</Badge>
+                        <Badge variant="outline" className="uppercase tracking-widest text-[10px]">
+                          {exams.find(e => e.id === selectedParentExam)?.title}
+                        </Badge>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                        {exams
-                          .filter(e => (e.category || "Umum") === selectedCategory)
-                          .map((e) => (
-                            <button
-                              key={e.id}
-                              onClick={() => {
-                                setSelectedExam(e.id);
-                                setFilterSubtest("all");
-                                setFilterTopic("all");
-                                setFilterSource("all");
-                                setAddQuestionMode(null);
-                              }}
-                              className={cn(
-                                "text-left rounded-lg border px-3 py-3 transition-all",
-                                selectedExam === e.id
-                                  ? "border-primary bg-primary/10 ring-1 ring-primary"
-                                  : "border-border hover:border-primary/50 hover:bg-accent"
-                              )}
-                            >
-                              <p className="text-xs font-bold leading-snug">{e.title}</p>
-                              <p className="text-[10px] text-muted-foreground mt-1.5">{e.total_questions} soal</p>
-                            </button>
-                          ))}
-                      </div>
+                      
+                      {(() => {
+                        const parent = exams.find(e => e.id === selectedParentExam);
+                        const children = exams.filter(c => c.parent_exam_id === selectedParentExam);
+                        
+                        if (children.length === 0) {
+                          // If no children, just show the parent as selected (already handled by setSelectedExam in onClick)
+                          return (
+                            <div className="p-4 border border-dashed rounded-lg text-center bg-muted/20">
+                              <p className="text-xs text-muted-foreground">Paket ini tidak memiliki sub-paket. Mengelola soal untuk: <span className="font-bold text-foreground">{parent?.title}</span></p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                            {children
+                              .sort((a, b) => a.title.localeCompare(b.title))
+                              .map((e) => (
+                                <button
+                                  key={e.id}
+                                  onClick={() => {
+                                    setSelectedExam(e.id);
+                                    setFilterSubtest("all");
+                                    setFilterTopic("all");
+                                    setFilterSource("all");
+                                    setAddQuestionMode(null);
+                                  }}
+                                  className={cn(
+                                    "text-left rounded-lg border px-3 py-3 transition-all",
+                                    selectedExam === e.id
+                                      ? "border-primary bg-primary/10 ring-1 ring-primary"
+                                      : "border-border hover:border-primary/50 hover:bg-accent"
+                                  )}
+                                >
+                                  <p className="text-xs font-bold leading-snug">{e.title}</p>
+                                  <p className="text-[10px] text-muted-foreground mt-1.5">{e.total_questions} soal</p>
+                                </button>
+                              ))}
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
                 </div>
