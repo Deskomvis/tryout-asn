@@ -380,17 +380,30 @@ export function GlobalBankTable({
                               : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-blue-50 text-blue-700 border-blue-300">Di {q.assign_count} tryout</Badge>
                             }
                           </div>
-                          <p className="text-xs leading-snug line-clamp-2 text-foreground">{q.question_text}</p>
+                          <p className="text-xs leading-snug text-foreground">{q.question_text}</p>
                         </div>
-                        <Button
-                          size="sm" variant="outline" className="h-7 text-xs shrink-0 gap-1"
-                          onClick={() => {
-                            setGlobalBankSelectedIds(new Set([q.id]));
-                            setDistributeOpen(true);
-                          }}
-                        >
-                          <Plus className="h-3 w-3" /> Tryout
-                        </Button>
+                        <div className="flex gap-1.5 shrink-0">
+                          <Button
+                            size="sm" variant="outline" className="h-7 text-xs gap-1"
+                            onClick={() => {
+                              setGlobalBankSelectedIds(new Set([q.id]));
+                              setDistributeOpen(true);
+                            }}
+                          >
+                            <Plus className="h-3 w-3" /> Tryout
+                          </Button>
+                          <Button
+                            size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              if (confirm("Hapus soal ini dari bank secara permanen?")) {
+                                setGlobalBankSelectedIds(new Set([q.id]));
+                                setDeleteConfirmOpen(true);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     );
                   })}

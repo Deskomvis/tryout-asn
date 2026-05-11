@@ -12,9 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import {
   Trash2, Check, X, Plus, Sparkles, Loader2,
-  Pencil, Image, Upload, Key, Eye, EyeOff, ChevronDown, ChevronUp,
+  Pencil, Image, Upload, Key, Eye, EyeOff, ChevronLeft, ChevronDown, ChevronUp,
   RotateCcw, Copy,
-  BookOpen, FileText,
+  BookOpen, FileText, Package,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -139,6 +139,8 @@ const Admin = () => {
   const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [aiResult, setAiResult] = useState<{ count: number; requested: number } | null>(null);
   const [aiError, setAiError] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [expandedExams, setExpandedExams] = useState<Set<string>>(new Set());
 
   // Settings
   const [kieApiKey, setKieApiKey] = useState("");
@@ -1344,30 +1346,71 @@ const Admin = () => {
             {/* View: Per Tryout */}
             {bankView === "exam" && (
               <div className="space-y-4">
-                {/* Exam selector as cards */}
+                {/* Exam selector with Category Navigation */}
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Pilih Tryout</p>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                    {exams.map((e) => (
-                      <button
-                        key={e.id}
-                        onClick={() => { setBankView("exam"); setSelectedExam(e.id); setFilterSubtest("all"); setFilterTopic("all"); setFilterSource("all"); setAddQuestionMode(null); }}
-                    className={cn(
-                      "text-left rounded-lg border px-3 py-2.5 transition-all",
-                      selectedExam === e.id
-                        ? "border-primary bg-primary/10 ring-1 ring-primary"
-                        : "border-border hover:border-primary/50 hover:bg-accent"
-                    )}
-                  >
-                    <p className="text-xs font-semibold leading-snug line-clamp-2">{e.title}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{e.total_questions} soal</p>
-                  </button>
-                ))}
-                {exams.length === 0 && (
-                  <p className="text-sm text-muted-foreground col-span-full py-4">Belum ada tryout. Buat di tab Tryout.</p>
-                )}
+                  {!selectedCategory ? (
+                    <>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pilih Kategori Induk</p>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        {Array.from(new Set(exams.map(e => e.category || "Umum"))).sort().map((cat) => (
+                          <button
+                            key={cat}
+                            onClick={() => setSelectedCategory(cat)}
+                            className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-8 text-center transition-all hover:border-primary/50 hover:shadow-md hover:bg-accent"
+                          >
+                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                              <Package className="h-6 w-6" />
+                            </div>
+                            <span className="text-sm font-bold uppercase tracking-wider">{cat}</span>
+                            <span className="text-[10px] text-muted-foreground">{exams.filter(e => (e.category || "Umum") === cat).length} Paket</span>
+                          </button>
+                        ))}
+                        {exams.length === 0 && (
+                          <p className="text-sm text-muted-foreground col-span-full py-8 text-center">Belum ada tryout. Buat di tab Tryout.</p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between mb-3">
+                        <button
+                          onClick={() => { setSelectedCategory(null); setSelectedExam(""); }}
+                          className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
+                        >
+                          <ChevronLeft className="h-3 w-3" /> Kembali ke Kategori
+                        </button>
+                        <Badge variant="outline" className="uppercase tracking-widest text-[10px]">{selectedCategory}</Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                        {exams
+                          .filter(e => (e.category || "Umum") === selectedCategory)
+                          .map((e) => (
+                            <button
+                              key={e.id}
+                              onClick={() => {
+                                setSelectedExam(e.id);
+                                setFilterSubtest("all");
+                                setFilterTopic("all");
+                                setFilterSource("all");
+                                setAddQuestionMode(null);
+                              }}
+                              className={cn(
+                                "text-left rounded-lg border px-3 py-3 transition-all",
+                                selectedExam === e.id
+                                  ? "border-primary bg-primary/10 ring-1 ring-primary"
+                                  : "border-border hover:border-primary/50 hover:bg-accent"
+                              )}
+                            >
+                              <p className="text-xs font-bold leading-snug">{e.title}</p>
+                              <p className="text-[10px] text-muted-foreground mt-1.5">{e.total_questions} soal</p>
+                            </button>
+                          ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {selectedExam && (
               <>
@@ -1907,7 +1950,7 @@ const Admin = () => {
                                           : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-gray-100 text-gray-600 border-gray-300">Dari Manual</Badge>
                                       }
                                     </div>
-                                    <p className="text-xs font-medium leading-snug line-clamp-1 text-foreground">{q.question_text}</p>
+                                    <p className="text-xs font-medium leading-snug text-foreground">{q.question_text}</p>
                                     <p className="text-[10px] text-muted-foreground leading-tight mt-0.5 truncate">
                                       {q.subtest === "tkp" && q.option_points
                                         ? `Poin: ${Object.values(q.option_points).sort((a, b) => b - a).join(",")}`
@@ -2040,7 +2083,11 @@ const Admin = () => {
                       <Label>Kategori *</Label>
                       <Select value={newExam.category} onValueChange={(v) => setNewExam({ ...newExam, category: v, subcategory: "" })}>
                         <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
-                        <SelectContent><SelectItem value="cpns">CPNS</SelectItem><SelectItem value="pppk">PPPK</SelectItem></SelectContent>
+                        <SelectContent>
+                          <SelectItem value="cpns">CPNS</SelectItem>
+                          <SelectItem value="pppk">PPPK</SelectItem>
+                          <SelectItem value="kedinasan">Kedinasan</SelectItem>
+                        </SelectContent>
                       </Select>
                     </div>
                     <div>
@@ -2094,101 +2141,134 @@ const Admin = () => {
                   <CardHeader><h2 className="font-semibold text-sm">Paket Tryout ({parentExams.length} paket induk · {exams.length} total)</h2></CardHeader>
                   <CardContent className="p-0">
                     <div className="divide-y divide-border">
-                      {parentExams.map((ex) => {
-                        const children = childrenOf(ex.id);
-                        const isAddingHere = addSubPkgParent?.id === ex.id;
-                        return (
-                          <div key={ex.id}>
-                            {/* Parent row */}
-                            <div className="flex items-center gap-3 px-4 py-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <Badge variant="outline" className="uppercase text-[9px] px-1 h-4 shrink-0">{ex.category || "—"}</Badge>
-                                  {ex.subcategory && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{ex.subcategory}</Badge>}
-                                  {children.length > 0 && (
-                                    <Badge className="text-[9px] px-1 h-4 shrink-0 bg-blue-50 text-blue-700 border border-blue-300">
-                                      {children.length} sub-paket
-                                    </Badge>
-                                  )}
-                                  <span className="text-xs font-semibold truncate">{ex.title}</span>
-                                </div>
-                                <p className="text-[10px] text-muted-foreground mt-0.5">
-                                  {children.length === 0 && `${ex.total_questions} soal · ${Math.round(ex.duration / 60)} menit · `}
-                                  {ex.price === 0 ? "Gratis" : `Rp ${ex.price.toLocaleString("id-ID")}`}
-                                  {ex.original_price ? ` (coret: Rp ${ex.original_price.toLocaleString("id-ID")})` : ""}
-                                  {ex.cta_link ? " · Ada CTA link" : ""}
-                                </p>
-                              </div>
-                              <div className="flex gap-1.5 shrink-0">
-                                <Button
-                                  size="sm" variant={isAddingHere ? "outline" : "ghost"}
-                                  className="h-7 text-xs gap-1"
-                                  onClick={() => { setAddSubPkgParent(isAddingHere ? null : ex); setSubPkgDuration(90); }}
-                                >
-                                  <Plus className="h-3 w-3" />
-                                  {isAddingHere ? "Tutup" : "Sub-paket"}
-                                </Button>
-                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditExam(ex)}>
-                                  <Pencil className="h-3 w-3 mr-1" /> Edit
-                                </Button>
-                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => duplicateExam(ex)}>
-                                  <Copy className="h-3 w-3" />
-                                </Button>
-                                <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteExam(ex.id)}>
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
+                       {parentExams.map((ex) => {
+                         const children = childrenOf(ex.id);
+                         const isAddingHere = addSubPkgParent?.id === ex.id;
+                         const isExpanded = expandedExams.has(ex.id);
+                         const toggleExpandExam = (id: string) => {
+                           setExpandedExams(prev => {
+                             const next = new Set(prev);
+                             if (next.has(id)) next.delete(id);
+                             else next.add(id);
+                             return next;
+                           });
+                         };
+                         return (
+                           <div key={ex.id}>
+                             {/* Parent row */}
+                             <div 
+                               className={cn(
+                                 "flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-accent/50 transition-colors",
+                                 isExpanded && "bg-muted/30"
+                               )}
+                               onClick={() => toggleExpandExam(ex.id)}
+                             >
+                               <div className="shrink-0">
+                                 {children.length > 0 ? (
+                                   isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                 ) : (
+                                   <div className="h-4 w-4" />
+                                 )}
+                               </div>
+                               <div className="flex-1 min-w-0">
+                                 <div className="flex items-center gap-2 flex-wrap">
+                                   <Badge variant="outline" className="uppercase text-[9px] px-1 h-4 shrink-0">{ex.category || "—"}</Badge>
+                                   {ex.subcategory && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{ex.subcategory}</Badge>}
+                                   {children.length > 0 && (
+                                     <Badge className="text-[9px] px-1 h-4 shrink-0 bg-blue-50 text-blue-700 border border-blue-300">
+                                       {children.length} sub-paket
+                                     </Badge>
+                                   )}
+                                   <span className="text-xs font-semibold truncate">{ex.title}</span>
+                                 </div>
+                                 <p className="text-[10px] text-muted-foreground mt-0.5">
+                                   {children.length === 0 && `${ex.total_questions} soal · ${Math.round(ex.duration / 60)} menit · `}
+                                   {ex.price === 0 ? "Gratis" : `Rp ${ex.price.toLocaleString("id-ID")}`}
+                                   {ex.original_price ? ` (coret: Rp ${ex.original_price.toLocaleString("id-ID")})` : ""}
+                                   {ex.cta_link ? " · Ada CTA link" : ""}
+                                 </p>
+                               </div>
+                               <div className="flex gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                 <Button
+                                   size="sm" variant={isAddingHere ? "outline" : "ghost"}
+                                   className="h-7 text-xs gap-1"
+                                   onClick={() => { 
+                                     setAddSubPkgParent(isAddingHere ? null : ex); 
+                                     setSubPkgDuration(90);
+                                     if (!isExpanded) toggleExpandExam(ex.id);
+                                   }}
+                                 >
+                                   <Plus className="h-3 w-3" />
+                                   {isAddingHere ? "Tutup" : "Sub-paket"}
+                                 </Button>
+                                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditExam(ex)}>
+                                   <Pencil className="h-3 w-3 mr-1" /> Edit
+                                 </Button>
+                                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => duplicateExam(ex)}>
+                                   <Copy className="h-3 w-3" />
+                                 </Button>
+                                 <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteExam(ex.id)}>
+                                   <Trash2 className="h-3 w-3" />
+                                 </Button>
+                               </div>
+                             </div>
 
-                            {/* Sub-package creation form */}
-                            {isAddingHere && (
-                              <div className="mx-4 mb-3 p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3">
-                                <p className="text-xs font-semibold text-primary">
-                                  Buat Paket {String.fromCharCode(65 + children.length)} &rarr; akan diberi nama:
-                                  <span className="ml-1 font-normal text-foreground">"{ex.title} - Paket {String.fromCharCode(65 + children.length)}"</span>
-                                </p>
-                                <div className="flex items-end gap-3">
-                                  <div className="flex-1 max-w-[160px]">
-                                    <Label className="text-xs">Durasi (menit)</Label>
-                                    <Input
-                                      type="number" min={1} max={600} className="h-8 text-xs mt-1"
-                                      value={subPkgDuration}
-                                      onChange={(e) => setSubPkgDuration(Math.max(1, +e.target.value))}
-                                    />
-                                  </div>
-                                  <Button size="sm" className="h-8 gap-1" onClick={() => addSubPackage(ex)}>
-                                    <Plus className="h-3 w-3" /> Buat Sub-paket
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-8" onClick={() => setAddSubPkgParent(null)}>Batal</Button>
-                                </div>
-                              </div>
-                            )}
+                             {isExpanded && (
+                               <div className="bg-muted/10 pb-2">
+                                 {/* Sub-package creation form */}
+                                 {isAddingHere && (
+                                   <div className="mx-4 my-3 p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3">
+                                     <p className="text-xs font-semibold text-primary">
+                                       Buat Paket {String.fromCharCode(65 + children.length)} &rarr; akan diberi nama:
+                                       <span className="ml-1 font-normal text-foreground">"{ex.title} - Paket {String.fromCharCode(65 + children.length)}"</span>
+                                     </p>
+                                     <div className="flex items-end gap-3">
+                                       <div className="flex-1 max-w-[160px]">
+                                         <Label className="text-xs">Durasi (menit)</Label>
+                                         <Input
+                                           type="number" min={1} max={600} className="h-8 text-xs mt-1"
+                                           value={subPkgDuration}
+                                           onChange={(e) => setSubPkgDuration(Math.max(1, +e.target.value))}
+                                         />
+                                       </div>
+                                       <Button size="sm" className="h-8 gap-1" onClick={() => addSubPackage(ex)}>
+                                         <Plus className="h-3 w-3" /> Buat Sub-paket
+                                       </Button>
+                                       <Button size="sm" variant="ghost" className="h-8" onClick={() => setAddSubPkgParent(null)}>Batal</Button>
+                                     </div>
+                                   </div>
+                                 )}
 
-                            {/* Child sub-package rows */}
-                            {children.map((child, idx) => (
-                              <div key={child.id} className="flex items-center gap-3 pl-8 pr-4 py-2.5 bg-muted/30 border-t border-border/50">
-                                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">
-                                  {String.fromCharCode(65 + idx)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-xs font-medium">{child.title}</span>
-                                  <p className="text-[10px] text-muted-foreground">
-                                    {child.total_questions} soal · {Math.round(child.duration / 60)} menit
-                                  </p>
-                                </div>
-                                <div className="flex gap-1.5 shrink-0">
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditExam(child)}>
-                                    <Pencil className="h-3 w-3 mr-1" /> Edit
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteExam(child.id)}>
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })}
+                                 {/* Child sub-package rows */}
+                                 {children.map((child, idx) => (
+                                   <div key={child.id} className="flex items-center gap-3 pl-10 pr-4 py-2.5 hover:bg-accent/30 transition-colors border-t border-border/30">
+                                     <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">
+                                       {String.fromCharCode(65 + idx)}
+                                     </div>
+                                     <div className="flex-1 min-w-0">
+                                       <span className="text-xs font-medium">{child.title}</span>
+                                       <p className="text-[10px] text-muted-foreground">
+                                         {child.total_questions} soal · {Math.round(child.duration / 60)} menit
+                                       </p>
+                                     </div>
+                                     <div className="flex gap-1.5 shrink-0">
+                                       <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditExam(child)}>
+                                         <Pencil className="h-3 w-3 mr-1" /> Edit
+                                       </Button>
+                                       <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteExam(child.id)}>
+                                         <Trash2 className="h-3 w-3" />
+                                       </Button>
+                                     </div>
+                                   </div>
+                                 ))}
+                                 {children.length === 0 && !isAddingHere && (
+                                   <p className="text-[10px] text-muted-foreground italic px-10 py-2">Belum ada sub-paket.</p>
+                                 )}
+                               </div>
+                             )}
+                           </div>
+                         );
+                       })}
                       {parentExams.length === 0 && <p className="px-4 py-8 text-sm text-muted-foreground text-center">Belum ada paket tryout.</p>}
                     </div>
                   </CardContent>
@@ -2850,7 +2930,11 @@ const Admin = () => {
                   <Label>Kategori *</Label>
                   <Select value={editExam.category} onValueChange={(v) => setEditExam({ ...editExam, category: v, subcategory: "" })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="cpns">CPNS</SelectItem><SelectItem value="pppk">PPPK</SelectItem></SelectContent>
+                    <SelectContent>
+                      <SelectItem value="cpns">CPNS</SelectItem>
+                      <SelectItem value="pppk">PPPK</SelectItem>
+                      <SelectItem value="kedinasan">Kedinasan</SelectItem>
+                    </SelectContent>
                   </Select>
                 </div>
                 <div>
