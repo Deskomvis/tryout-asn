@@ -119,14 +119,25 @@ const emptyNewQ = () => ({
   pa: 5, pb: 4, pc: 3, pd: 2, pe: 1, explanation: "", image_url: "", topic: "",
 });
 
-const VALID_TABS = ["questions", "exams", "materi", "lynk", "scores", "topups", "balances", "settings"] as const;
+const VALID_TABS = ["bank", "exams", "lynk", "scores", "topups", "balances", "settings"] as const;
+const BANK_VIEWS = ["list", "materi", "exam"] as const;
+
+type GlobalBankQ = {
+  id: string; question_text: string; subtest: string; topic?: string | null;
+  source?: string | null; exam_id: string | null; assign_count: number;
+};
 
 const Admin = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (VALID_TABS as readonly string[]).includes(searchParams.get("tab") ?? "")
     ? searchParams.get("tab")!
-    : "questions";
+    : "bank";
   const setActiveTab = (tab: string) => setSearchParams({ tab }, { replace: true });
+
+  const bankView = (BANK_VIEWS as readonly string[]).includes(searchParams.get("view") ?? "")
+    ? searchParams.get("view")!
+    : "list";
+  const setBankView = (view: string) => setSearchParams({ tab: "bank", view }, { replace: true });
 
   const [exams, setExams] = useState<Exam[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -175,6 +186,15 @@ const Admin = () => {
   const [extractExamId, setExtractExamId] = useState("");
   const [extractChunks, setExtractChunks] = useState<Record<string, ChunkStatus[]>>({});
   const [extractRunning, setExtractRunning] = useState(false);
+
+  // Global bank list (Daftar Soal view)
+  const [globalBank, setGlobalBank] = useState<GlobalBankQ[]>([]);
+  const [globalBankLoading, setGlobalBankLoading] = useState(false);
+  const [globalBankFilter, setGlobalBankFilter] = useState({ subtest: "all", source: "all", assigned: "all", search: "" });
+  const [globalBankSelectedIds, setGlobalBankSelectedIds] = useState<Set<string>>(new Set());
+  const [distributeOpen, setDistributeOpen] = useState(false);
+  const [distributeTargetIds, setDistributeTargetIds] = useState<Set<string>>(new Set());
+  const [distributing, setDistributing] = useState(false);
 
   // Lynk packages
   const [lynkPackages, setLynkPackages] = useState<LynkPackage[]>([]);
@@ -288,7 +308,39 @@ const Admin = () => {
     setBalances(allBalances);
   };
 
+  const loadGlobalBank = async () => {
+    setGlobalBankLoading(true);
+    // Fetch all questions
+    const { data: qs } = await supabase
+      .from("questions")
+      .select("id, question_text, subtest, topic, source, exam_id")
+      .order("created_at", { ascending: false });
+
+    // Fetch assignment counts per question
+    const { data: asgns } = await (supabase as any)
+      .from("exam_question_assignments")
+      .select("question_id");
+
+    const countMap: Record<string, number> = {};
+    (asgns ?? []).forEach((a: any) => {
+      countMap[a.question_id] = (countMap[a.question_id] ?? 0) + 1;
+    });
+
+    const result: GlobalBankQ[] = (qs ?? []).map((q: any) => ({
+      ...q,
+      assign_count: countMap[q.id] ?? 0,
+    }));
+    setGlobalBank(result);
+    setGlobalBankLoading(false);
+  };
+
   useEffect(() => { refresh(); }, [selectedExam]);
+
+  useEffect(() => {
+    if (activeTab === "bank" && bankView === "list") {
+      loadGlobalBank();
+    }
+  }, [activeTab, bankView]);
 
   // Load saved keys on mount
   useEffect(() => {
@@ -736,7 +788,6 @@ const Admin = () => {
   };
 
   const doExtractQuestions = async (material: Material, onlyIdle = true) => {
-    if (!extractExamId) return toast.error("Pilih tryout tujuan terlebih dahulu");
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
     if (!token) return toast.error("Sesi tidak ditemukan");
@@ -761,7 +812,7 @@ const Admin = () => {
       }));
       try {
         const { data, error } = await supabase.functions.invoke("extract-questions", {
-          body: { text_chunk: chunks[cs.index], exam_id: extractExamId, category: material.category, topic: material.topic ?? undefined },
+          body: { text_chunk: chunks[cs.index], exam_id: extractExamId || undefined, category: material.category, topic: material.topic ?? undefined },
           headers: { Authorization: `Bearer ${token}` },
         });
         if (error || data?.error) {
@@ -830,6 +881,41 @@ const Admin = () => {
     toast.success("Package dihapus"); refresh();
   };
 
+  const bulkDistribute = async () => {
+    if (globalBankSelectedIds.size === 0 || distributeTargetIds.size === 0) return;
+    setDistributing(true);
+    const qIds = Array.from(globalBankSelectedIds);
+    const eIds = Array.from(distributeTargetIds);
+
+    for (const examId of eIds) {
+      const { count: startPos } = await (supabase as any)
+        .from("exam_question_assignments")
+        .select("*", { count: "exact", head: true })
+        .eq("exam_id", examId);
+
+      const rows = qIds.map((qid, i) => ({
+        exam_id: examId,
+        question_id: qid,
+        position: (startPos ?? 0) + i + 1,
+      }));
+      await (supabase as any).from("exam_question_assignments")
+        .upsert(rows, { onConflict: "exam_id,question_id", ignoreDuplicates: true });
+
+      const { count: total } = await (supabase as any)
+        .from("exam_question_assignments")
+        .select("*", { count: "exact", head: true })
+        .eq("exam_id", examId);
+      await supabase.from("exams").update({ total_questions: total ?? 0 }).eq("id", examId);
+    }
+
+    toast.success(`${qIds.length} soal didistribusikan ke ${eIds.length} tryout`);
+    setDistributing(false);
+    setDistributeOpen(false);
+    setGlobalBankSelectedIds(new Set());
+    setDistributeTargetIds(new Set());
+    await refresh();
+  };
+
   const loadBankQuestions = async () => {
     setBankLoading(true);
     const assignedIds = new Set(questions.map((q) => q.id));
@@ -891,20 +977,594 @@ const Admin = () => {
   return (
     <AppLayout>
       <div className="w-full overflow-x-hidden">
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <h1 className="text-3xl font-bold">
+          {activeTab === "bank" ? "Bank Soal" :
+           activeTab === "exams" ? "Tryout" :
+           activeTab === "lynk" ? "Lynk Webhook" :
+           activeTab === "scores" ? "Skor User" :
+           activeTab === "topups" ? "History Transaksi" :
+           activeTab === "balances" ? "Semua User" :
+           activeTab === "settings" ? "Pengaturan" :
+           "Admin Dashboard"}
+        </h1>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
 
-          {/* ── MANAJEMEN SOAL ── */}
-          <TabsContent value="questions" className="space-y-4">
-            {/* Exam selector as cards */}
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Pilih Tryout</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                {exams.map((e) => (
-                  <button
-                    key={e.id}
-                    onClick={() => { setSelectedExam(e.id); setFilterSubtest("all"); setFilterTopic("all"); setFilterSource("all"); setAddQuestionMode(null); }}
+          {/* ── BANK SOAL ── */}
+          <TabsContent value="bank" className="space-y-4">
+            {/* Sub-navigation */}
+            <div className="flex gap-1 border-b pb-0">
+              {[
+                { value: "list", label: "Daftar Soal" },
+                { value: "materi", label: "Materi & Ekstrak" },
+                { value: "exam", label: "Per Tryout" },
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  onClick={() => setBankView(item.value)}
+                  className={cn(
+                    "px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px",
+                    bankView === item.value
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {/* View: Daftar Soal (Global Bank) */}
+            {bankView === "list" && (
+              <div className="space-y-4">
+                {/* Header actions */}
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="font-semibold text-sm">
+                      Semua Soal
+                      <span className="ml-1.5 text-muted-foreground font-normal">({globalBank.length})</span>
+                    </h2>
+                    {globalBankSelectedIds.size > 0 && (
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs gap-1"
+                        onClick={() => setDistributeOpen(true)}
+                      >
+                        <Plus className="h-3 w-3" />
+                        Distribute ke Tryout ({globalBankSelectedIds.size})
+                      </Button>
+                    )}
+                  </div>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={loadGlobalBank} disabled={globalBankLoading}>
+                    {globalBankLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3 mr-1" />}
+                    Refresh
+                  </Button>
+                </div>
+
+                {/* Filters */}
+                <div className="flex flex-wrap gap-2 items-center">
+                  <Input
+                    className="h-7 text-xs w-52"
+                    placeholder="Cari soal..."
+                    value={globalBankFilter.search}
+                    onChange={(e) => setGlobalBankFilter((f) => ({ ...f, search: e.target.value }))}
+                  />
+                  <Select value={globalBankFilter.subtest} onValueChange={(v) => setGlobalBankFilter((f) => ({ ...f, subtest: v }))}>
+                    <SelectTrigger className="h-7 text-xs w-28"><SelectValue placeholder="Semua subtes" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua subtes</SelectItem>
+                      <SelectItem value="twk">TWK</SelectItem>
+                      <SelectItem value="tiu">TIU</SelectItem>
+                      <SelectItem value="tkp">TKP</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={globalBankFilter.source} onValueChange={(v) => setGlobalBankFilter((f) => ({ ...f, source: v }))}>
+                    <SelectTrigger className="h-7 text-xs w-28"><SelectValue placeholder="Semua sumber" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua sumber</SelectItem>
+                      <SelectItem value="manual">Dari Manual</SelectItem>
+                      <SelectItem value="ai">Dari AI</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={globalBankFilter.assigned} onValueChange={(v) => setGlobalBankFilter((f) => ({ ...f, assigned: v }))}>
+                    <SelectTrigger className="h-7 text-xs w-32"><SelectValue placeholder="Semua status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua status</SelectItem>
+                      <SelectItem value="unassigned">Belum di-assign</SelectItem>
+                      <SelectItem value="assigned">Sudah di-assign</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(globalBankFilter.subtest !== "all" || globalBankFilter.source !== "all" || globalBankFilter.assigned !== "all" || globalBankFilter.search) && (
+                    <button onClick={() => setGlobalBankFilter({ subtest: "all", source: "all", assigned: "all", search: "" })} className="text-[10px] text-primary hover:underline">
+                      Reset
+                    </button>
+                  )}
+                  {globalBankSelectedIds.size > 0 && (
+                    <button onClick={() => setGlobalBankSelectedIds(new Set())} className="text-[10px] text-muted-foreground hover:underline ml-auto">
+                      Batal pilih semua
+                    </button>
+                  )}
+                </div>
+
+                {/* Question list */}
+                <Card className="overflow-hidden">
+                  <CardContent className="p-0">
+                    {globalBankLoading ? (
+                      <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {(() => {
+                          const filtered = globalBank.filter((q) => {
+                            if (globalBankFilter.subtest !== "all" && q.subtest !== globalBankFilter.subtest) return false;
+                            if (globalBankFilter.source !== "all" && (q.source ?? "manual") !== globalBankFilter.source) return false;
+                            if (globalBankFilter.assigned === "unassigned" && q.assign_count > 0) return false;
+                            if (globalBankFilter.assigned === "assigned" && q.assign_count === 0) return false;
+                            if (globalBankFilter.search && !q.question_text.toLowerCase().includes(globalBankFilter.search.toLowerCase())) return false;
+                            return true;
+                          });
+                          if (filtered.length === 0) {
+                            return (
+                              <p className="text-center text-sm text-muted-foreground py-12">
+                                {globalBank.length === 0 ? "Bank soal kosong. Tambah soal via Materi & Ekstrak atau Per Tryout." : "Tidak ada soal yang cocok."}
+                              </p>
+                            );
+                          }
+                          return filtered.map((q) => {
+                            const isSelected = globalBankSelectedIds.has(q.id);
+                            return (
+                              <div
+                                key={q.id}
+                                className={cn("flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors", isSelected && "bg-primary/5")}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const next = new Set(globalBankSelectedIds);
+                                    e.target.checked ? next.add(q.id) : next.delete(q.id);
+                                    setGlobalBankSelectedIds(next);
+                                  }}
+                                  className="h-3.5 w-3.5 rounded accent-primary shrink-0 cursor-pointer"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                    <Badge variant="outline" className="uppercase text-[9px] px-1 py-0 h-4 shrink-0">{q.subtest ?? "tiu"}</Badge>
+                                    {q.topic && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">{q.topic}</Badge>}
+                                    {(q.source ?? "manual") === "ai"
+                                      ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-purple-100 text-purple-700 border-purple-300">Dari AI</Badge>
+                                      : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-gray-100 text-gray-600 border-gray-300">Dari Manual</Badge>
+                                    }
+                                    {q.assign_count === 0
+                                      ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-yellow-50 text-yellow-700 border-yellow-300">Belum di-assign</Badge>
+                                      : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-blue-50 text-blue-700 border-blue-300">Di {q.assign_count} tryout</Badge>
+                                    }
+                                  </div>
+                                  <p className="text-xs leading-snug line-clamp-2 text-foreground">{q.question_text}</p>
+                                </div>
+                                <Button
+                                  size="sm" variant="outline" className="h-7 text-xs shrink-0 gap-1"
+                                  onClick={() => {
+                                    setGlobalBankSelectedIds(new Set([q.id]));
+                                    setDistributeOpen(true);
+                                  }}
+                                >
+                                  <Plus className="h-3 w-3" /> Tryout
+                                </Button>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Distribute modal */}
+                {distributeOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) setDistributeOpen(false); }}>
+                    <div className="bg-background rounded-xl shadow-xl w-full max-w-md max-h-[80vh] overflow-y-auto">
+                      <div className="flex items-center justify-between border-b px-6 py-4">
+                        <h2 className="font-semibold">Distribute ke Tryout</h2>
+                        <button onClick={() => setDistributeOpen(false)}><X className="h-5 w-5" /></button>
+                      </div>
+                      <div className="p-6 space-y-3">
+                        <p className="text-sm text-muted-foreground">{globalBankSelectedIds.size} soal akan ditambahkan ke tryout yang dipilih di bawah (duplikat diabaikan otomatis).</p>
+                        <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                          {exams.map((ex) => {
+                            const isTarget = distributeTargetIds.has(ex.id);
+                            return (
+                              <label key={ex.id} className={cn("flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors", isTarget ? "border-primary bg-primary/5" : "border-border hover:bg-accent")}>
+                                <input
+                                  type="checkbox"
+                                  checked={isTarget}
+                                  onChange={(e) => {
+                                    const next = new Set(distributeTargetIds);
+                                    e.target.checked ? next.add(ex.id) : next.delete(ex.id);
+                                    setDistributeTargetIds(next);
+                                  }}
+                                  className="h-3.5 w-3.5 accent-primary"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium leading-tight">{ex.title}</p>
+                                  <p className="text-[10px] text-muted-foreground">{ex.total_questions} soal saat ini</p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            onClick={bulkDistribute}
+                            disabled={distributing || distributeTargetIds.size === 0 || globalBankSelectedIds.size === 0}
+                            className="flex-1"
+                          >
+                            {distributing ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Memproses...</> : `Distribute ke ${distributeTargetIds.size} Tryout`}
+                          </Button>
+                          <Button variant="outline" onClick={() => setDistributeOpen(false)}>Batal</Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* View: Materi & Ekstrak */}
+            {bankView === "materi" && (
+              <div className="space-y-4">
+                {/* Upload card */}
+                <Card>
+                  <CardHeader>
+                    <h2 className="flex items-center gap-2 font-semibold">
+                      <BookOpen className="h-4 w-4 text-primary" /> Upload Materi Referensi
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Upload PDF atau TXT dari modul SKD, UUD 1945, Pancasila, dll. Bisa pilih banyak file sekaligus — teks diekstrak otomatis di browser.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Drop zone */}
+                    <input
+                      ref={matFileRef}
+                      type="file"
+                      accept=".pdf,.txt,.md"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => handleMatFilesChange(e.target.files)}
+                    />
+                    <div
+                      onClick={() => matFileRef.current?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => { e.preventDefault(); handleMatFilesChange(e.dataTransfer.files); }}
+                      className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 p-8 text-center transition-colors hover:border-primary hover:bg-primary/5"
+                    >
+                      <Upload className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-sm font-medium">Klik atau drag-drop PDF / TXT</p>
+                      <p className="text-xs text-muted-foreground">Bisa pilih banyak file sekaligus</p>
+                    </div>
+
+                    {/* Queue list */}
+                    {matQueue.length > 0 && (
+                      <div className="space-y-2">
+                        {matQueue.map((q) => (
+                          <div key={q.id} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                              {q.status === "extracting" && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
+                              {q.status === "ready" && <FileText className="h-4 w-4 text-green-500 shrink-0" />}
+                              {q.status === "error" && <FileText className="h-4 w-4 text-destructive shrink-0" />}
+                              <span className="text-xs text-muted-foreground truncate flex-1">{q.file.name}</span>
+                              {q.status === "ready" && <span className="text-[10px] text-green-600 shrink-0">{q.text.length.toLocaleString("id-ID")} kar</span>}
+                              {q.status === "error" && <span className="text-[10px] text-destructive shrink-0">Gagal</span>}
+                              <button onClick={() => removeFromQueue(q.id)} className="ml-1 shrink-0 text-muted-foreground hover:text-destructive">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            {q.status === "error" && <p className="text-[11px] text-destructive">{q.errorMsg}</p>}
+                            {q.status === "ready" && (
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                <div className="sm:col-span-2">
+                                  <Input
+                                    placeholder="Judul materi"
+                                    value={q.title}
+                                    onChange={(e) => updateMatQueueItem(q.id, { title: e.target.value })}
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                                <Select value={q.category} onValueChange={(v) => updateMatQueueItem(q.id, { category: v })}>
+                                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="general">Umum</SelectItem>
+                                    <SelectItem value="twk">TWK</SelectItem>
+                                    <SelectItem value="tiu">TIU</SelectItem>
+                                    <SelectItem value="tkp">TKP</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <div className="sm:col-span-3">
+                                  <Input
+                                    placeholder="Topik (opsional) — cth: Pancasila, UUD 1945 Pasal 1-5..."
+                                    value={q.topic}
+                                    onChange={(e) => updateMatQueueItem(q.id, { topic: e.target.value })}
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-xs text-muted-foreground">
+                            {matQueue.filter((q) => q.status === "ready").length} dari {matQueue.length} file siap disimpan
+                          </span>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setMatQueue([])} className="gap-1 h-8 text-xs">
+                              Bersihkan
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={saveAllMaterials}
+                              disabled={matUploading || matQueue.every((q) => q.status !== "ready")}
+                              className="gap-1 h-8 text-xs"
+                            >
+                              {matUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookOpen className="h-3.5 w-3.5" />}
+                              {matUploading ? "Menyimpan..." : `Simpan ${matQueue.filter((q) => q.status === "ready").length} Materi`}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Daftar materi */}
+                <Card>
+                  <CardHeader>
+                    <h2 className="font-semibold text-sm">Materi Tersimpan ({materials.length})</h2>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y divide-border">
+                      {materials.map((m) => {
+                        const isExpanded = matExpanded.has(m.id);
+                        const isExtractOpen = extractPanelId === m.id;
+                        const mChunks = extractChunks[m.id];
+                        const totalExtracted = mChunks ? mChunks.reduce((s, c) => s + (c.status === "done" ? c.count : 0), 0) : 0;
+                        const allDone = mChunks && mChunks.length > 0 && mChunks.every((c) => c.status === "done");
+                        return (
+                          <div key={m.id} className="px-4 py-3 space-y-2">
+                            <div className="flex items-start gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className="text-[9px] uppercase px-1 h-4 shrink-0">
+                                    {m.category === "general" ? "Umum" : m.category.toUpperCase()}
+                                  </Badge>
+                                  {m.topic && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{m.topic}</Badge>}
+                                  <span className="text-sm font-semibold">{m.title}</span>
+                                  {totalExtracted > 0 && (
+                                    <Badge className="text-[9px] px-1 h-4 bg-green-100 text-green-700 border-green-300">
+                                      ✓ {totalExtracted} soal{allDone ? "" : " (sebagian)"}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {m.description && <p className="text-[11px] text-muted-foreground mt-0.5">{m.description}</p>}
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  {m.file_name && <span className="mr-2">📄 {m.file_name}</span>}
+                                  {(m.char_count ?? 0).toLocaleString("id-ID")} karakter ·{" "}
+                                  {new Date(m.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                                </p>
+                                <button
+                                  onClick={() => {
+                                    const next = new Set(matExpanded);
+                                    isExpanded ? next.delete(m.id) : next.add(m.id);
+                                    setMatExpanded(next);
+                                  }}
+                                  className="mt-1 text-[11px] text-primary hover:underline"
+                                >
+                                  {isExpanded ? "Sembunyikan teks ▲" : "Lihat preview teks ▼"}
+                                </button>
+                                {isExpanded && (
+                                  <div className="mt-2 rounded border bg-muted/30 p-3 text-xs whitespace-pre-wrap line-clamp-10 max-h-48 overflow-y-auto">
+                                    {m.extracted_text.slice(0, 2000)}{m.extracted_text.length > 2000 ? "\n\n[... terpotong, total " + m.char_count?.toLocaleString() + " karakter]" : ""}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex gap-1.5 shrink-0">
+                                <Button
+                                  size="sm" variant="outline"
+                                  className={cn("h-7 text-xs gap-1", isExtractOpen && "border-primary text-primary")}
+                                  onClick={() => {
+                                    if (isExtractOpen) {
+                                      setExtractPanelId(null);
+                                    } else {
+                                      setExtractPanelId(m.id);
+                                      setExtractExamId("");
+                                      if (!extractChunks[m.id]) initExtractChunks(m);
+                                    }
+                                  }}
+                                >
+                                  <Sparkles className="h-3 w-3" />
+                                  Ekstrak Soal
+                                </Button>
+                                <Button size="sm" variant="destructive" className="h-7 w-7 p-0" onClick={() => deleteMaterial(m.id)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Inline extract panel */}
+                            {isExtractOpen && (
+                              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+                                <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                                  <Sparkles className="h-3.5 w-3.5" />
+                                  Ekstrak soal dari "{m.title}" ke bank soal
+                                </p>
+
+                                {/* Exam selector + action buttons */}
+                                <div className="flex flex-wrap items-end gap-2">
+                                  <div className="flex-1 min-w-48">
+                                    <Label className="text-[10px] mb-1 block">Tryout tujuan (opsional)</Label>
+                                    <Select
+                                      value={extractExamId}
+                                      onValueChange={(v) => {
+                                        setExtractExamId(v === "" ? "" : v);
+                                        resetExtractChunks(m);
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs bg-background">
+                                        <SelectValue placeholder="Pilih tryout..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="">Tanpa assign — masuk bank saja</SelectItem>
+                                        {exams.map((ex) => (
+                                          <SelectItem key={ex.id} value={ex.id}>
+                                            {ex.title.slice(0, 60)}{ex.title.length > 60 ? "..." : ""}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="flex gap-1.5">
+                                    {mChunks && mChunks.some((c) => c.status === "idle" || c.status === "error") && (
+                                      <Button
+                                        size="sm" className="h-8 text-xs gap-1"
+                                        disabled={extractRunning}
+                                        onClick={() => doExtractQuestions(m, true)}
+                                      >
+                                        {extractRunning
+                                          ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Memproses...</>
+                                          : <><Sparkles className="h-3.5 w-3.5" /> {mChunks.every((c) => c.status === "idle") ? "Mulai Ekstrak" : "Lanjutkan"}</>
+                                        }
+                                      </Button>
+                                    )}
+                                    {mChunks && mChunks.some((c) => c.status === "done" || c.status === "error") && (
+                                      <Button
+                                        size="sm" variant="outline" className="h-8 text-xs gap-1"
+                                        disabled={extractRunning}
+                                        onClick={() => { resetExtractChunks(m); }}
+                                        title="Reset semua bagian ke idle"
+                                      >
+                                        <RotateCcw className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                    {!mChunks && (
+                                      <Button
+                                        size="sm" className="h-8 text-xs gap-1"
+                                        onClick={() => { initExtractChunks(m); }}
+                                      >
+                                        <Sparkles className="h-3.5 w-3.5" /> Mulai Ekstrak
+                                      </Button>
+                                    )}
+                                    <Button size="sm" variant="ghost" className="h-8 text-xs" disabled={extractRunning} onClick={() => setExtractPanelId(null)}>
+                                      Tutup
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                {/* Per-chunk status rows */}
+                                {mChunks && (
+                                  <div className="space-y-1">
+                                    {mChunks.map((cs) => (
+                                      <div
+                                        key={cs.index}
+                                        className={cn(
+                                          "flex items-center gap-2 rounded px-2 py-1.5 text-[11px]",
+                                          cs.status === "done" && "bg-green-50 border border-green-200",
+                                          cs.status === "error" && "bg-red-50 border border-red-200",
+                                          cs.status === "processing" && "bg-primary/10 border border-primary/30",
+                                          cs.status === "idle" && "bg-background border border-border",
+                                        )}
+                                      >
+                                        <span className="font-medium text-muted-foreground w-16 shrink-0">
+                                          Bagian {cs.index + 1}
+                                        </span>
+                                        <span className="text-muted-foreground shrink-0">
+                                          {cs.charCount.toLocaleString("id-ID")} kar
+                                        </span>
+                                        <span className="flex-1" />
+                                        {cs.status === "idle" && <span className="text-muted-foreground">belum diproses</span>}
+                                        {cs.status === "processing" && <span className="text-primary flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> memproses...</span>}
+                                        {cs.status === "done" && (
+                                          <span className="text-green-700 flex items-center gap-1">
+                                            <Check className="h-3 w-3" />
+                                            {cs.count > 0 ? `${cs.count} soal` : "0 soal (tidak ada soal ditemukan)"}
+                                          </span>
+                                        )}
+                                        {cs.status === "error" && (
+                                          <span className="text-red-600 flex items-center gap-1" title={cs.errorMsg}>
+                                            <X className="h-3 w-3" /> Gagal{cs.errorMsg ? ` — ${cs.errorMsg.slice(0, 60)}` : ""}
+                                          </span>
+                                        )}
+                                        {(cs.status === "idle" || cs.status === "error") && !extractRunning && (
+                                          <button
+                                            className="ml-1 text-[10px] text-primary underline underline-offset-2 hover:no-underline"
+                                            onClick={async () => {
+                                              const chunks = splitTextIntoChunks(m.extracted_text);
+                                              const { data: { session } } = await supabase.auth.getSession();
+                                              const token = session?.access_token;
+                                              if (!token) return toast.error("Sesi tidak ditemukan");
+                                              setExtractRunning(true);
+                                              setExtractChunks((prev) => ({
+                                                ...prev,
+                                                [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "processing" } : c),
+                                              }));
+                                              try {
+                                                const { data, error } = await supabase.functions.invoke("extract-questions", {
+                                                  body: { text_chunk: chunks[cs.index], exam_id: extractExamId || undefined, category: m.category, topic: m.topic ?? undefined },
+                                                  headers: { Authorization: `Bearer ${token}` },
+                                                });
+                                                if (error || data?.error) {
+                                                  const msg = data?.error ?? error?.message ?? "Gagal";
+                                                  setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: msg } : c) }));
+                                                } else {
+                                                  setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "done", count: data.count ?? 0, errorMsg: undefined } : c) }));
+                                                }
+                                              } catch (e: any) {
+                                                setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: e.message ?? "Error" } : c) }));
+                                              }
+                                              setExtractRunning(false);
+                                              refresh();
+                                            }}
+                                          >
+                                            Proses
+                                          </button>
+                                        )}
+                                      </div>
+                                    ))}
+                                    {mChunks.length > 0 && (
+                                      <p className="text-[10px] text-muted-foreground pt-1">
+                                        {mChunks.filter((c) => c.status === "done").length}/{mChunks.length} bagian selesai
+                                        {totalExtracted > 0 && ` · ${totalExtracted} soal total`}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {materials.length === 0 && (
+                        <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-muted-foreground">
+                          <BookOpen className="h-8 w-8 opacity-30" />
+                          <p className="text-sm">Belum ada materi. Upload PDF atau TXT di atas.</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* View: Per Tryout */}
+            {bankView === "exam" && (
+              <div className="space-y-4">
+                {/* Exam selector as cards */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Pilih Tryout</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                    {exams.map((e) => (
+                      <button
+                        key={e.id}
+                        onClick={() => { setBankView("exam"); setSelectedExam(e.id); setFilterSubtest("all"); setFilterTopic("all"); setFilterSource("all"); setAddQuestionMode(null); }}
                     className={cn(
                       "text-left rounded-lg border px-3 py-2.5 transition-all",
                       selectedExam === e.id
@@ -1580,6 +2240,8 @@ const Admin = () => {
                 })()}
               </>
             )}
+              </div>
+            )}
           </TabsContent>
 
           {/* ── TRYOUT ── */}
@@ -1707,349 +2369,6 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-          </TabsContent>
-
-          {/* ── MATERI REFERENSI ── */}
-          <TabsContent value="materi" className="space-y-4">
-            {/* Upload card */}
-            <Card>
-              <CardHeader>
-                <h2 className="flex items-center gap-2 font-semibold">
-                  <BookOpen className="h-4 w-4 text-primary" /> Upload Materi Referensi
-                </h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Upload PDF atau TXT dari modul SKD, UUD 1945, Pancasila, dll. Bisa pilih banyak file sekaligus — teks diekstrak otomatis di browser.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Drop zone */}
-                <input
-                  ref={matFileRef}
-                  type="file"
-                  accept=".pdf,.txt,.md"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => handleMatFilesChange(e.target.files)}
-                />
-                <div
-                  onClick={() => matFileRef.current?.click()}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => { e.preventDefault(); handleMatFilesChange(e.dataTransfer.files); }}
-                  className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 p-8 text-center transition-colors hover:border-primary hover:bg-primary/5"
-                >
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm font-medium">Klik atau drag-drop PDF / TXT</p>
-                  <p className="text-xs text-muted-foreground">Bisa pilih banyak file sekaligus</p>
-                </div>
-
-                {/* Queue list */}
-                {matQueue.length > 0 && (
-                  <div className="space-y-2">
-                    {matQueue.map((q) => (
-                      <div key={q.id} className="rounded-lg border bg-muted/20 p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          {q.status === "extracting" && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
-                          {q.status === "ready" && <FileText className="h-4 w-4 text-green-500 shrink-0" />}
-                          {q.status === "error" && <FileText className="h-4 w-4 text-destructive shrink-0" />}
-                          <span className="text-xs text-muted-foreground truncate flex-1">{q.file.name}</span>
-                          {q.status === "ready" && <span className="text-[10px] text-green-600 shrink-0">{q.text.length.toLocaleString("id-ID")} kar</span>}
-                          {q.status === "error" && <span className="text-[10px] text-destructive shrink-0">Gagal</span>}
-                          <button onClick={() => removeFromQueue(q.id)} className="ml-1 shrink-0 text-muted-foreground hover:text-destructive">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        {q.status === "error" && <p className="text-[11px] text-destructive">{q.errorMsg}</p>}
-                        {q.status === "ready" && (
-                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                            <div className="sm:col-span-2">
-                              <Input
-                                placeholder="Judul materi"
-                                value={q.title}
-                                onChange={(e) => updateMatQueueItem(q.id, { title: e.target.value })}
-                                className="h-8 text-xs"
-                              />
-                            </div>
-                            <Select value={q.category} onValueChange={(v) => updateMatQueueItem(q.id, { category: v })}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="general">Umum</SelectItem>
-                                <SelectItem value="twk">TWK</SelectItem>
-                                <SelectItem value="tiu">TIU</SelectItem>
-                                <SelectItem value="tkp">TKP</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <div className="sm:col-span-3">
-                              <Input
-                                placeholder="Topik (opsional) — cth: Pancasila, UUD 1945 Pasal 1-5..."
-                                value={q.topic}
-                                onChange={(e) => updateMatQueueItem(q.id, { topic: e.target.value })}
-                                className="h-8 text-xs"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-xs text-muted-foreground">
-                        {matQueue.filter((q) => q.status === "ready").length} dari {matQueue.length} file siap disimpan
-                      </span>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setMatQueue([])} className="gap-1 h-8 text-xs">
-                          Bersihkan
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={saveAllMaterials}
-                          disabled={matUploading || matQueue.every((q) => q.status !== "ready")}
-                          className="gap-1 h-8 text-xs"
-                        >
-                          {matUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookOpen className="h-3.5 w-3.5" />}
-                          {matUploading ? "Menyimpan..." : `Simpan ${matQueue.filter((q) => q.status === "ready").length} Materi`}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Daftar materi */}
-            <Card>
-              <CardHeader>
-                <h2 className="font-semibold text-sm">Materi Tersimpan ({materials.length})</h2>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y divide-border">
-                  {materials.map((m) => {
-                    const isExpanded = matExpanded.has(m.id);
-                    const isExtractOpen = extractPanelId === m.id;
-                    const mChunks = extractChunks[m.id];
-                    const totalExtracted = mChunks ? mChunks.reduce((s, c) => s + (c.status === "done" ? c.count : 0), 0) : 0;
-                    const allDone = mChunks && mChunks.length > 0 && mChunks.every((c) => c.status === "done");
-                    return (
-                      <div key={m.id} className="px-4 py-3 space-y-2">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Badge variant="outline" className="text-[9px] uppercase px-1 h-4 shrink-0">
-                                {m.category === "general" ? "Umum" : m.category.toUpperCase()}
-                              </Badge>
-                              {m.topic && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{m.topic}</Badge>}
-                              <span className="text-sm font-semibold">{m.title}</span>
-                              {totalExtracted > 0 && (
-                                <Badge className="text-[9px] px-1 h-4 bg-green-100 text-green-700 border-green-300">
-                                  ✓ {totalExtracted} soal{allDone ? "" : " (sebagian)"}
-                                </Badge>
-                              )}
-                            </div>
-                            {m.description && <p className="text-[11px] text-muted-foreground mt-0.5">{m.description}</p>}
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                              {m.file_name && <span className="mr-2">📄 {m.file_name}</span>}
-                              {(m.char_count ?? 0).toLocaleString("id-ID")} karakter ·{" "}
-                              {new Date(m.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
-                            </p>
-                            <button
-                              onClick={() => {
-                                const next = new Set(matExpanded);
-                                isExpanded ? next.delete(m.id) : next.add(m.id);
-                                setMatExpanded(next);
-                              }}
-                              className="mt-1 text-[11px] text-primary hover:underline"
-                            >
-                              {isExpanded ? "Sembunyikan teks ▲" : "Lihat preview teks ▼"}
-                            </button>
-                            {isExpanded && (
-                              <div className="mt-2 rounded border bg-muted/30 p-3 text-xs whitespace-pre-wrap line-clamp-10 max-h-48 overflow-y-auto">
-                                {m.extracted_text.slice(0, 2000)}{m.extracted_text.length > 2000 ? "\n\n[... terpotong, total " + m.char_count?.toLocaleString() + " karakter]" : ""}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex gap-1.5 shrink-0">
-                            <Button
-                              size="sm" variant="outline"
-                              className={cn("h-7 text-xs gap-1", isExtractOpen && "border-primary text-primary")}
-                              onClick={() => {
-                                if (isExtractOpen) {
-                                  setExtractPanelId(null);
-                                } else {
-                                  setExtractPanelId(m.id);
-                                  setExtractExamId("");
-                                  if (!extractChunks[m.id]) initExtractChunks(m);
-                                }
-                              }}
-                            >
-                              <Sparkles className="h-3 w-3" />
-                              Ekstrak Soal
-                            </Button>
-                            <Button size="sm" variant="destructive" className="h-7 w-7 p-0" onClick={() => deleteMaterial(m.id)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Inline extract panel */}
-                        {isExtractOpen && (
-                          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
-                            <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
-                              <Sparkles className="h-3.5 w-3.5" />
-                              Ekstrak soal dari "{m.title}" ke bank soal
-                            </p>
-
-                            {/* Exam selector + action buttons */}
-                            <div className="flex flex-wrap items-end gap-2">
-                              <div className="flex-1 min-w-48">
-                                <Label className="text-[10px] mb-1 block">Tryout tujuan *</Label>
-                                <Select
-                                  value={extractExamId}
-                                  onValueChange={(v) => {
-                                    setExtractExamId(v);
-                                    resetExtractChunks(m);
-                                  }}
-                                >
-                                  <SelectTrigger className="h-8 text-xs bg-background">
-                                    <SelectValue placeholder="Pilih tryout..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {exams.map((ex) => (
-                                      <SelectItem key={ex.id} value={ex.id}>
-                                        {ex.title.slice(0, 60)}{ex.title.length > 60 ? "..." : ""}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="flex gap-1.5">
-                                {mChunks && mChunks.some((c) => c.status === "idle" || c.status === "error") && (
-                                  <Button
-                                    size="sm" className="h-8 text-xs gap-1"
-                                    disabled={extractRunning || !extractExamId}
-                                    onClick={() => doExtractQuestions(m, true)}
-                                  >
-                                    {extractRunning
-                                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Memproses...</>
-                                      : <><Sparkles className="h-3.5 w-3.5" /> {mChunks.every((c) => c.status === "idle") ? "Mulai Ekstrak" : "Lanjutkan"}</>
-                                    }
-                                  </Button>
-                                )}
-                                {mChunks && mChunks.some((c) => c.status === "done" || c.status === "error") && (
-                                  <Button
-                                    size="sm" variant="outline" className="h-8 text-xs gap-1"
-                                    disabled={extractRunning || !extractExamId}
-                                    onClick={() => { resetExtractChunks(m); }}
-                                    title="Reset semua bagian ke idle"
-                                  >
-                                    <RotateCcw className="h-3 w-3" />
-                                  </Button>
-                                )}
-                                {!mChunks && (
-                                  <Button
-                                    size="sm" className="h-8 text-xs gap-1"
-                                    disabled={!extractExamId}
-                                    onClick={() => { initExtractChunks(m); }}
-                                  >
-                                    <Sparkles className="h-3.5 w-3.5" /> Mulai Ekstrak
-                                  </Button>
-                                )}
-                                <Button size="sm" variant="ghost" className="h-8 text-xs" disabled={extractRunning} onClick={() => setExtractPanelId(null)}>
-                                  Tutup
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* Per-chunk status rows */}
-                            {mChunks && (
-                              <div className="space-y-1">
-                                {mChunks.map((cs) => (
-                                  <div
-                                    key={cs.index}
-                                    className={cn(
-                                      "flex items-center gap-2 rounded px-2 py-1.5 text-[11px]",
-                                      cs.status === "done" && "bg-green-50 border border-green-200",
-                                      cs.status === "error" && "bg-red-50 border border-red-200",
-                                      cs.status === "processing" && "bg-primary/10 border border-primary/30",
-                                      cs.status === "idle" && "bg-background border border-border",
-                                    )}
-                                  >
-                                    <span className="font-medium text-muted-foreground w-16 shrink-0">
-                                      Bagian {cs.index + 1}
-                                    </span>
-                                    <span className="text-muted-foreground shrink-0">
-                                      {cs.charCount.toLocaleString("id-ID")} kar
-                                    </span>
-                                    <span className="flex-1" />
-                                    {cs.status === "idle" && <span className="text-muted-foreground">belum diproses</span>}
-                                    {cs.status === "processing" && <span className="text-primary flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> memproses...</span>}
-                                    {cs.status === "done" && (
-                                      <span className="text-green-700 flex items-center gap-1">
-                                        <Check className="h-3 w-3" />
-                                        {cs.count > 0 ? `${cs.count} soal` : "0 soal (tidak ada soal ditemukan)"}
-                                      </span>
-                                    )}
-                                    {cs.status === "error" && (
-                                      <span className="text-red-600 flex items-center gap-1" title={cs.errorMsg}>
-                                        <X className="h-3 w-3" /> Gagal{cs.errorMsg ? ` — ${cs.errorMsg.slice(0, 60)}` : ""}
-                                      </span>
-                                    )}
-                                    {(cs.status === "idle" || cs.status === "error") && !extractRunning && extractExamId && (
-                                      <button
-                                        className="ml-1 text-[10px] text-primary underline underline-offset-2 hover:no-underline"
-                                        onClick={async () => {
-                                          const chunks = splitTextIntoChunks(m.extracted_text);
-                                          const { data: { session } } = await supabase.auth.getSession();
-                                          const token = session?.access_token;
-                                          if (!token) return toast.error("Sesi tidak ditemukan");
-                                          setExtractRunning(true);
-                                          setExtractChunks((prev) => ({
-                                            ...prev,
-                                            [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "processing" } : c),
-                                          }));
-                                          try {
-                                            const { data, error } = await supabase.functions.invoke("extract-questions", {
-                                              body: { text_chunk: chunks[cs.index], exam_id: extractExamId, category: m.category, topic: m.topic ?? undefined },
-                                              headers: { Authorization: `Bearer ${token}` },
-                                            });
-                                            if (error || data?.error) {
-                                              const msg = data?.error ?? error?.message ?? "Gagal";
-                                              setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: msg } : c) }));
-                                            } else {
-                                              setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "done", count: data.count ?? 0, errorMsg: undefined } : c) }));
-                                            }
-                                          } catch (e: any) {
-                                            setExtractChunks((prev) => ({ ...prev, [m.id]: prev[m.id].map((c) => c.index === cs.index ? { ...c, status: "error", errorMsg: e.message ?? "Error" } : c) }));
-                                          }
-                                          setExtractRunning(false);
-                                          refresh();
-                                        }}
-                                      >
-                                        Proses
-                                      </button>
-                                    )}
-                                  </div>
-                                ))}
-                                {mChunks.length > 0 && (
-                                  <p className="text-[10px] text-muted-foreground pt-1">
-                                    {mChunks.filter((c) => c.status === "done").length}/{mChunks.length} bagian selesai
-                                    {totalExtracted > 0 && ` · ${totalExtracted} soal total`}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {materials.length === 0 && (
-                    <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-muted-foreground">
-                      <BookOpen className="h-8 w-8 opacity-30" />
-                      <p className="text-sm">Belum ada materi. Upload PDF atau TXT di atas.</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* ── LYNK WEBHOOK ── */}

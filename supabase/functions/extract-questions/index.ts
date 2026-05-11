@@ -59,17 +59,19 @@ Deno.serve(async (req) => {
   const body = await req.json();
   const { text_chunk, exam_id, category, topic } = body as {
     text_chunk: string;
-    exam_id: string;
+    exam_id?: string;
     category?: string;
     topic?: string;
   };
 
-  if (!text_chunk?.trim() || !exam_id) {
-    return json({ error: "text_chunk dan exam_id wajib diisi" }, 400);
+  if (!text_chunk?.trim()) {
+    return json({ error: "text_chunk wajib diisi" }, 400);
   }
 
-  const { data: exam } = await supabase.from("exams").select("id").eq("id", exam_id).single();
-  if (!exam) return json({ error: "Exam tidak ditemukan" }, 404);
+  if (exam_id) {
+    const { data: exam } = await supabase.from("exams").select("id").eq("id", exam_id).single();
+    if (!exam) return json({ error: "Exam tidak ditemukan" }, 404);
+  }
 
   const { data: settingRow } = await supabase
     .from("admin_settings").select("value").eq("key", "kie_api_key").maybeSingle();
@@ -152,7 +154,7 @@ Ekstrak semua soal. Return sebagai JSON array.`;
     const ans = q.correct_answer.trim();
     if (!opts.includes(ans)) continue;
     valid.push({
-      exam_id,
+      exam_id: exam_id ?? null,
       question_text: q.question_text.trim(),
       options: opts,
       correct_answer: ans,
@@ -171,27 +173,29 @@ Ekstrak semua soal. Return sebagai JSON array.`;
     .from("questions").insert(valid).select("id");
   if (insertErr) return json({ error: "DB error: " + insertErr.message }, 500);
 
-  // Get position offset
-  const { count: existingCount } = await supabase
-    .from("exam_question_assignments")
-    .select("*", { count: "exact", head: true })
-    .eq("exam_id", exam_id);
+  if (exam_id && inserted && inserted.length > 0) {
+    // Get position offset
+    const { count: existingCount } = await supabase
+      .from("exam_question_assignments")
+      .select("*", { count: "exact", head: true })
+      .eq("exam_id", exam_id);
 
-  const startPos = existingCount ?? 0;
-  await supabase.from("exam_question_assignments").insert(
-    (inserted ?? []).map((q: any, i: number) => ({
-      exam_id,
-      question_id: q.id,
-      position: startPos + i + 1,
-    }))
-  );
+    const startPos = existingCount ?? 0;
+    await supabase.from("exam_question_assignments").insert(
+      (inserted ?? []).map((q: any, i: number) => ({
+        exam_id,
+        question_id: q.id,
+        position: startPos + i + 1,
+      }))
+    );
 
-  // Update total_questions
-  const { count: total } = await supabase
-    .from("exam_question_assignments")
-    .select("*", { count: "exact", head: true })
-    .eq("exam_id", exam_id);
-  await supabase.from("exams").update({ total_questions: total ?? 0 }).eq("id", exam_id);
+    // Update total_questions
+    const { count: total } = await supabase
+      .from("exam_question_assignments")
+      .select("*", { count: "exact", head: true })
+      .eq("exam_id", exam_id);
+    await supabase.from("exams").update({ total_questions: total ?? 0 }).eq("id", exam_id);
+  }
 
   return json({ count: valid.length, skipped: questionList.length - valid.length });
 });
