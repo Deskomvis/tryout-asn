@@ -1,7 +1,7 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home, LayoutGrid, FolderOpen, LogOut, GraduationCap,
-  Database, Package, Webhook, BarChart2, Receipt, Users, Settings,
+  Database, Package, BarChart2, Receipt, Users, Settings,
 } from "lucide-react";
 import {
   Sidebar,
@@ -26,7 +26,6 @@ const items = [
 const adminItems = [
   { title: "Bank Soal", tab: "bank", icon: Database },
   { title: "Tryout", tab: "exams", icon: Package },
-  { title: "Lynk Webhook", tab: "lynk", icon: Webhook },
   { title: "Skor User", tab: "scores", icon: BarChart2 },
   { title: "History Transaksi", tab: "topups", icon: Receipt },
   { title: "Semua User", tab: "balances", icon: Users },

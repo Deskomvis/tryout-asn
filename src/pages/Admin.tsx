@@ -119,7 +119,7 @@ const emptyNewQ = () => ({
   pa: 5, pb: 4, pc: 3, pd: 2, pe: 1, explanation: "", image_url: "", topic: "",
 });
 
-const VALID_TABS = ["bank", "exams", "lynk", "scores", "topups", "balances", "settings"] as const;
+const VALID_TABS = ["bank", "exams", "scores", "topups", "balances", "settings"] as const;
 const BANK_VIEWS = ["list", "materi", "exam"] as const;
 
 type GlobalBankQ = {
@@ -1049,7 +1049,6 @@ const Admin = () => {
         <h1 className="text-3xl font-bold">
           {activeTab === "bank" ? "Bank Soal" :
            activeTab === "exams" ? "Tryout" :
-           activeTab === "lynk" ? "Lynk Webhook" :
            activeTab === "scores" ? "Skor User" :
            activeTab === "topups" ? "History Transaksi" :
            activeTab === "balances" ? "Semua User" :
@@ -2595,110 +2594,6 @@ const Admin = () => {
           </TabsContent>
 
           {/* ── LYNK WEBHOOK ── */}
-          <TabsContent value="lynk" className="space-y-4">
-            {/* Header + tombol tambah */}
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-sm">Package Configurations ({lynkPackages.length})</h2>
-              <Button size="sm" onClick={() => setShowNewLynkForm((v) => !v)} variant={showNewLynkForm ? "outline" : "default"} className="gap-2">
-                <Plus className="h-4 w-4" />
-                {showNewLynkForm ? "Tutup" : "Tambah Package"}
-              </Button>
-            </div>
-
-            {/* Form tambah baru */}
-            {showNewLynkForm && (
-              <Card>
-                <CardHeader><h2 className="font-semibold text-sm">Konfigurasi Package Baru</h2></CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <Label>Lynk UUID *</Label>
-                      <Input placeholder="691fd44f389..." value={newLynkPkg.lynk_uuid} onChange={(e) => setNewLynkPkg({ ...newLynkPkg, lynk_uuid: e.target.value })} />
-                      <p className="text-[10px] text-muted-foreground mt-1">UUID product dari Lynk webhook (items[0].uuid)</p>
-                    </div>
-                    <div>
-                      <Label>Title *</Label>
-                      <Input placeholder="cth: Paket Premium CPNS" value={newLynkPkg.title} onChange={(e) => setNewLynkPkg({ ...newLynkPkg, title: e.target.value })} />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Exam yang Diberi Akses *</Label>
-                    <Select value={newLynkPkg.exam_id} onValueChange={(v) => setNewLynkPkg({ ...newLynkPkg, exam_id: v })}>
-                      <SelectTrigger><SelectValue placeholder="Pilih exam..." /></SelectTrigger>
-                      <SelectContent>
-                        {exams.map((ex) => <SelectItem key={ex.id} value={ex.id}>{ex.title}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <Label>Notification Title</Label>
-                      <Input placeholder="cth: Pembelian Berhasil!" value={newLynkPkg.notification_title} onChange={(e) => setNewLynkPkg({ ...newLynkPkg, notification_title: e.target.value })} />
-                    </div>
-                    <div>
-                      <Label>Notification Message</Label>
-                      <Input placeholder="cth: Akses exam Anda sudah aktif." value={newLynkPkg.notification_message} onChange={(e) => setNewLynkPkg({ ...newLynkPkg, notification_message: e.target.value })} />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Transaction Description</Label>
-                    <Input placeholder="cth: Pembelian Paket SKD CPNS Premium" value={newLynkPkg.description} onChange={(e) => setNewLynkPkg({ ...newLynkPkg, description: e.target.value })} />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setNewLynkPkg({ ...newLynkPkg, is_active: !newLynkPkg.is_active })}
-                      className={cn(
-                        "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors",
-                        newLynkPkg.is_active ? "bg-primary" : "bg-muted-foreground/40"
-                      )}
-                    >
-                      <span className={cn("pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform", newLynkPkg.is_active ? "translate-x-4" : "translate-x-0")} />
-                    </button>
-                    <Label className="cursor-pointer" onClick={() => setNewLynkPkg({ ...newLynkPkg, is_active: !newLynkPkg.is_active })}>
-                      Active
-                    </Label>
-                  </div>
-                  <Button onClick={addLynkPkg}>Simpan Package</Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* List packages */}
-            <Card>
-              <CardContent className="p-0">
-                <div className="divide-y divide-border">
-                  {lynkPackages.map((pkg) => (
-                    <div key={pkg.id} className="flex items-start gap-3 px-4 py-3">
-                      <div className="flex-1 min-w-0 space-y-0.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={cn("inline-block h-2 w-2 rounded-full shrink-0", pkg.is_active ? "bg-green-500" : "bg-muted-foreground/40")} />
-                          <span className="text-sm font-semibold">{pkg.title}</span>
-                        </div>
-                        <p className="text-[10px] font-mono text-muted-foreground truncate">{pkg.lynk_uuid}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          → {pkg.exams?.title ?? <span className="text-destructive">Tidak ada exam terhubung</span>}
-                        </p>
-                        {pkg.description && <p className="text-[10px] text-muted-foreground italic">{pkg.description}</p>}
-                      </div>
-                      <div className="flex gap-1.5 shrink-0">
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditLynkPkg(pkg)}>
-                          <Pencil className="h-3 w-3 mr-1" /> Edit
-                        </Button>
-                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteLynkPkg(pkg.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  {lynkPackages.length === 0 && (
-                    <p className="px-4 py-8 text-sm text-muted-foreground text-center">Belum ada konfigurasi package Lynk.</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           {/* ── SKOR USER ── */}
           <TabsContent value="scores">
             <Card>
@@ -2915,6 +2810,102 @@ const Admin = () => {
                     <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-800 flex items-center gap-2">
                       <Check className="h-3.5 w-3.5 shrink-0" /> Merchant Key tersimpan.
                     </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Package Configurations (Lynk) */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold text-sm">Package Configurations ({lynkPackages.length})</h2>
+                  <Button size="sm" onClick={() => setShowNewLynkForm((v) => !v)} variant={showNewLynkForm ? "outline" : "default"} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    {showNewLynkForm ? "Tutup" : "Tambah Package"}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                {showNewLynkForm && (
+                  <Card className="border-dashed">
+                    <CardHeader><h2 className="font-semibold text-sm">Konfigurasi Package Baru</h2></CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <Label>Lynk UUID *</Label>
+                          <Input placeholder="691fd44f389..." value={newLynkPkg.lynk_uuid} onChange={(e) => setNewLynkPkg({ ...newLynkPkg, lynk_uuid: e.target.value })} />
+                          <p className="text-[10px] text-muted-foreground mt-1">UUID product dari Lynk webhook (items[0].uuid)</p>
+                        </div>
+                        <div>
+                          <Label>Title *</Label>
+                          <Input placeholder="cth: Paket Premium CPNS" value={newLynkPkg.title} onChange={(e) => setNewLynkPkg({ ...newLynkPkg, title: e.target.value })} />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Exam yang Diberi Akses *</Label>
+                        <Select value={newLynkPkg.exam_id} onValueChange={(v) => setNewLynkPkg({ ...newLynkPkg, exam_id: v })}>
+                          <SelectTrigger><SelectValue placeholder="Pilih exam..." /></SelectTrigger>
+                          <SelectContent>
+                            {exams.map((ex) => <SelectItem key={ex.id} value={ex.id}>{ex.title}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <Label>Notification Title</Label>
+                          <Input placeholder="cth: Pembelian Berhasil!" value={newLynkPkg.notification_title} onChange={(e) => setNewLynkPkg({ ...newLynkPkg, notification_title: e.target.value })} />
+                        </div>
+                        <div>
+                          <Label>Notification Message</Label>
+                          <Input placeholder="cth: Akses exam Anda sudah aktif." value={newLynkPkg.notification_message} onChange={(e) => setNewLynkPkg({ ...newLynkPkg, notification_message: e.target.value })} />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Transaction Description</Label>
+                        <Input placeholder="cth: Pembelian Paket SKD CPNS Premium" value={newLynkPkg.description} onChange={(e) => setNewLynkPkg({ ...newLynkPkg, description: e.target.value })} />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setNewLynkPkg({ ...newLynkPkg, is_active: !newLynkPkg.is_active })}
+                          className={cn("relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors", newLynkPkg.is_active ? "bg-primary" : "bg-muted-foreground/40")}
+                        >
+                          <span className={cn("pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform", newLynkPkg.is_active ? "translate-x-4" : "translate-x-0")} />
+                        </button>
+                        <Label className="cursor-pointer" onClick={() => setNewLynkPkg({ ...newLynkPkg, is_active: !newLynkPkg.is_active })}>Active</Label>
+                      </div>
+                      <Button onClick={addLynkPkg}>Simpan Package</Button>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="divide-y divide-border rounded-lg border overflow-hidden">
+                  {lynkPackages.map((pkg) => (
+                    <div key={pkg.id} className="flex items-start gap-3 px-4 py-3">
+                      <div className="flex-1 min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={cn("inline-block h-2 w-2 rounded-full shrink-0", pkg.is_active ? "bg-green-500" : "bg-muted-foreground/40")} />
+                          <span className="text-sm font-semibold">{pkg.title}</span>
+                        </div>
+                        <p className="text-[10px] font-mono text-muted-foreground truncate">{pkg.lynk_uuid}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          → {pkg.exams?.title ?? <span className="text-destructive">Tidak ada exam terhubung</span>}
+                        </p>
+                        {pkg.description && <p className="text-[10px] text-muted-foreground italic">{pkg.description}</p>}
+                      </div>
+                      <div className="flex gap-1.5 shrink-0">
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditLynkPkg(pkg)}>
+                          <Pencil className="h-3 w-3 mr-1" /> Edit
+                        </Button>
+                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteLynkPkg(pkg.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {lynkPackages.length === 0 && (
+                    <p className="px-4 py-8 text-sm text-muted-foreground text-center">Belum ada konfigurasi package Lynk.</p>
                   )}
                 </div>
               </CardContent>
