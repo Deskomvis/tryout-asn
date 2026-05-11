@@ -252,13 +252,6 @@ const Admin = () => {
     }
   }, [activeTab, bankView]);
 
-  // Auto-refresh bank list every 30s when on the list view
-  useEffect(() => {
-    if (activeTab !== "bank" || bankView !== "list") return;
-    const id = setInterval(() => { loadGlobalBank(); }, 30000);
-    return () => clearInterval(id);
-  }, [activeTab, bankView]);
-
   // Load saved keys on mount
   useEffect(() => {
     (async () => {
