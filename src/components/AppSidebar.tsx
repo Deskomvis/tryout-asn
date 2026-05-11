@@ -40,10 +40,10 @@ const itemClass = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 const adminItemClass = (isActive: boolean) =>
-  `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors w-full ${
+  `flex items-center gap-3 rounded-lg px-4 py-3.5 text-base font-medium transition-colors w-full ${
     isActive
-      ? "bg-primary text-primary-foreground shadow-sm"
-      : "text-sidebar-foreground hover:bg-secondary hover:text-foreground"
+      ? "bg-primary text-primary-foreground shadow-md"
+      : "bg-sidebar-accent text-sidebar-foreground hover:bg-secondary hover:text-foreground"
   }`;
 
 export const AppSidebar = () => {
@@ -101,7 +101,7 @@ export const AppSidebar = () => {
 
             <SidebarGroup className="pt-0">
               <SidebarGroupContent>
-                <SidebarMenu className="gap-0.5">
+                <SidebarMenu className="gap-3">
                   {adminItems.map((item) => {
                     const isActive = isAdminPage && currentTab === item.tab;
                     return (
@@ -111,7 +111,7 @@ export const AppSidebar = () => {
                             to={`/admin?tab=${item.tab}`}
                             className={() => adminItemClass(isActive)}
                           >
-                            <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
                             <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
                           </NavLink>
                         </SidebarMenuButton>
