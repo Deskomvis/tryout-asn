@@ -19,13 +19,13 @@ import { useAuth } from "@/hooks/useAuth";
 
 const items = [
   { title: "Home", url: "/dashboard", icon: Home },
-  { title: "Beli Paket", url: "/beli-paket", icon: LayoutGrid },
+  { title: "Beli Paket Tryout", url: "/beli-paket", icon: LayoutGrid },
   { title: "Paket Saya", url: "/paket-saya", icon: FolderOpen },
 ];
 
 const adminItems = [
   { title: "Bank Soal", tab: "bank", icon: Database },
-  { title: "Tryout", tab: "exams", icon: Package },
+  { title: "Paket Tryout", tab: "exams", icon: Package },
   { title: "Skor User", tab: "scores", icon: BarChart2 },
   { title: "History Transaksi", tab: "topups", icon: Receipt },
   { title: "Semua User", tab: "balances", icon: Users },

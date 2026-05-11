@@ -82,7 +82,7 @@ const BeliPaket = () => {
               <img
                 src={c.image}
                 alt={`Tryout ${c.label}`}
-                className="h-44 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-52"
+                className="w-full h-auto block transition-transform duration-300 group-hover:scale-105"
               />
             </motion.button>
           ))}
