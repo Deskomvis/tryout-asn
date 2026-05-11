@@ -196,6 +196,8 @@ const Admin = () => {
   const [distributeOpen, setDistributeOpen] = useState(false);
   const [distributeTargetIds, setDistributeTargetIds] = useState<Set<string>>(new Set());
   const [distributing, setDistributing] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Lynk packages
   const [lynkPackages, setLynkPackages] = useState<LynkPackage[]>([]);
@@ -966,6 +968,23 @@ const Admin = () => {
     loadGlobalBank();
   };
 
+  const bulkDeleteQuestions = async () => {
+    const qIds = Array.from(globalBankSelectedIds);
+    if (qIds.length === 0) return;
+    setDeleting(true);
+    // Remove assignments first
+    await (supabase as any).from("exam_question_assignments").delete().in("question_id", qIds);
+    // Delete questions
+    const { error } = await supabase.from("questions").delete().in("id", qIds);
+    setDeleting(false);
+    setDeleteConfirmOpen(false);
+    if (error) { toast.error("Gagal hapus soal: " + error.message); return; }
+    toast.success(`${qIds.length} soal dihapus dari bank`);
+    setGlobalBankSelectedIds(new Set());
+    await refresh();
+    loadGlobalBank();
+  };
+
   const loadBankQuestions = async () => {
     setBankLoading(true);
     const assignedIds = new Set(questions.map((q) => q.id));
@@ -1075,10 +1094,19 @@ const Admin = () => {
                       <span className="ml-1.5 text-muted-foreground font-normal">({globalBank.length})</span>
                     </h2>
                     {globalBankSelectedIds.size > 0 && (
-                      <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setDistributeOpen(true)}>
-                        <Plus className="h-3 w-3" />
-                        Distribute ke Tryout ({globalBankSelectedIds.size})
-                      </Button>
+                      <>
+                        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setDistributeOpen(true)}>
+                          <Plus className="h-3 w-3" />
+                          Distribute ({globalBankSelectedIds.size})
+                        </Button>
+                        <Button
+                          size="sm" variant="destructive" className="h-7 text-xs gap-1"
+                          onClick={() => setDeleteConfirmOpen(true)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Hapus ({globalBankSelectedIds.size})
+                        </Button>
+                      </>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -1283,7 +1311,33 @@ const Admin = () => {
                               </p>
                             );
                           }
-                          return filtered.map((q) => {
+                          const allFilteredSelected = filtered.length > 0 && filtered.every((q) => globalBankSelectedIds.has(q.id));
+                          const someSelected = filtered.some((q) => globalBankSelectedIds.has(q.id));
+                          return (
+                            <>
+                              {/* Select All row */}
+                              <div className="flex items-center gap-3 px-4 py-2 bg-muted/40 border-b">
+                                <input
+                                  type="checkbox"
+                                  checked={allFilteredSelected}
+                                  ref={(el) => { if (el) el.indeterminate = someSelected && !allFilteredSelected; }}
+                                  onChange={(e) => {
+                                    const next = new Set(globalBankSelectedIds);
+                                    if (e.target.checked) filtered.forEach((q) => next.add(q.id));
+                                    else filtered.forEach((q) => next.delete(q.id));
+                                    setGlobalBankSelectedIds(next);
+                                  }}
+                                  className="h-3.5 w-3.5 rounded accent-primary shrink-0 cursor-pointer"
+                                />
+                                <span className="text-xs text-muted-foreground">
+                                  {allFilteredSelected
+                                    ? `Semua ${filtered.length} soal dipilih`
+                                    : someSelected
+                                    ? `${globalBankSelectedIds.size} dipilih dari ${filtered.length} soal`
+                                    : `Pilih semua ${filtered.length} soal`}
+                                </span>
+                              </div>
+                              {filtered.map((q) => {
                             const isSelected = globalBankSelectedIds.has(q.id);
                             return (
                               <div
@@ -1326,12 +1380,40 @@ const Admin = () => {
                                 </Button>
                               </div>
                             );
-                          });
+                          })}
+                            </>
+                          );
                         })()}
                       </div>
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Delete confirmation modal */}
+                {deleteConfirmOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget && !deleting) setDeleteConfirmOpen(false); }}>
+                    <div className="bg-background rounded-xl shadow-xl w-full max-w-sm">
+                      <div className="flex items-center justify-between border-b px-6 py-4">
+                        <h2 className="font-semibold text-destructive flex items-center gap-2">
+                          <Trash2 className="h-4 w-4" /> Hapus Soal
+                        </h2>
+                        {!deleting && <button onClick={() => setDeleteConfirmOpen(false)}><X className="h-5 w-5" /></button>}
+                      </div>
+                      <div className="p-6 space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          Anda akan menghapus <span className="font-semibold text-foreground">{globalBankSelectedIds.size} soal</span> dari bank soal secara permanen. Soal yang sudah di-assign ke tryout manapun juga akan dihapus dari tryout tersebut.
+                        </p>
+                        <p className="text-sm font-semibold text-destructive">Tindakan ini tidak dapat dibatalkan.</p>
+                        <div className="flex gap-2 justify-end">
+                          <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} disabled={deleting}>Batal</Button>
+                          <Button variant="destructive" onClick={bulkDeleteQuestions} disabled={deleting} className="gap-2">
+                            {deleting ? <><Loader2 className="h-4 w-4 animate-spin" /> Menghapus...</> : <><Trash2 className="h-4 w-4" /> Ya, Hapus</>}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Distribute modal */}
                 {distributeOpen && (
