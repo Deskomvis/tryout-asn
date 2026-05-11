@@ -21,7 +21,6 @@ const items = [
   { title: "Home", url: "/dashboard", icon: Home },
   { title: "Beli Paket Tryout", url: "/beli-paket", icon: LayoutGrid },
   { title: "Paket Saya", url: "/paket-saya", icon: FolderOpen },
-  { title: "Akun Saya", url: "/akun-saya", icon: UserCircle },
 ];
 
 const adminItems = [
@@ -123,7 +122,20 @@ export const AppSidebar = () => {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-3">
+      <SidebarFooter className="border-t border-sidebar-border p-3 space-y-2">
+        <NavLink
+          to="/akun-saya"
+          className={({ isActive }) =>
+            `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+              isActive
+                ? "bg-primary text-primary-foreground"
+                : "bg-sidebar-accent text-sidebar-foreground hover:bg-secondary hover:text-foreground"
+            }`
+          }
+        >
+          <UserCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="group-data-[collapsible=icon]:hidden">Akun Saya</span>
+        </NavLink>
         <Button
           onClick={async () => { await signOut(); navigate("/"); }}
           className="w-full gap-2 rounded-full bg-gradient-to-r from-primary to-primary-glow text-primary-foreground shadow-md hover:opacity-95"

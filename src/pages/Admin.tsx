@@ -117,12 +117,14 @@ const Admin = () => {
   const [showNewLynkForm, setShowNewLynkForm] = useState(false);
 
   // New exam form
-  const [newExam, setNewExam] = useState({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
+  const [newExam, setNewExam] = useState({ title: "", description: "", duration: 5400, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
   // Edit exam modal
   const [editExam, setEditExam] = useState<Exam | null>(null);
   const [editExamCoverFile, setEditExamCoverFile] = useState<File | null>(null);
   const [editExamCoverUploading, setEditExamCoverUploading] = useState(false);
   const editExamCoverRef = useRef<HTMLInputElement>(null);
+  const [addSubPkgParent, setAddSubPkgParent] = useState<Exam | null>(null);
+  const [subPkgDuration, setSubPkgDuration] = useState(90); // minutes
 
   // AI Generate
   const [aiGen, setAiGen] = useState({
@@ -151,7 +153,7 @@ const Admin = () => {
 
   const refresh = async () => {
     const { data: e } = await supabase.from("exams")
-      .select("id,title,total_questions,description,duration,price,original_price,bundle_size,category,subcategory,exam_type,passing_score,cta_link,cover_image_url")
+      .select("id,title,total_questions,description,duration,price,original_price,bundle_size,category,subcategory,exam_type,passing_score,cta_link,cover_image_url,parent_exam_id")
       .order("created_at");
     setExams((e as Exam[]) ?? []);
 
@@ -418,7 +420,7 @@ const Admin = () => {
     const { error } = await supabase.from("exams").insert({ ...newExam, title: newExam.title.trim(), total_questions: 0 });
     if (error) return toast.error(error.message);
     toast.success("Tryout dibuat");
-    setNewExam({ title: "", description: "", duration: 600, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
+    setNewExam({ title: "", description: "", duration: 5400, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
     refresh();
   };
 
@@ -483,6 +485,29 @@ const Admin = () => {
     if (error) return toast.error(error.message);
     toast.success("Tryout dihapus");
     if (selectedExam === id) { setSelectedExam(""); setFilterSubtest("all"); setFilterTopic("all"); setFilterSource("all"); }
+    refresh();
+  };
+
+  const addSubPackage = async (parent: Exam) => {
+    const siblings = exams.filter((e) => e.parent_exam_id === parent.id);
+    const letter = String.fromCharCode(65 + siblings.length);
+    const { error } = await supabase.from("exams").insert({
+      title: `${parent.title} - Paket ${letter}`,
+      parent_exam_id: parent.id,
+      duration: subPkgDuration * 60,
+      price: 0,
+      original_price: 0,
+      bundle_size: 1,
+      category: parent.category,
+      subcategory: parent.subcategory,
+      exam_type: parent.exam_type ?? null,
+      passing_score: parent.passing_score ?? 0,
+      total_questions: 0,
+    });
+    if (error) return toast.error(error.message);
+    toast.success(`Sub-paket ${letter} berhasil dibuat`);
+    setAddSubPkgParent(null);
+    setSubPkgDuration(90);
     refresh();
   };
 
@@ -1922,17 +1947,19 @@ const Admin = () => {
                   <div><Label>Deskripsi</Label><Textarea placeholder="Ringkasan singkat" value={newExam.description} onChange={(e) => setNewExam({ ...newExam, description: e.target.value })} rows={2} /></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>Durasi (detik) <span className="text-muted-foreground text-xs font-normal">— otomatis 60 menit/paket</span></Label>
-                      <Input type="number" value={newExam.duration} onChange={(e) => setNewExam({ ...newExam, duration: +e.target.value })} />
+                      <Label>Durasi (menit) <span className="text-muted-foreground text-xs font-normal">per paket</span></Label>
+                      <Input
+                        type="number" min={1} max={600}
+                        value={Math.round(newExam.duration / 60)}
+                        onChange={(e) => setNewExam({ ...newExam, duration: Math.max(1, +e.target.value) * 60 })}
+                      />
                     </div>
                     <div>
-                      <Label>Paket</Label>
+                      <Label>Jumlah Paket <span className="text-muted-foreground text-xs font-normal">(bundle)</span></Label>
                       <Input
-                        type="number" min={1} value={newExam.bundle_size}
-                        onChange={(e) => {
-                          const n = Math.max(1, +e.target.value);
-                          setNewExam({ ...newExam, bundle_size: n, duration: n * 3600 });
-                        }}
+                        type="number" min={1}
+                        value={newExam.bundle_size}
+                        onChange={(e) => setNewExam({ ...newExam, bundle_size: Math.max(1, +e.target.value) })}
                       />
                     </div>
                   </div>
@@ -1990,44 +2017,116 @@ const Admin = () => {
               </Card>
             )}
 
-            {/* Existing exams */}
-            <Card>
-              <CardHeader><h2 className="font-semibold text-sm">Paket Tryout ({exams.length})</h2></CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y divide-border">
-                  {exams.map((ex) => (
-                    <div key={ex.id} className="flex items-center gap-3 px-4 py-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="outline" className="uppercase text-[9px] px-1 h-4 shrink-0">{ex.category || "—"}</Badge>
-                          {ex.subcategory && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{ex.subcategory}</Badge>}
-                          <span className="text-xs font-semibold truncate">{ex.title}</span>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          {ex.total_questions} soal ·{" "}
-                          {ex.price === 0 ? "Gratis" : `Rp ${ex.price.toLocaleString("id-ID")}`}
-                          {ex.original_price ? ` (coret: Rp ${ex.original_price.toLocaleString("id-ID")})` : ""}
-                          {" · "}{Math.floor(ex.duration / 60)} menit
-                          {ex.cta_link ? " · Ada CTA link" : ""}
-                        </p>
-                      </div>
-                      <div className="flex gap-1.5 shrink-0">
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditExam(ex)}>
-                          <Pencil className="h-3 w-3 mr-1" /> Edit
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => duplicateExam(ex)}>
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteExam(ex.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
+            {/* Existing exams — hierarchical (parent + sub-packages) */}
+            {(() => {
+              const parentExams = exams.filter((e) => !e.parent_exam_id);
+              const childrenOf = (pid: string) => exams.filter((e) => e.parent_exam_id === pid);
+              return (
+                <Card>
+                  <CardHeader><h2 className="font-semibold text-sm">Paket Tryout ({parentExams.length} paket induk · {exams.length} total)</h2></CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y divide-border">
+                      {parentExams.map((ex) => {
+                        const children = childrenOf(ex.id);
+                        const isAddingHere = addSubPkgParent?.id === ex.id;
+                        return (
+                          <div key={ex.id}>
+                            {/* Parent row */}
+                            <div className="flex items-center gap-3 px-4 py-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className="uppercase text-[9px] px-1 h-4 shrink-0">{ex.category || "—"}</Badge>
+                                  {ex.subcategory && <Badge variant="secondary" className="text-[9px] px-1 h-4 shrink-0">{ex.subcategory}</Badge>}
+                                  {children.length > 0 && (
+                                    <Badge className="text-[9px] px-1 h-4 shrink-0 bg-blue-50 text-blue-700 border border-blue-300">
+                                      {children.length} sub-paket
+                                    </Badge>
+                                  )}
+                                  <span className="text-xs font-semibold truncate">{ex.title}</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  {children.length === 0 && `${ex.total_questions} soal · ${Math.round(ex.duration / 60)} menit · `}
+                                  {ex.price === 0 ? "Gratis" : `Rp ${ex.price.toLocaleString("id-ID")}`}
+                                  {ex.original_price ? ` (coret: Rp ${ex.original_price.toLocaleString("id-ID")})` : ""}
+                                  {ex.cta_link ? " · Ada CTA link" : ""}
+                                </p>
+                              </div>
+                              <div className="flex gap-1.5 shrink-0">
+                                <Button
+                                  size="sm" variant={isAddingHere ? "outline" : "ghost"}
+                                  className="h-7 text-xs gap-1"
+                                  onClick={() => { setAddSubPkgParent(isAddingHere ? null : ex); setSubPkgDuration(90); }}
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  {isAddingHere ? "Tutup" : "Sub-paket"}
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditExam(ex)}>
+                                  <Pencil className="h-3 w-3 mr-1" /> Edit
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => duplicateExam(ex)}>
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                                <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteExam(ex.id)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Sub-package creation form */}
+                            {isAddingHere && (
+                              <div className="mx-4 mb-3 p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3">
+                                <p className="text-xs font-semibold text-primary">
+                                  Buat Paket {String.fromCharCode(65 + children.length)} &rarr; akan diberi nama:
+                                  <span className="ml-1 font-normal text-foreground">"{ex.title} - Paket {String.fromCharCode(65 + children.length)}"</span>
+                                </p>
+                                <div className="flex items-end gap-3">
+                                  <div className="flex-1 max-w-[160px]">
+                                    <Label className="text-xs">Durasi (menit)</Label>
+                                    <Input
+                                      type="number" min={1} max={600} className="h-8 text-xs mt-1"
+                                      value={subPkgDuration}
+                                      onChange={(e) => setSubPkgDuration(Math.max(1, +e.target.value))}
+                                    />
+                                  </div>
+                                  <Button size="sm" className="h-8 gap-1" onClick={() => addSubPackage(ex)}>
+                                    <Plus className="h-3 w-3" /> Buat Sub-paket
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-8" onClick={() => setAddSubPkgParent(null)}>Batal</Button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Child sub-package rows */}
+                            {children.map((child, idx) => (
+                              <div key={child.id} className="flex items-center gap-3 pl-8 pr-4 py-2.5 bg-muted/30 border-t border-border/50">
+                                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">
+                                  {String.fromCharCode(65 + idx)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-xs font-medium">{child.title}</span>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {child.total_questions} soal · {Math.round(child.duration / 60)} menit
+                                  </p>
+                                </div>
+                                <div className="flex gap-1.5 shrink-0">
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditExam(child)}>
+                                    <Pencil className="h-3 w-3 mr-1" /> Edit
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteExam(child.id)}>
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                      {parentExams.length === 0 && <p className="px-4 py-8 text-sm text-muted-foreground text-center">Belum ada paket tryout.</p>}
                     </div>
-                  ))}
-                  {exams.length === 0 && <p className="px-4 py-8 text-sm text-muted-foreground text-center">Belum ada paket tryout.</p>}
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
           </TabsContent>
 
@@ -2619,17 +2718,18 @@ const Admin = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Durasi (detik) <span className="text-muted-foreground text-xs font-normal">— otomatis 60 menit/paket</span></Label>
-                  <Input type="number" value={editExam.duration} onChange={(e) => setEditExam({ ...editExam, duration: +e.target.value })} />
+                  <Label>Durasi (menit) <span className="text-muted-foreground text-xs font-normal">per paket</span></Label>
+                  <Input
+                    type="number" min={1} max={600}
+                    value={Math.round(editExam.duration / 60)}
+                    onChange={(e) => setEditExam({ ...editExam, duration: Math.max(1, +e.target.value) * 60 })}
+                  />
                 </div>
                 <div>
-                  <Label>Paket</Label>
+                  <Label>Jumlah Paket <span className="text-muted-foreground text-xs font-normal">(bundle)</span></Label>
                   <Input
                     type="number" min={1} value={editExam.bundle_size}
-                    onChange={(e) => {
-                      const n = Math.max(1, +e.target.value);
-                      setEditExam({ ...editExam, bundle_size: n, duration: n * 3600 });
-                    }}
+                    onChange={(e) => setEditExam({ ...editExam, bundle_size: Math.max(1, +e.target.value) })}
                   />
                 </div>
               </div>

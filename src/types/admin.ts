@@ -41,6 +41,7 @@ export type Exam = {
   description?: string; duration: number; price: number; original_price?: number;
   bundle_size: number; category: string; subcategory: string; exam_type?: string;
   passing_score?: number; cta_link?: string | null; cover_image_url?: string | null;
+  parent_exam_id?: string | null;
 };
 
 export type Question = {
