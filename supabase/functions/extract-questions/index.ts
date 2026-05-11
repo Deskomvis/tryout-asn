@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const KIE_API_URL = "https://api.kie.ai/claude/v1/messages";
-const MODEL = "claude-haiku-4-5";
+const MODEL = "claude-sonnet-4-6";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -180,6 +180,9 @@ Ekstrak semua soal. Untuk setiap soal yang memiliki data tabel/pola/grafik dalam
     return json({ count: 0, skipped: 0 });
   }
 
+  // Strip "A." / "A)" / "a." letter-prefix from answer/option text
+  const stripPrefix = (s: string) => s.replace(/^[A-Ea-e][.)]\s*/, "").trim();
+
   // Validate and normalise
   const valid: any[] = [];
   for (const q of questionList as any[]) {
@@ -191,7 +194,15 @@ Ekstrak semua soal. Untuk setiap soal yang memiliki data tabel/pola/grafik dalam
 
     const opts = q.options.map((o: any) => String(o).trim());
     const ans = q.correct_answer.trim();
-    if (!opts.includes(ans)) continue;
+
+    // Try exact match first, then normalized (strip letter prefix from both sides)
+    let resolvedAns = ans;
+    if (!opts.includes(ans)) {
+      const normAns = stripPrefix(ans);
+      const matched = opts.find((o) => stripPrefix(o) === normAns || o === normAns);
+      if (!matched) continue;
+      resolvedAns = matched;
+    }
 
     // Validate svg_content: must be a non-empty string starting with '<' or null
     let svgContent: string | null = null;
@@ -204,7 +215,7 @@ Ekstrak semua soal. Untuk setiap soal yang memiliki data tabel/pola/grafik dalam
       material_id: material_id ?? null,
       question_text: q.question_text.trim(),
       options: opts,
-      correct_answer: ans,
+      correct_answer: resolvedAns,
       subtest: ["twk", "tiu", "tkp"].includes(q.subtest) ? q.subtest : "tiu",
       topic: q.topic?.trim() || topic || null,
       explanation: q.explanation?.trim() || null,
