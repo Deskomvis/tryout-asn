@@ -438,9 +438,29 @@ const Admin = () => {
     if (!newExam.title.trim()) return toast.error("Judul wajib");
     if (!newExam.category) return toast.error("Kategori utama wajib");
     if (!newExam.subcategory.trim()) return toast.error("Subkategori wajib");
-    const { error } = await supabase.from("exams").insert({ ...newExam, title: newExam.title.trim(), total_questions: 0 });
+    const { data: created, error } = await supabase.from("exams").insert({ ...newExam, title: newExam.title.trim(), total_questions: 0 }).select("id").single();
     if (error) return toast.error(error.message);
-    toast.success("Tryout dibuat");
+
+    if (newExam.bundle_size > 1 && created) {
+      const subPkgs = Array.from({ length: newExam.bundle_size }, (_, i) => ({
+        title: `${newExam.title.trim()} - Paket ${String.fromCharCode(65 + i)}`,
+        parent_exam_id: created.id,
+        duration: 6000,
+        price: 0,
+        original_price: 0,
+        bundle_size: 1,
+        category: newExam.category,
+        subcategory: newExam.subcategory,
+        passing_score: newExam.passing_score ?? 0,
+        total_questions: 0,
+      }));
+      const { error: subErr } = await supabase.from("exams").insert(subPkgs);
+      if (subErr) toast.error("Sub-paket gagal dibuat: " + subErr.message);
+      else toast.success(`Tryout + ${newExam.bundle_size} sub-paket berhasil dibuat`);
+    } else {
+      toast.success("Tryout dibuat");
+    }
+
     setNewExam({ title: "", description: "", duration: 5400, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
     refresh();
   };
@@ -472,7 +492,34 @@ const Admin = () => {
       cover_image_url: coverUrl,
     }).eq("id", editExam.id);
     if (error) return toast.error(error.message);
-    toast.success("Paket tryout diperbarui");
+
+    // Auto-create missing sub-packages if bundle_size increased
+    if (editExam.bundle_size > 1) {
+      const existing = exams.filter((e) => e.parent_exam_id === editExam.id);
+      const missing = editExam.bundle_size - existing.length;
+      if (missing > 0) {
+        const newSubPkgs = Array.from({ length: missing }, (_, i) => ({
+          title: `${editExam.title.trim()} - Paket ${String.fromCharCode(65 + existing.length + i)}`,
+          parent_exam_id: editExam.id,
+          duration: 6000,
+          price: 0,
+          original_price: 0,
+          bundle_size: 1,
+          category: editExam.category,
+          subcategory: editExam.subcategory,
+          passing_score: editExam.passing_score ?? 0,
+          total_questions: 0,
+        }));
+        const { error: subErr } = await supabase.from("exams").insert(newSubPkgs);
+        if (subErr) toast.error("Sub-paket baru gagal dibuat: " + subErr.message);
+        else toast.success(`Paket diperbarui + ${missing} sub-paket baru`);
+      } else {
+        toast.success("Paket tryout diperbarui");
+      }
+    } else {
+      toast.success("Paket tryout diperbarui");
+    }
+
     setEditExam(null);
     setEditExamCoverFile(null);
     refresh();

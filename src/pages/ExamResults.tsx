@@ -13,6 +13,7 @@ import {
   Trophy, Medal, Clock, BookOpen, Lock, ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isSKDExam, isSKDPassed, getSKDSubtestStatus, SKD_PASSING } from "@/lib/skdScoring";
 
 interface ExamResult {
   exam_id: string;
@@ -27,6 +28,7 @@ interface ExamResult {
   total_questions: number;
   passing_score?: number;
   price: number;
+  subcategory?: string | null;
 }
 
 interface Question {
@@ -82,7 +84,7 @@ const ExamResults = () => {
 
         const { data: exam } = await supabase
           .from("exams")
-          .select("title, passing_score, price")
+          .select("title, passing_score, price, subcategory")
           .eq("id", examId!)
           .maybeSingle();
 
@@ -112,6 +114,7 @@ const ExamResults = () => {
           total_questions: data.total_questions || 0,
           passing_score: exam?.passing_score || 0,
           price: exam?.price ?? 0,
+          subcategory: (exam as any)?.subcategory ?? null,
         });
 
         // Only fetch leaderboard for paid exams
@@ -177,7 +180,11 @@ const ExamResults = () => {
   }
 
   const isFree = result.price === 0;
-  const isPassed = result.total_score >= (result.passing_score || 0);
+  const isSkd = isSKDExam(result.subcategory);
+  const skdSubtestStatus = getSKDSubtestStatus({ twk: result.twk_score, tiu: result.tiu_score, tkp: result.tkp_score });
+  const isPassed = isSkd
+    ? isSKDPassed({ twk: result.twk_score, tiu: result.tiu_score, tkp: result.tkp_score })
+    : result.total_score >= (result.passing_score || 0);
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -256,10 +263,17 @@ const ExamResults = () => {
               {isPassed
                 ? <CheckCircle2 className="h-5 w-5 text-green-600" />
                 : <AlertCircle className="h-5 w-5 text-red-600" />}
-              <AlertDescription className={`font-semibold ${isPassed ? "text-green-800" : "text-red-800"}`}>
-                {isPassed
-                  ? `Selamat! Anda Lulus dengan skor ${result.total_score}`
-                  : `Maaf, Anda Tidak Lulus. Skor: ${result.total_score} (Minimal: ${result.passing_score || 0})`}
+              <AlertDescription className={isPassed ? "text-green-800" : "text-red-800"}>
+                <span className="font-semibold">
+                  {isPassed ? `Selamat! Anda Lulus dengan skor ${result.total_score}` : `Maaf, Anda Tidak Lulus. Skor: ${result.total_score}`}
+                </span>
+                {isSkd && !isPassed && (
+                  <div className="mt-1 text-sm space-y-0.5">
+                    {!skdSubtestStatus.twk && <div>• TWK: {result.twk_score} (minimal {SKD_PASSING.twk})</div>}
+                    {!skdSubtestStatus.tiu && <div>• TIU: {result.tiu_score} (minimal {SKD_PASSING.tiu})</div>}
+                    {!skdSubtestStatus.tkp && <div>• TKP: {result.tkp_score} (minimal {SKD_PASSING.tkp})</div>}
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
 
@@ -269,27 +283,47 @@ const ExamResults = () => {
                 <CardContent className="pt-6 text-center">
                   <div className="text-4xl font-bold text-primary">{result.total_score}</div>
                   <p className="mt-2 text-sm text-muted-foreground">Total Skor</p>
+                  {isSkd && (
+                    <span className={cn("mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-semibold", isPassed ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
+                      {isPassed ? "LULUS" : "TIDAK LULUS"}
+                    </span>
+                  )}
                 </CardContent>
               </Card>
-              <Card>
+              <Card className={isSkd ? (skdSubtestStatus.twk ? "ring-1 ring-green-400" : "ring-1 ring-red-400") : ""}>
                 <CardContent className="pt-6 text-center">
                   <div className="text-3xl font-bold text-blue-600">{result.twk_score}</div>
                   <p className="mt-2 text-xs text-muted-foreground">TWK</p>
                   <p className="text-xs text-muted-foreground">Tes Wawasan Kebangsaan</p>
+                  {isSkd && (
+                    <span className={cn("mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-semibold", skdSubtestStatus.twk ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
+                      min {SKD_PASSING.twk} — {skdSubtestStatus.twk ? "Lulus" : "Tidak Lulus"}
+                    </span>
+                  )}
                 </CardContent>
               </Card>
-              <Card>
+              <Card className={isSkd ? (skdSubtestStatus.tiu ? "ring-1 ring-green-400" : "ring-1 ring-red-400") : ""}>
                 <CardContent className="pt-6 text-center">
                   <div className="text-3xl font-bold text-purple-600">{result.tiu_score}</div>
                   <p className="mt-2 text-xs text-muted-foreground">TIU</p>
                   <p className="text-xs text-muted-foreground">Tes Intelegensia Umum</p>
+                  {isSkd && (
+                    <span className={cn("mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-semibold", skdSubtestStatus.tiu ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
+                      min {SKD_PASSING.tiu} — {skdSubtestStatus.tiu ? "Lulus" : "Tidak Lulus"}
+                    </span>
+                  )}
                 </CardContent>
               </Card>
-              <Card>
+              <Card className={isSkd ? (skdSubtestStatus.tkp ? "ring-1 ring-green-400" : "ring-1 ring-red-400") : ""}>
                 <CardContent className="pt-6 text-center">
                   <div className="text-3xl font-bold text-orange-600">{result.tkp_score}</div>
                   <p className="mt-2 text-xs text-muted-foreground">TKP</p>
                   <p className="text-xs text-muted-foreground">Tes Karakteristik Pribadi</p>
+                  {isSkd && (
+                    <span className={cn("mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-semibold", skdSubtestStatus.tkp ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
+                      min {SKD_PASSING.tkp} — {skdSubtestStatus.tkp ? "Lulus" : "Tidak Lulus"}
+                    </span>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -362,6 +396,7 @@ const ExamResults = () => {
                           <th className="px-4 py-3 text-right font-semibold text-blue-600">TWK</th>
                           <th className="px-4 py-3 text-right font-semibold text-purple-600">TIU</th>
                           <th className="px-4 py-3 text-right font-semibold text-orange-500">TKP</th>
+                          {isSkd && <th className="px-4 py-3 text-center font-semibold">Status</th>}
                           <th className="px-4 py-3 text-right font-semibold text-muted-foreground">
                             <Clock className="h-3.5 w-3.5 inline" />
                           </th>
@@ -371,6 +406,7 @@ const ExamResults = () => {
                         {rankings.map((row, i) => {
                           const rank = i + 1;
                           const isMe = row.user_id === user?.id;
+                          const rowPassed = isSkd ? isSKDPassed({ twk: row.twk_score, tiu: row.tiu_score, tkp: row.tkp_score }) : true;
                           return (
                             <tr
                               key={row.user_id}
@@ -392,6 +428,13 @@ const ExamResults = () => {
                               <td className="px-4 py-3 text-right text-blue-600">{row.twk_score}</td>
                               <td className="px-4 py-3 text-right text-purple-600">{row.tiu_score}</td>
                               <td className="px-4 py-3 text-right text-orange-500">{row.tkp_score}</td>
+                              {isSkd && (
+                                <td className="px-4 py-3 text-center">
+                                  <span className={cn("text-xs px-2 py-0.5 rounded-full font-semibold", rowPassed ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
+                                    {rowPassed ? "LULUS" : "TDK LULUS"}
+                                  </span>
+                                </td>
+                              )}
                               <td className="px-4 py-3 text-right text-muted-foreground text-xs">
                                 {Math.floor(row.time_spent / 60)}m
                               </td>

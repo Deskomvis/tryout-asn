@@ -8,6 +8,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useExams } from "@/hooks/useExams";
 import { fbq } from "@/lib/metaPixel";
+import { SKD_PASSING, SKD_QUESTIONS, SKD_MAX } from "@/lib/skdScoring";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 
 const categories = [
   { id: "cpns", label: "CPNS", image: "/tryout-cpns.png" },
@@ -154,6 +157,29 @@ const BeliPaket = () => {
       >
         ← Kembali
       </button>
+      {step.subcategory?.toUpperCase().includes("SKD") && (
+        <Alert className="mb-4 border-blue-300 bg-blue-50">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-900 text-sm">
+            <span className="font-semibold">Syarat Kelulusan SKD 2026 — </span>
+            {SKD_QUESTIONS.total} soal · {Math.floor(6000 / 60)} menit
+            <span className="ml-2 text-blue-700">|</span>
+            <span className="ml-2">TWK ≥{SKD_PASSING.twk}</span>
+            <span className="mx-1 text-blue-400">/</span>
+            <span>{SKD_MAX.twk} ({SKD_QUESTIONS.twk} soal)</span>
+            <span className="ml-2 text-blue-700">·</span>
+            <span className="ml-2">TIU ≥{SKD_PASSING.tiu}</span>
+            <span className="mx-1 text-blue-400">/</span>
+            <span>{SKD_MAX.tiu} ({SKD_QUESTIONS.tiu} soal)</span>
+            <span className="ml-2 text-blue-700">·</span>
+            <span className="ml-2">TKP ≥{SKD_PASSING.tkp}</span>
+            <span className="mx-1 text-blue-400">/</span>
+            <span>{SKD_MAX.tkp} ({SKD_QUESTIONS.tkp} soal)</span>
+            <span className="ml-2 text-blue-700">·</span>
+            <span className="ml-2 font-medium">Semua subtes harus memenuhi nilai minimal</span>
+          </AlertDescription>
+        </Alert>
+      )}
       {filteredExams.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">Belum ada paket pada kategori ini.</CardContent></Card>
       ) : (
