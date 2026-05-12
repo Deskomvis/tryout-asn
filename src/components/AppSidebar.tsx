@@ -1,7 +1,7 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home, LayoutGrid, FolderOpen, LogOut, GraduationCap,
-  Database, Package, BarChart2, Receipt, Users, Settings, UserCircle,
+  Database, Package, BarChart2, Receipt, Users, Settings, UserCircle, MessageCircle, Send
 } from "lucide-react";
 import {
   Sidebar,
@@ -79,6 +79,37 @@ export const AppSidebar = () => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Join Komunitas */}
+        <SidebarGroup className="pt-0">
+          <div className="mx-3 mb-2 group-data-[collapsible=icon]:hidden">
+            <div className="border-t border-sidebar-border mb-3" />
+            <p className="px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Join Komunitas
+            </p>
+          </div>
+          <div className="mx-3 mb-2 border-t border-sidebar-border hidden group-data-[collapsible=icon]:block" />
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-2">
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="WhatsApp Group">
+                  <a href="https://wa.me/..." target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium bg-green-50/50 text-green-700 hover:bg-green-100 transition-colors">
+                    <MessageCircle className="h-4 w-4" />
+                    <span className="group-data-[collapsible=icon]:hidden">Grup WhatsApp</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Telegram Group">
+                  <a href="https://t.me/..." target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium bg-blue-50/50 text-blue-700 hover:bg-blue-100 transition-colors">
+                    <Send className="h-4 w-4" />
+                    <span className="group-data-[collapsible=icon]:hidden">Grup Telegram</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
