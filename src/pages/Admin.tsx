@@ -68,7 +68,7 @@ const Admin = () => {
   const [filterTopic, setFilterTopic] = useState("all");
   const [filterSource, setFilterSource] = useState("all");
   const [addQuestionMode, setAddQuestionMode] = useState<null | "picker" | "manual" | "ai" | "bank">(null);
-  const [bankListMode, setBankListMode] = useState<null | "manual" | "ai">(null);
+  const [bankListMode, setBankListMode] = useState<null | "manual" | "ai" | "image">(null);
 
   // Bank soal picker
   const [bankQuestions, setBankQuestions] = useState<BankQuestion[]>([]);

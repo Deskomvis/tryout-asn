@@ -1,4 +1,4 @@
-import { Loader2, Plus, RotateCcw, Trash2, X, Pencil, Sparkles, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Plus, RotateCcw, Trash2, X, Pencil, Sparkles, Check, ChevronLeft, ChevronRight, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GlobalBankQ, Exam } from "@/types/admin";
+import { ImageQuestionForm } from "@/components/admin/ImageQuestionForm";
 
 interface GlobalBankTableProps {
   globalBank: GlobalBankQ[];
@@ -31,8 +32,8 @@ interface GlobalBankTableProps {
   setDeleteConfirmOpen: React.Dispatch<React.SetStateAction<boolean>>;
   deleting: boolean;
   exams: Exam[];
-  bankListMode: null | "manual" | "ai";
-  setBankListMode: React.Dispatch<React.SetStateAction<null | "manual" | "ai">>;
+  bankListMode: null | "manual" | "ai" | "image";
+  setBankListMode: React.Dispatch<React.SetStateAction<null | "manual" | "ai" | "image">>;
   newQ: {
     question_text: string; a: string; b: string; c: string; d: string; e: string;
     correct: string; subtest: string; pa: number; pb: number; pc: number; pd: number; pe: number;
@@ -146,11 +147,29 @@ export function GlobalBankTable({
             <Sparkles className="h-3 w-3" />
             {bankListMode === "ai" ? "Tutup" : "Generate AI"}
           </Button>
+          <Button
+            size="sm"
+            variant={bankListMode === "image" ? "outline" : "default"}
+            className={cn("h-7 text-xs gap-1", bankListMode !== "image" && "bg-purple-600 hover:bg-purple-700 text-white")}
+            onClick={() => setBankListMode((m) => m === "image" ? null : "image")}
+          >
+            <Image className="h-3 w-3" />
+            {bankListMode === "image" ? "Tutup" : "Soal Bergambar"}
+          </Button>
           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onLoadGlobalBank} disabled={globalBankLoading}>
             {globalBankLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
           </Button>
         </div>
       </div>
+
+      {/* Soal Bergambar form */}
+      {bankListMode === "image" && (
+        <ImageQuestionForm
+          TOPIC_OPTIONS={TOPIC_OPTIONS}
+          onSaved={() => { setBankListMode(null); onLoadGlobalBank(); }}
+          onClose={() => setBankListMode(null)}
+        />
+      )}
 
       {/* Tambah Manual form (bank mode) */}
       {bankListMode === "manual" && (

@@ -316,6 +316,120 @@ Deno.serve(async (req: Request) => {
     }
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ── Read KIE API key (shared for all AI actions below) ───────────────────
+    const { data: settingRowGlobal } = await supabase
+      .from("admin_settings").select("value").eq("key", "kie_api_key").maybeSingle();
+    const globalKieApiKey = settingRowGlobal?.value || Deno.env.get("KIE_API_KEY") || "";
+
+    // ── Generate Single Question (for image question flow) ───────────────────
+    if (body.action === "generate_single_question") {
+      const { subtest, topic, custom_instruction } = body as {
+        subtest: "twk" | "tiu" | "tkp";
+        topic: string;
+        custom_instruction?: string;
+      };
+      if (!globalKieApiKey) return json({ error: "KIE API key belum dikonfigurasi." }, 400);
+      if (!subtest || !topic) return json({ error: "subtest dan topic diperlukan" }, 400);
+
+      const topicMap = subtest === "twk" ? TWK_TOPICS : subtest === "tiu" ? TIU_TOPICS : TKP_TOPICS;
+      const topicDesc = topicMap[topic] ?? topic;
+      const isTkp = subtest === "tkp";
+
+      const sysPrompt = `You are a JSON generator for Indonesian CPNS exam questions. Output ONLY a single valid JSON object. No prose, no markdown, no code fences.
+
+${isTkp ? `Generate ONE TKP (Tes Karakteristik Pribadi) question about: ${topicDesc}
+
+Output a JSON object with exactly:
+- "question_text": situational scenario string (in Indonesian)
+- "options": array of exactly 5 strings (attitude choices)
+- "option_points": object mapping each option string to a unique integer 1-5 (each of 1,2,3,4,5 used exactly once, keys must match options exactly)
+- "correct_answer": the option string with the highest points
+- "explanation": 2-3 sentence explanation of why highest-point option is best
+- "svg_prompt": one-sentence description of a helpful diagram/illustration for this question (or "none" if no visual needed)` :
+
+`Generate ONE ${subtest.toUpperCase()} question about: ${topicDesc}
+${custom_instruction ? `\nCustom instruction: ${custom_instruction}` : ""}
+
+Output a JSON object with exactly:
+- "question_text": clear question string in Indonesian
+- "options": array of exactly 5 strings (answer choices)
+- "correct_answer": string EXACTLY matching one of the options
+- "explanation": 2-3 sentence explanation in Indonesian
+- "svg_prompt": one-sentence description of a helpful diagram/illustration for this question (e.g., "a number line showing sequence 3,6,12,24,?" or "a bar chart comparing..." or "none" if no visual is helpful)`}
+
+Output ONLY the JSON object.`;
+
+      const res = await fetch(KIE_API_URL, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${globalKieApiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: MODEL, max_tokens: 2000, system: sysPrompt, messages: [{ role: "user", content: "Generate the question." }], stream: false }),
+      });
+      if (!res.ok) return json({ error: `KIE API error ${res.status}` }, 500);
+      const resData = await res.json();
+      const rawText = (resData.content as Array<{ type: string; text?: string }>)?.find(b => b.type === "text")?.text ?? "";
+      const objStart = rawText.indexOf("{");
+      const objEnd = rawText.lastIndexOf("}");
+      if (objStart === -1 || objEnd <= objStart) return json({ error: "AI tidak mengembalikan JSON yang valid" }, 500);
+      try {
+        const q = JSON.parse(rawText.slice(objStart, objEnd + 1));
+        return json({ question: q });
+      } catch {
+        return json({ error: "Gagal parse JSON dari AI" }, 500);
+      }
+    }
+
+    // ── Generate SVG Illustration via Claude ─────────────────────────────────
+    if (body.action === "generate_svg_illustration") {
+      const { question_text, options, svg_prompt } = body as {
+        question_text: string;
+        options: string[];
+        svg_prompt?: string;
+      };
+      if (!globalKieApiKey) return json({ error: "KIE API key belum dikonfigurasi." }, 400);
+      if (!question_text) return json({ error: "question_text diperlukan" }, 400);
+
+      const illustrationPrompt = svg_prompt && svg_prompt !== "none"
+        ? `Illustration hint: ${svg_prompt}`
+        : `Create a helpful educational diagram or visual for this question.`;
+
+      const svgSysPrompt = `You are an SVG illustration generator for Indonesian CPNS exam questions.
+Generate a clean, educational SVG illustration that visually represents the context of the exam question.
+Output ONLY the raw SVG markup. Start your response with <svg and end with </svg>. No prose, no markdown, no code fences.
+
+Rules:
+- viewBox="0 0 520 300" width="520" height="300"  
+- Background: white rect (fill="#ffffff")
+- Colors: use #1E3A5F (dark navy), #3B82F6 (blue), #10B981 (green), #F59E0B (amber), #EF4444 (red), #F8FAFC (light gray)
+- Font: font-family="system-ui, sans-serif"
+- Include text labels, numbers, or data RELEVANT to the question
+- If it's a number sequence/pattern: display the elements in boxes with visual pattern highlighted
+- If it's a comparison/ratio problem: use bars or a table
+- If it's a logical diagram: use labeled boxes and arrows
+- If it's a geometry problem: draw the shape with dimensions labeled
+- If it's a situational/TKP scenario: draw a simple workplace scene or flow diagram
+- Make it self-explanatory — a student should understand what to look for
+- Do NOT just draw decorative elements`;
+
+      const userMsg = `Question: ${question_text}
+Options: ${options?.join(", ")}
+${illustrationPrompt}`;
+
+      const res = await fetch(KIE_API_URL, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${globalKieApiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 4000, system: svgSysPrompt, messages: [{ role: "user", content: userMsg }], stream: false }),
+      });
+      if (!res.ok) return json({ error: `KIE API error ${res.status}` }, 500);
+      const resData = await res.json();
+      const rawText = (resData.content as Array<{ type: string; text?: string }>)?.find(b => b.type === "text")?.text ?? "";
+      const svgStart = rawText.indexOf("<svg");
+      const svgEnd = rawText.lastIndexOf("</svg>");
+      if (svgStart === -1 || svgEnd === -1) return json({ error: "AI tidak menghasilkan SVG yang valid" }, 500);
+      const svgContent = rawText.slice(svgStart, svgEnd + 6);
+      return json({ svg_content: svgContent });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const {
       exam_id, subtest, topic, count,
       chart_type = "none",
@@ -340,13 +454,12 @@ Deno.serve(async (req: Request) => {
     }
     const safeCount = Math.max(1, Math.min(30, Number(count)));
 
-    // Read KIE API key from admin_settings, fallback to env var
-    const { data: settingRow } = await supabase
-      .from("admin_settings").select("value").eq("key", "kie_api_key").maybeSingle();
-    const kieApiKey = settingRow?.value || Deno.env.get("KIE_API_KEY") || "";
+    // KIE API key already loaded above in globalKieApiKey
+    const kieApiKey = globalKieApiKey;
     if (!kieApiKey) {
       return json({ error: "KIE API key belum dikonfigurasi. Masukkan di tab Pengaturan admin." }, 400);
     }
+
 
     const topicMap = subtest === "twk" ? TWK_TOPICS : subtest === "tiu" ? TIU_TOPICS : TKP_TOPICS;
     const topicDesc = topicMap[topic] ?? topic;
