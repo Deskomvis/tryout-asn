@@ -53,7 +53,7 @@ interface GlobalBankTableProps {
   TOPIC_OPTIONS: Record<string, { value: string; label: string }[]>;
   emptyNewQ: () => any;
   onAddQuestionToBank: () => Promise<void>;
-  onGenerateViaAI: (targetExamId?: string) => Promise<void>;
+  onGenerateViaAI: (targetExamId?: string, bankOnly?: boolean) => Promise<void>;
   onLoadGlobalBank: () => void;
   onBulkDistribute: () => Promise<void>;
   onBulkDeleteQuestions: () => Promise<void>;
@@ -359,7 +359,7 @@ export function GlobalBankTable({
               </div>
             )}
             <div className="flex gap-2">
-              <Button onClick={() => onGenerateViaAI(undefined)} disabled={aiStatus === "loading"}>
+              <Button onClick={() => onGenerateViaAI(undefined, true)} disabled={aiStatus === "loading"}>
                 {aiStatus === "loading" ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Generating...</> : <><Sparkles className="h-4 w-4 mr-1" /> Generate {aiGen.count} Soal</>}
               </Button>
               <Button variant="outline" onClick={() => { setBankListMode(null); setAiStatus("idle"); }}>Tutup</Button>
