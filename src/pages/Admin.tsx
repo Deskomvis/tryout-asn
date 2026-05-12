@@ -128,7 +128,8 @@ const Admin = () => {
 
   // AI Generate
   const [aiGen, setAiGen] = useState({
-    subtest: "twk" as "twk" | "tiu" | "tkp", topic: "pancasila", count: 10,
+    subtest: "twk" as "twk" | "tiu" | "tkp", topic: "nasionalisme", count: 10,
+    customTopic: "",
     chartType: "none" as ChartType,
     imageFile: null as File | null, imageUrl: "",
     customInstruction: "",
@@ -749,7 +750,9 @@ const Admin = () => {
       const { data, error } = await supabase.functions.invoke("generate-questions", {
         body: {
           ...(examIdToUse ? { exam_id: examIdToUse } : {}),
-          subtest: aiGen.subtest, topic: aiGen.topic, count: aiGen.count,
+          subtest: aiGen.subtest, 
+          topic: aiGen.topic === "custom" ? aiGen.customTopic : aiGen.topic, 
+          count: aiGen.count,
           chart_type: aiGen.chartType,
           image_url: aiGen.chartType === "none" ? finalImageUrl || null : null,
           custom_instruction: aiGen.customInstruction.trim() || null,
@@ -1628,16 +1631,29 @@ const Admin = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div>
-                        <Label>Topik</Label>
-                        <Select value={aiGen.topic} onValueChange={(v) => setAiGen({ ...aiGen, topic: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {TOPIC_OPTIONS[aiGen.subtest].map((t) => (
-                              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className={cn("space-y-3", aiGen.topic === "custom" ? "sm:col-span-2" : "")}>
+                        <div>
+                          <Label>Topik</Label>
+                          <Select value={aiGen.topic} onValueChange={(v) => setAiGen({ ...aiGen, topic: v })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {TOPIC_OPTIONS[aiGen.subtest].map((t) => (
+                                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {aiGen.topic === "custom" && (
+                          <div className="animate-in fade-in slide-in-from-top-1">
+                            <Label className="text-xs text-primary font-semibold">Tulis Topik Kustom</Label>
+                            <Input 
+                              placeholder="cth: Sejarah Kerajaan Majapahit, Logika Fuzzy, dll" 
+                              value={aiGen.customTopic}
+                              onChange={(e) => setAiGen({ ...aiGen, customTopic: e.target.value })}
+                              className="border-primary/50 focus-visible:ring-primary"
+                            />
+                          </div>
+                        )}
                       </div>
                       <div>
                         <Label>Jumlah Soal (1–30)</Label>

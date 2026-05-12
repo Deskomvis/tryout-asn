@@ -214,7 +214,7 @@ export function GlobalBankTable({
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label className="text-xs">Subtes *</Label>
-                <Select value={aiGen.subtest} onValueChange={(v: any) => setAiGen((g: any) => ({ ...g, subtest: v, topic: v === "twk" ? "pancasila" : v === "tiu" ? "analogi" : "pelayanan" }))}>
+                <Select value={aiGen.subtest} onValueChange={(v: any) => setAiGen((g: any) => ({ ...g, subtest: v, topic: v === "twk" ? "nasionalisme" : v === "tiu" ? "analogi" : "pelayanan" }))}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="twk">TWK</SelectItem>
@@ -223,7 +223,7 @@ export function GlobalBankTable({
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className={cn(aiGen.topic === "custom" ? "col-span-1" : "col-span-1")}>
                 <Label className="text-xs">Topik *</Label>
                 <Select value={aiGen.topic} onValueChange={(v) => setAiGen((g: any) => ({ ...g, topic: v }))}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -234,6 +234,17 @@ export function GlobalBankTable({
                   </SelectContent>
                 </Select>
               </div>
+              {aiGen.topic === "custom" && (
+                <div className="col-span-3 animate-in fade-in slide-in-from-top-1">
+                  <Label className="text-[10px] text-primary font-semibold">Tulis Topik Kustom</Label>
+                  <Input 
+                    placeholder="cth: Sejarah Nusantara, Logika Angka, dll" 
+                    value={aiGen.customTopic}
+                    onChange={(e) => setAiGen((g: any) => ({ ...g, customTopic: e.target.value }))}
+                    className="h-8 text-xs border-primary/40 focus-visible:ring-primary"
+                  />
+                </div>
+              )}
               <div>
                 <Label className="text-xs">Jumlah</Label>
                 <Input type="number" min={1} max={30} className="h-8 text-xs" value={aiGen.count} onChange={(e) => setAiGen((g: any) => ({ ...g, count: Math.max(1, Math.min(30, +e.target.value)) }))} />

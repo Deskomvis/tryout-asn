@@ -6,27 +6,31 @@ const KIE_API_URL = "https://api.kie.ai/claude/v1/messages";
 const MODEL = "claude-haiku-4-5";
 
 const TWK_TOPICS: Record<string, string> = {
-  pancasila: "Pancasila (nilai-nilai, sila, implementasi dalam kehidupan berbangsa)",
-  uud1945: "UUD 1945 (pasal, amandemen, lembaga negara, hak dan kewajiban warga negara)",
-  bhineka: "Bhinneka Tunggal Ika (semboyan, keberagaman, toleransi, persatuan dalam perbedaan)",
-  nkri: "NKRI (bentuk negara, wilayah, otonomi daerah, bela negara)",
-  bahasa: "Bahasa Indonesia (ejaan baku EYD/PUEBI, kosakata, tata bahasa resmi)",
+  nasionalisme: "Nasionalisme (mewujudkan kepentingan nasional melalui cita-cita dan tujuan yang sama dengan tetap mempertahankan identitas nasional)",
+  bela_negara: "Bela Negara (peran aktif dalam mempertahankan eksistensi bangsa dan negara sebagai wujud cinta tanah air)",
+  integritas: "Integritas (menjunjung tinggi kejujuran, ketangguhan, kewibawaan sebagai satu kesatuan)",
+  pilar_negara: "Pilar Negara (Pancasila, UUD 1945, NKRI, dan Bhinneka Tunggal Ika sebagai fondasi bernegara)",
+  bahasa: "Bahasa Indonesia (penggunaan bahasa Indonesia sebagai bahasa persatuan yang baik dan benar)",
 };
 const TIU_TOPICS: Record<string, string> = {
-  analogi: "Analogi Verbal (hubungan kata, sinonim/antonim kontekstual, asosiasi makna)",
-  silogisme: "Silogisme (premis mayor, premis minor, kesimpulan logis deduktif)",
-  logika: "Logika Formal (implikasi, kontraposisi, negasi, pernyataan majemuk)",
-  hitung: "Hitung Cepat (operasi pecahan, persentase, perbandingan, bunga, jarak-waktu)",
-  deret: "Deret Angka dan Huruf (pola aritmetika, geometri, Fibonacci, selisih berulang)",
-  figural: "Figural / Spasial (rotasi bangun, bayangan cermin, pola matriks)",
+  analogi: "Analogi (kemampuan bernalar melalui perbandingan dua konsep kata yang memiliki hubungan tertentu)",
+  silogisme: "Silogisme (menarik kesimpulan dari dua pernyataan atau premis yang diberikan secara logis)",
+  analitis: "Penalaran Analitis (menganalisis informasi yang diberikan untuk menyimpulkan suatu kondisi tertentu)",
+  hitung: "Hitung Cepat (operasi matematika dasar sederhana untuk melihat kecepatan berhitung)",
+  deret: "Deret Angka (melihat pola hubungan angka-angka dalam suatu urutan)",
+  kuantitatif: "Perbandingan Kuantitatif (menarik kesimpulan berdasarkan dua data kuantitatif/angka)",
+  cerita: "Soal Cerita (menyelesaikan masalah matematika dalam konteks kehidupan sehari-hari)",
+  figural_analogi: "Analogi Gambar (bernalar melalui perbandingan dua gambar yang memiliki hubungan tertentu)",
+  figural_ketidaksamaan: "Ketidaksamaan Gambar (melihat perbedaan atau keanehan di antara beberapa gambar)",
+  figural_serial: "Serial Gambar (melihat pola perubahan atau kelanjutan dari deretan gambar)",
 };
 const TKP_TOPICS: Record<string, string> = {
-  pelayanan: "Pelayanan Publik (orientasi pelanggan, empati, komunikasi, penyelesaian keluhan)",
-  jejaring: "Jejaring Kerja (kolaborasi tim, membangun relasi, kerjasama lintas unit)",
-  sosial: "Sosial Budaya (adaptasi, toleransi, keberagaman lingkungan kerja)",
-  profesionalisme: "Profesionalisme (tanggung jawab, kedisiplinan, inisiatif, etika kerja)",
-  antiradikalisme: "Anti Radikalisme (identifikasi paham radikal, kesetiaan pada Pancasila)",
-  tik: "Teknologi Informasi dan Komunikasi (literasi digital, keamanan data)",
+  pelayanan: "Pelayanan Publik (keramahtamahan dalam bekerja untuk memenuhi kebutuhan orang lain)",
+  jejaring: "Jejaring Kerja (membangun dan membina hubungan, bekerja sama, berbagi informasi dan berkolaborasi)",
+  sosial: "Sosial Budaya (adaptasi dan bekerja efektif dalam masyarakat majemuk)",
+  profesionalisme: "Profesionalisme (melaksanakan tugas dan fungsi sesuai dengan tuntutan jabatan)",
+  antiradikalisme: "Anti Radikalisme (menjaring informasi tentang pemahaman radikalisme dan sikap terhadapnya)",
+  tik: "Teknologi Informasi dan Komunikasi (pemanfaatan teknologi informasi untuk meningkatkan kinerja)",
 };
 
 // Chart types supported for programmatic SVG generation
