@@ -225,6 +225,7 @@ export function GlobalBankTable({
   const editImgRef = useRef<HTMLInputElement>(null);
   const [genImgStatus, setGenImgStatus] = useState<"idle" | "loading" | "error">("idle");
   const [genImgError, setGenImgError] = useState("");
+  const [bulkSelectCount, setBulkSelectCount] = useState<number>(10);
 
   const handleSaveEdit = async () => {
     if (!editQ) return;
@@ -545,6 +546,32 @@ export function GlobalBankTable({
                         ? `${globalBankSelectedIds.size} dipilih`
                         : `Pilih semua ${filtered.length} soal di halaman ini`}
                     </span>
+                    
+                    <div className="ml-auto flex items-center gap-2">
+                      <Label className="text-[10px] text-muted-foreground whitespace-nowrap hidden sm:block">Pilih jumlah:</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={filtered.length}
+                        className="h-6 w-16 text-[10px] px-1"
+                        value={bulkSelectCount}
+                        onChange={(e) => setBulkSelectCount(Math.max(1, +e.target.value))}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-6 text-[10px] px-2 py-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const next = new Set(globalBankSelectedIds);
+                          filtered.slice(0, bulkSelectCount).forEach(q => next.add(q.id));
+                          setGlobalBankSelectedIds(next);
+                        }}
+                      >
+                        Checklist
+                      </Button>
+                    </div>
                   </div>
                   {filtered.map((q) => {
                     const isSelected = globalBankSelectedIds.has(q.id);
