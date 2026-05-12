@@ -72,11 +72,16 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
       const token = session?.access_token;
       if (!token) throw new Error("Sesi tidak ditemukan");
 
+      const hasContext = draft.question_text.trim().length > 5;
       const { data, error } = await supabase.functions.invoke("generate-questions", {
         body: {
           action: "generate_single_question",
           subtest: draft.subtest,
           topic: topicResolved,
+          // If admin already typed a question, use it as context for AI
+          custom_instruction: hasContext
+            ? `Buat soal berdasarkan konteks atau pertanyaan berikut (bisa dikembangkan/diperkaya): "${draft.question_text.trim()}". Pertahankan inti pertanyaannya.`
+            : undefined,
         },
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -98,7 +103,7 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
         svg_prompt: q.svg_prompt ?? "",
       }));
       setGenSoalStatus("idle");
-      toast.success("Soal berhasil di-generate! Periksa dan edit jika perlu.");
+      toast.success(hasContext ? "Soal di-generate berdasarkan konteks Anda!" : "Soal berhasil di-generate!");
     } catch (e: any) {
       setGenSoalStatus("error");
       setGenSoalError(e.message ?? "Gagal generate soal");
@@ -182,13 +187,13 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
   const canGoStep3 = canGoStep2 && (draft.subtest === "tkp" || draft.correct_answer);
 
   return (
-    <Card className="border-purple-200 bg-purple-50/40">
+    <Card className="border-blue-200 bg-blue-50/30">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Image className="h-4 w-4 text-purple-600" />
-            <h3 className="font-semibold text-sm text-purple-800">Soal Bergambar (SVG)</h3>
-            <Badge variant="outline" className="text-[9px] border-purple-300 text-purple-600">
+            <Image className="h-4 w-4 text-blue-600" />
+            <h3 className="font-semibold text-sm text-blue-800">Generate Soal Gambar</h3>
+            <Badge variant="outline" className="text-[9px] border-blue-300 text-blue-600">
               SVG via Claude AI
             </Badge>
           </div>
@@ -202,13 +207,13 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
             <div key={s} className="flex items-center gap-1">
               <div className={cn(
                 "h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors",
-                step === s ? "bg-purple-600 text-white" :
-                step > s ? "bg-purple-200 text-purple-700" :
+                step === s ? "bg-blue-600 text-white" :
+                step > s ? "bg-blue-200 text-blue-700" :
                 "bg-muted text-muted-foreground"
               )}>
                 {step > s ? <Check className="h-3 w-3" /> : s}
               </div>
-              <span className={cn("text-[10px]", step === s ? "text-purple-700 font-semibold" : "text-muted-foreground")}>
+              <span className={cn("text-[10px]", step === s ? "text-blue-700 font-semibold" : "text-muted-foreground")}>
                 {s === 1 ? "Tulis Soal" : s === 2 ? "Generate Gambar" : "Simpan"}
               </span>
               {s < 3 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
@@ -254,7 +259,7 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
             </div>
             {draft.topic === "custom" && (
               <div>
-                <Label className="text-xs text-purple-700 font-semibold">Topik Kustom</Label>
+                <Label className="text-xs text-blue-700 font-semibold">Topik Kustom</Label>
                 <Input
                   placeholder="cth: Soal cerita jarak dan kecepatan..."
                   className="h-8 text-xs"
@@ -265,19 +270,23 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
             )}
 
             {/* AI Generate Button */}
-            <div className="flex items-center gap-2 p-2 bg-purple-100/70 rounded-lg border border-purple-200">
-              <Sparkles className="h-4 w-4 text-purple-600 shrink-0" />
-              <p className="text-[11px] text-purple-700 flex-1">Bingung mau buat soal apa? Biarkan AI buatkan soalnya.</p>
+            <div className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+              <Sparkles className="h-4 w-4 text-blue-600 shrink-0" />
+              <p className="text-[11px] text-blue-700 flex-1">
+                {draft.question_text.trim().length > 5
+                  ? "Ada teks pertanyaan — AI akan generate soal berdasarkan konteks ini."
+                  : "Kosong? Biarkan AI buatkan soal secara otomatis."}
+              </p>
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-xs border-purple-300 text-purple-700 hover:bg-purple-100 shrink-0 gap-1"
+                className="h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-100 shrink-0 gap-1"
                 onClick={handleGenerateSoal}
                 disabled={genSoalStatus === "loading"}
               >
                 {genSoalStatus === "loading"
                   ? <><Loader2 className="h-3 w-3 animate-spin" /> Generating...</>
-                  : <><Wand2 className="h-3 w-3" /> Buat Soal via AI</>}
+                  : <><Wand2 className="h-3 w-3" /> {draft.question_text.trim().length > 5 ? "Generate dari Konteks" : "Generate Acak via AI"}</>}
               </Button>
             </div>
             {genSoalStatus === "error" && (
@@ -372,7 +381,7 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
               <Button
                 onClick={() => setStep(2)}
                 disabled={!canGoStep2}
-                className="gap-2 bg-purple-600 hover:bg-purple-700"
+                className="gap-2 bg-blue-600 hover:bg-blue-700"
               >
                 Lanjut: Generate Gambar <ChevronRight className="h-4 w-4" />
               </Button>
@@ -419,7 +428,7 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
             <Button
               onClick={handleGenerateSVG}
               disabled={genImgStatus === "loading"}
-              className="w-full gap-2 bg-purple-600 hover:bg-purple-700"
+              className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
             >
               {genImgStatus === "loading"
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Claude sedang menggambar SVG...</>
@@ -461,7 +470,7 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
               <Button
                 onClick={() => setStep(3)}
                 disabled={!canGoStep3}
-                className="gap-2 bg-purple-600 hover:bg-purple-700 flex-1"
+                className="gap-2 bg-blue-600 hover:bg-blue-700 flex-1"
               >
                 Lanjut: Simpan ke Bank <ChevronRight className="h-4 w-4" />
               </Button>
@@ -473,13 +482,13 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
         {step === 3 && (
           <div className="space-y-4">
             <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase">Review Soal Bergambar</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase">Review Generate Soal Gambar</p>
 
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="uppercase text-[9px]">{draft.subtest}</Badge>
                 <Badge variant="secondary" className="text-[9px]">{topicResolved}</Badge>
                 {draft.svg_content
-                  ? <Badge className="text-[9px] bg-purple-100 text-purple-700 border-purple-300">Ada Ilustrasi SVG ✓</Badge>
+                  ? <Badge className="text-[9px] bg-blue-100 text-blue-700 border-blue-300">Ada Ilustrasi SVG ✓</Badge>
                   : <Badge className="text-[9px] bg-gray-100 text-gray-600">Tanpa Gambar</Badge>
                 }
               </div>
@@ -519,7 +528,7 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
               <Button
                 onClick={handleSave}
                 disabled={saving}
-                className="gap-2 bg-purple-600 hover:bg-purple-700 flex-1"
+                className="gap-2 bg-blue-600 hover:bg-blue-700 flex-1"
               >
                 {saving
                   ? <><Loader2 className="h-4 w-4 animate-spin" /> Menyimpan...</>

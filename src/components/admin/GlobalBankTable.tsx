@@ -1,4 +1,5 @@
-import { Loader2, Plus, RotateCcw, Trash2, X, Pencil, Sparkles, Check, ChevronLeft, ChevronRight, Image } from "lucide-react";
+import { Loader2, Plus, RotateCcw, Trash2, X, Pencil, Sparkles, Check, ChevronLeft, ChevronRight, Image, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,6 +58,118 @@ interface GlobalBankTableProps {
   onBulkDistribute: () => Promise<void>;
   onBulkDeleteQuestions: () => Promise<void>;
 }
+
+// ── ManualBankForm (with optional image) ────────────────────────────────────
+function ManualBankForm({
+  newQ, setNewQ, newQUploadingImg, onAddQuestionToBank, onClose, emptyNewQ,
+}: {
+  newQ: any; setNewQ: (v: any) => void; newQUploadingImg: boolean;
+  onAddQuestionToBank: () => Promise<void>;
+  onClose: () => void;
+  emptyNewQ: () => any;
+}) {
+  const imgRef = useRef<HTMLInputElement>(null);
+  const [imgFile, setImgFile] = useState<File | null>(null);
+  const [imgUploading, setImgUploading] = useState(false);
+
+  const handleImageSelect = async (file: File) => {
+    setImgFile(file);
+    setImgUploading(true);
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const ext = file.name.split(".").pop();
+      const path = `questions/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("question-images").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from("question-images").getPublicUrl(path);
+      setNewQ({ ...newQ, image_url: publicUrl });
+    } catch {
+      setNewQ({ ...newQ, image_url: "" });
+    } finally {
+      setImgUploading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader><h3 className="font-semibold text-sm flex items-center gap-2"><Pencil className="h-4 w-4" /> Tambah Soal Manual ke Bank</h3></CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Subtes *</Label>
+            <Select value={newQ.subtest} onValueChange={(v: any) => setNewQ({ ...newQ, subtest: v })}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="twk">TWK</SelectItem>
+                <SelectItem value="tiu">TIU</SelectItem>
+                <SelectItem value="tkp">TKP</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Topik</Label>
+            <Input className="h-8 text-xs" placeholder="cth: Pancasila" value={newQ.topic} onChange={(e) => setNewQ({ ...newQ, topic: e.target.value })} />
+          </div>
+        </div>
+        <div>
+          <Label className="text-xs">Pertanyaan *</Label>
+          <Textarea rows={3} placeholder="Tulis pertanyaan..." value={newQ.question_text} onChange={(e) => setNewQ({ ...newQ, question_text: e.target.value })} />
+        </div>
+
+        {/* Optional image upload */}
+        <div className="rounded border border-dashed border-border p-2.5 space-y-2">
+          <Label className="text-xs flex items-center gap-1.5 text-muted-foreground">
+            <Image className="h-3.5 w-3.5" /> Gambar Soal <span className="font-normal">(opsional)</span>
+          </Label>
+          <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageSelect(f); }}
+          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1"
+              onClick={() => imgRef.current?.click()} disabled={imgUploading}>
+              {imgUploading
+                ? <><Loader2 className="h-3 w-3 animate-spin" /> Uploading...</>
+                : <><Upload className="h-3 w-3" /> {imgFile ? imgFile.name : "Pilih Gambar"}</>}
+            </Button>
+            {(imgFile || newQ.image_url) && (
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-destructive gap-1"
+                onClick={() => { setImgFile(null); setNewQ({ ...newQ, image_url: "" }); }}>
+                <X className="h-3 w-3" /> Hapus
+              </Button>
+            )}
+          </div>
+          {newQ.image_url && (
+            <img src={newQ.image_url} alt="Preview" className="max-h-28 rounded border object-contain" />
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Pilihan Jawaban *</Label>
+          {(["a","b","c","d","e"] as const).map((k) => (
+            <div key={k} className="flex items-center gap-2">
+              <span className="text-xs font-bold w-4 shrink-0">{k.toUpperCase()}.</span>
+              <Input className="h-7 text-xs flex-1" placeholder={`Opsi ${k.toUpperCase()}`} value={newQ[k]} onChange={(e) => setNewQ({ ...newQ, [k]: e.target.value })} />
+              {newQ.subtest !== "tkp" && (
+                <button type="button" className={cn("h-7 px-2 rounded text-xs border transition-colors shrink-0", newQ.correct === newQ[k] && newQ[k] ? "bg-green-500 text-white border-green-500" : "border-border hover:bg-accent")} onClick={() => { if (newQ[k]) setNewQ({ ...newQ, correct: newQ[k] }); }}>✓</button>
+              )}
+            </div>
+          ))}
+        </div>
+        {newQ.subtest !== "tkp" && <p className="text-[10px] text-muted-foreground">Klik ✓ di sebelah kanan opsi untuk menandai jawaban benar.</p>}
+        <div>
+          <Label className="text-xs">Pembahasan (opsional)</Label>
+          <Textarea rows={2} placeholder="Jelaskan mengapa jawaban benar..." value={newQ.explanation} onChange={(e) => setNewQ({ ...newQ, explanation: e.target.value })} />
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={onAddQuestionToBank} disabled={newQUploadingImg || imgUploading}>Tambah ke Bank</Button>
+          <Button variant="outline" onClick={() => { onClose(); setImgFile(null); }}>Batal</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 
 export function GlobalBankTable({
   globalBank,
@@ -150,11 +263,11 @@ export function GlobalBankTable({
           <Button
             size="sm"
             variant={bankListMode === "image" ? "outline" : "default"}
-            className={cn("h-7 text-xs gap-1", bankListMode !== "image" && "bg-purple-600 hover:bg-purple-700 text-white")}
+            className="h-7 text-xs gap-1"
             onClick={() => setBankListMode((m) => m === "image" ? null : "image")}
           >
             <Image className="h-3 w-3" />
-            {bankListMode === "image" ? "Tutup" : "Soal Bergambar"}
+            {bankListMode === "image" ? "Tutup" : "Generate Soal Gambar"}
           </Button>
           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onLoadGlobalBank} disabled={globalBankLoading}>
             {globalBankLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
@@ -173,53 +286,14 @@ export function GlobalBankTable({
 
       {/* Tambah Manual form (bank mode) */}
       {bankListMode === "manual" && (
-        <Card>
-          <CardHeader><h3 className="font-semibold text-sm flex items-center gap-2"><Pencil className="h-4 w-4" /> Tambah Soal Manual ke Bank</h3></CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Subtes *</Label>
-                <Select value={newQ.subtest} onValueChange={(v: any) => setNewQ({ ...newQ, subtest: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="twk">TWK</SelectItem>
-                    <SelectItem value="tiu">TIU</SelectItem>
-                    <SelectItem value="tkp">TKP</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Topik</Label>
-                <Input className="h-8 text-xs" placeholder="cth: Pancasila" value={newQ.topic} onChange={(e) => setNewQ({ ...newQ, topic: e.target.value })} />
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs">Pertanyaan *</Label>
-              <Textarea rows={3} placeholder="Tulis pertanyaan..." value={newQ.question_text} onChange={(e) => setNewQ({ ...newQ, question_text: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Pilihan Jawaban *</Label>
-              {(["a","b","c","d","e"] as const).map((k) => (
-                <div key={k} className="flex items-center gap-2">
-                  <span className="text-xs font-bold w-4 shrink-0">{k.toUpperCase()}.</span>
-                  <Input className="h-7 text-xs flex-1" placeholder={`Opsi ${k.toUpperCase()}`} value={newQ[k]} onChange={(e) => setNewQ({ ...newQ, [k]: e.target.value })} />
-                  {newQ.subtest !== "tkp" && (
-                    <button type="button" className={cn("h-7 px-2 rounded text-xs border transition-colors shrink-0", newQ.correct === newQ[k] && newQ[k] ? "bg-green-500 text-white border-green-500" : "border-border hover:bg-accent")} onClick={() => { if (newQ[k]) setNewQ({ ...newQ, correct: newQ[k] }); }}>✓</button>
-                  )}
-                </div>
-              ))}
-            </div>
-            {newQ.subtest !== "tkp" && <p className="text-[10px] text-muted-foreground">Klik ✓ di sebelah kanan opsi untuk menandai jawaban benar.</p>}
-            <div>
-              <Label className="text-xs">Pembahasan (opsional)</Label>
-              <Textarea rows={2} placeholder="Jelaskan mengapa jawaban benar..." value={newQ.explanation} onChange={(e) => setNewQ({ ...newQ, explanation: e.target.value })} />
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={onAddQuestionToBank} disabled={newQUploadingImg}>Tambah ke Bank</Button>
-              <Button variant="outline" onClick={() => { setBankListMode(null); setNewQ(emptyNewQ()); }}>Batal</Button>
-            </div>
-          </CardContent>
-        </Card>
+        <ManualBankForm
+          newQ={newQ}
+          setNewQ={setNewQ}
+          newQUploadingImg={newQUploadingImg}
+          onAddQuestionToBank={onAddQuestionToBank}
+          onClose={() => { setBankListMode(null); setNewQ(emptyNewQ()); }}
+          emptyNewQ={emptyNewQ}
+        />
       )}
 
       {/* Generate AI form (bank mode) */}
