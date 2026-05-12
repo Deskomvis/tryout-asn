@@ -260,7 +260,7 @@ const Admin = () => {
 
     let query = supabase
       .from("questions")
-      .select("id, question_text, subtest, topic, source, exam_id", { count: "exact" })
+      .select("id, question_text, subtest, topic, source, exam_id, options, correct_answer, explanation, image_url, svg_content, option_points", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(start, end);
 

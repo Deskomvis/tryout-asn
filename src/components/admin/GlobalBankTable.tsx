@@ -1,4 +1,4 @@
-import { Loader2, Plus, RotateCcw, Trash2, X, Pencil, Sparkles, Check, ChevronLeft, ChevronRight, Image, Upload } from "lucide-react";
+import { Loader2, Plus, RotateCcw, Trash2, X, Pencil, Sparkles, Check, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Image, Upload, Save } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import type { GlobalBankQ, Exam } from "@/types/admin";
 import { ImageQuestionForm } from "@/components/admin/ImageQuestionForm";
 
@@ -58,6 +59,12 @@ interface GlobalBankTableProps {
   onBulkDistribute: () => Promise<void>;
   onBulkDeleteQuestions: () => Promise<void>;
 }
+
+export type EditBankQ = GlobalBankQ & {
+  a: string; b: string; c: string; d: string; e: string;
+  correct: string;
+  pa: number; pb: number; pc: number; pd: number; pe: number;
+};
 
 // ── ManualBankForm (with optional image) ────────────────────────────────────
 function ManualBankForm({
@@ -211,6 +218,91 @@ export function GlobalBankTable({
   onBulkDistribute,
   onBulkDeleteQuestions,
 }: GlobalBankTableProps) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editQ, setEditQ] = useState<EditBankQ | null>(null);
+  const [editUploadingImg, setEditUploadingImg] = useState(false);
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const editImgRef = useRef<HTMLInputElement>(null);
+  const [genImgStatus, setGenImgStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [genImgError, setGenImgError] = useState("");
+
+  const handleSaveEdit = async () => {
+    if (!editQ) return;
+    setEditUploadingImg(true);
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      let imageUrl = editQ.image_url;
+      if (editImageFile) {
+        const ext = editImageFile.name.split(".").pop();
+        const path = `questions/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("question-images").upload(path, editImageFile);
+        if (upErr) throw upErr;
+        const { data: { publicUrl } } = supabase.storage.from("question-images").getPublicUrl(path);
+        imageUrl = publicUrl;
+      }
+
+      const payload: any = {
+        question_text: editQ.question_text,
+        subtest: editQ.subtest,
+        topic: editQ.topic || null,
+        explanation: editQ.explanation || null,
+        image_url: imageUrl || null,
+        svg_content: editQ.svg_content || null,
+        options: [editQ.a, editQ.b, editQ.c, editQ.d, editQ.e].filter(Boolean),
+      };
+
+      if (editQ.subtest === "tkp") {
+        payload.option_points = {
+          [editQ.a]: editQ.pa, [editQ.b]: editQ.pb, [editQ.c]: editQ.pc, [editQ.d]: editQ.pd, [editQ.e]: editQ.pe
+        };
+        payload.correct_answer = Object.entries(payload.option_points).reduce((a, b) => (b[1] as number) > (a[1] as number) ? b : a)[0];
+      } else {
+        payload.correct_answer = editQ.correct;
+      }
+
+      const { error } = await supabase.from("questions").update(payload).eq("id", editQ.id);
+      if (error) throw error;
+      
+      setEditQ(null);
+      setEditImageFile(null);
+      onLoadGlobalBank();
+      toast.success("Soal berhasil diperbarui!");
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Gagal simpan: " + e.message);
+    } finally {
+      setEditUploadingImg(false);
+    }
+  };
+
+  const handleGenerateSVG = async () => {
+    if (!editQ) return;
+    setGenImgStatus("loading");
+    setGenImgError("");
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Sesi tidak ditemukan");
+
+      const { data, error } = await supabase.functions.invoke("generate-questions", {
+        body: {
+          action: "generate_svg_illustration",
+          question_text: editQ.question_text,
+          options: [editQ.a, editQ.b, editQ.c, editQ.d, editQ.e].filter(Boolean),
+        },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (error || data?.error) throw new Error(data?.error ?? error?.message);
+      setEditQ({ ...editQ, svg_content: data.svg_content });
+      setGenImgStatus("idle");
+    } catch (e: any) {
+      setGenImgStatus("error");
+      setGenImgError(e.message ?? "Gagal generate SVG");
+    }
+  };
+
   const totalPages = Math.ceil(bankTotalCount / bankPageSize);
 
   // Only assigned filter is client-side (within current page)
@@ -471,22 +563,90 @@ export function GlobalBankTable({
                           }}
                           className="h-3.5 w-3.5 rounded accent-primary shrink-0 cursor-pointer"
                         />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                            <Badge variant="outline" className="uppercase text-[9px] px-1 py-0 h-4 shrink-0">{q.subtest ?? "tiu"}</Badge>
-                            {q.topic && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">{q.topic}</Badge>}
-                            {(q.source ?? "manual") === "ai"
-                              ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-purple-100 text-purple-700 border-purple-300">Dari AI</Badge>
-                              : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-gray-100 text-gray-600 border-gray-300">Dari Manual</Badge>
-                            }
-                            {q.assign_count === 0
-                              ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-yellow-50 text-yellow-700 border-yellow-300">Belum di-assign</Badge>
-                              : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-blue-50 text-blue-700 border-blue-300">Di {q.assign_count} tryout</Badge>
-                            }
+                        <div 
+                          className="flex-1 min-w-0 cursor-pointer group"
+                          onClick={() => setExpandedId(expandedId === q.id ? null : q.id)}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Badge variant="outline" className="uppercase text-[9px] px-1 py-0 h-4 shrink-0">{q.subtest ?? "tiu"}</Badge>
+                                {q.topic && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">{q.topic}</Badge>}
+                                {q.svg_content && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0 border-blue-200 text-blue-600 bg-blue-50">SVG</Badge>}
+                                {(q.source ?? "manual") === "ai"
+                                  ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-purple-100 text-purple-700 border-purple-300">Dari AI</Badge>
+                                  : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-gray-100 text-gray-600 border-gray-300">Dari Manual</Badge>
+                                }
+                                {q.assign_count === 0
+                                  ? <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-yellow-50 text-yellow-700 border-yellow-300">Belum di-assign</Badge>
+                                  : <Badge className="text-[9px] px-1 py-0 h-4 shrink-0 bg-blue-50 text-blue-700 border-blue-300">Di {q.assign_count} tryout</Badge>
+                                }
+                              </div>
+                              <div className="text-muted-foreground transition-transform duration-200">
+                                {expandedId === q.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                              </div>
+                            </div>
+                            <p className="text-xs leading-snug text-foreground group-hover:text-primary transition-colors">{q.question_text}</p>
+                            
+                            {/* Accordion Content */}
+                            {expandedId === q.id && (
+                              <div className="mt-3 space-y-3 pt-3 border-t border-dashed animate-in fade-in slide-in-from-top-1 duration-200" onClick={e => e.stopPropagation()}>
+                                {q.svg_content && (
+                                  <div className="rounded-lg border bg-white p-3 max-w-full overflow-hidden [&_svg]:max-w-full [&_svg]:h-auto">
+                                    <div dangerouslySetInnerHTML={{ __html: q.svg_content }} />
+                                  </div>
+                                )}
+                                {q.image_url && !q.svg_content && (
+                                  <img src={q.image_url} alt="Soal" className="max-h-48 rounded border shadow-sm object-contain" />
+                                )}
+                                
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Opsi Jawaban</p>
+                                    <ul className="space-y-1">
+                                      {q.options.map((opt, i) => (
+                                        <li key={i} className={cn(
+                                          "text-xs px-2.5 py-1.5 rounded border transition-colors",
+                                          opt === q.correct_answer ? "bg-green-50 border-green-200 text-green-900 font-medium" : "bg-background border-border"
+                                        )}>
+                                          <span className="font-bold mr-2 text-[10px] text-muted-foreground">{String.fromCharCode(65+i)}.</span>
+                                          {opt}
+                                          {opt === q.correct_answer && <Check className="h-3 w-3 inline ml-1.5 text-green-600" />}
+                                          {q.subtest === "tkp" && q.option_points && (
+                                            <Badge variant="outline" className="ml-2 text-[9px] h-3.5">{q.option_points[opt] ?? 0} pts</Badge>
+                                          )}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Pembahasan</p>
+                                    <div className="text-xs p-2.5 bg-blue-50/50 rounded-lg border border-blue-100 text-blue-900 leading-relaxed italic">
+                                      {q.explanation || "Tidak ada pembahasan."}
+                                    </div>
+                                    <div className="flex gap-2 pt-2">
+                                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={() => {
+                                        setEditQ({
+                                          ...q,
+                                          a: q.options[0] ?? "", b: q.options[1] ?? "", c: q.options[2] ?? "", d: q.options[3] ?? "", e: q.options[4] ?? "",
+                                          correct: q.correct_answer,
+                                          pa: q.option_points?.[q.options[0]] ?? 0,
+                                          pb: q.option_points?.[q.options[1]] ?? 0,
+                                          pc: q.option_points?.[q.options[2]] ?? 0,
+                                          pd: q.option_points?.[q.options[3]] ?? 0,
+                                          pe: q.option_points?.[q.options[4]] ?? 0,
+                                        } as any);
+                                      }}>
+                                        <Pencil className="h-3 w-3" /> Edit Soal
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <p className="text-xs leading-snug text-foreground">{q.question_text}</p>
                         </div>
-                        <div className="flex gap-1.5 shrink-0">
+                        <div className="flex gap-1.5 shrink-0 self-start mt-0.5">
                           <Button
                             size="sm" variant="outline" className="h-7 text-xs gap-1"
                             onClick={() => {
@@ -701,6 +861,152 @@ export function GlobalBankTable({
                 </Button>
 
                 <Button variant="outline" onClick={() => setDistributeOpen(false)}>Batal</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Question Modal */}
+      {editQ && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget && !editUploadingImg) setEditQ(null); }}>
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2"><Pencil className="h-5 w-5" /> Edit Soal di Bank</h2>
+              <button onClick={() => setEditQ(null)} disabled={editUploadingImg}><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Subtes *</Label>
+                  <Select value={editQ.subtest} onValueChange={(v) => setEditQ({ ...editQ, subtest: v as any })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="twk">TWK</SelectItem>
+                      <SelectItem value="tiu">TIU</SelectItem>
+                      <SelectItem value="tkp">TKP</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Topik</Label>
+                  <Input value={editQ.topic || ""} onChange={(e) => setEditQ({ ...editQ, topic: e.target.value })} placeholder="cth: Analogi" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Pertanyaan *</Label>
+                <Textarea value={editQ.question_text} onChange={(e) => setEditQ({ ...editQ, question_text: e.target.value })} rows={3} />
+              </div>
+
+              {/* SVG / Image Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <Label className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Ilustrasi SVG (Dukungan AI)</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm" variant="outline" className="h-8 text-xs gap-1.5"
+                      onClick={handleGenerateSVG}
+                      disabled={genImgStatus === "loading"}
+                    >
+                      {genImgStatus === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                      Generate via AI
+                    </Button>
+                    {editQ.svg_content && (
+                      <Button size="sm" variant="ghost" className="h-8 text-xs text-destructive gap-1.5" onClick={() => setEditQ({ ...editQ, svg_content: "" })}>
+                        <Trash2 className="h-3 w-3" /> Hapus SVG
+                      </Button>
+                    )}
+                  </div>
+                  <Textarea
+                    placeholder="Tempel kode SVG di sini..."
+                    className="font-mono text-[10px] h-24"
+                    value={editQ.svg_content || ""}
+                    onChange={(e) => setEditQ({ ...editQ, svg_content: e.target.value })}
+                  />
+                  {genImgError && <p className="text-[10px] text-destructive">{genImgError}</p>}
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="flex items-center gap-2"><Image className="h-4 w-4" /> Gambar Standard</Label>
+                  <input ref={editImgRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setEditImageFile(f); }} />
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => editImgRef.current?.click()}>
+                      <Upload className="h-3 w-3" /> {editImageFile ? "Ganti File" : "Upload Gambar"}
+                    </Button>
+                    {(editImageFile || editQ.image_url) && (
+                      <Button size="sm" variant="ghost" className="h-8 text-xs text-destructive gap-1.5" onClick={() => { setEditImageFile(null); setEditQ({ ...editQ, image_url: "" }); }}>
+                        <Trash2 className="h-3 w-3" /> Hapus
+                      </Button>
+                    )}
+                  </div>
+                  <div className="h-24 rounded border flex items-center justify-center bg-muted/20 overflow-hidden">
+                    {editImageFile ? (
+                      <img src={URL.createObjectURL(editImageFile)} alt="Preview" className="max-h-full object-contain" />
+                    ) : editQ.image_url ? (
+                      <img src={editQ.image_url} alt="Current" className="max-h-full object-contain" />
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground italic">Tidak ada gambar</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {editQ.svg_content && (
+                <div className="p-3 border rounded-lg bg-white overflow-hidden [&_svg]:max-w-full [&_svg]:h-auto">
+                  <Label className="text-[10px] uppercase text-muted-foreground mb-1 block">Preview SVG</Label>
+                  <div dangerouslySetInnerHTML={{ __html: editQ.svg_content }} />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>Pilihan Jawaban & Poin</Label>
+                <div className="grid gap-2">
+                  {(["a", "b", "c", "d", "e"] as const).map((k) => (
+                    <div key={k} className="flex gap-2">
+                      <Input
+                        className="flex-1"
+                        placeholder={`Opsi ${k.toUpperCase()}`}
+                        value={(editQ as any)[k]}
+                        onChange={(e) => setEditQ({ ...editQ, [k]: e.target.value } as any)}
+                      />
+                      {editQ.subtest === "tkp" ? (
+                        <Input
+                          type="number"
+                          className="w-16 h-10"
+                          value={(editQ as any)["p" + k]}
+                          onChange={(e) => setEditQ({ ...editQ, ["p" + k]: +e.target.value } as any)}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className={cn(
+                            "w-10 h-10 rounded border flex items-center justify-center transition-colors",
+                            editQ.correct === (editQ as any)[k] && (editQ as any)[k]
+                              ? "bg-green-500 border-green-500 text-white"
+                              : "border-border hover:bg-accent"
+                          )}
+                          onClick={() => { if ((editQ as any)[k]) setEditQ({ ...editQ, correct: (editQ as any)[k] }); }}
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Pembahasan</Label>
+                <Textarea value={editQ.explanation || ""} onChange={(e) => setEditQ({ ...editQ, explanation: e.target.value })} rows={3} />
+              </div>
+
+              <div className="flex gap-3 pt-4 sticky bottom-0 bg-background pb-2">
+                <Button className="flex-1 gap-2" onClick={handleSaveEdit} disabled={editUploadingImg}>
+                  {editUploadingImg ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Simpan Perubahan
+                </Button>
+                <Button variant="outline" onClick={() => setEditQ(null)} disabled={editUploadingImg}>Batal</Button>
               </div>
             </div>
           </div>

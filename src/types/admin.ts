@@ -127,6 +127,12 @@ export type EditQ = {
 export type GlobalBankQ = {
   id: string; question_text: string; subtest: string; topic?: string | null;
   source?: string | null; exam_id: string | null; assign_count: number;
+  options: string[];
+  correct_answer: string;
+  explanation?: string | null;
+  image_url?: string | null;
+  svg_content?: string | null;
+  option_points?: Record<string, number> | null;
 };
 
 export const emptyNewQ = () => ({
