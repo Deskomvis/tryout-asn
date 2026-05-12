@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { GraduationCap, Menu } from "lucide-react";
-import logo from "@/assets/logo-ruangcasn.webp";
 
 const links = [
   { href: "#beranda", label: "Beranda" },
@@ -17,7 +16,10 @@ export const Navbar = () => {
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-lg">
       <nav className="container flex h-16 items-center justify-between">
         <a href="#beranda" className="flex items-center gap-2">
-          <img src={logo} alt="Logo Ruang CASN" className="h-10 w-auto" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <GraduationCap className="h-5 w-5" />
+          </div>
+          <span className="text-lg font-bold tracking-tight">Ruang CASN</span>
         </a>
 
         <div className="hidden items-center gap-8 md:flex">
