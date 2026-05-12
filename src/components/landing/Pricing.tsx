@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
 import { motion } from "framer-motion";
-
-const ADMIN_WA = "6281234567890";
+import { useAdminSettings } from "@/hooks/useAdminSettings";
 
 const packages = [
   {
@@ -39,12 +38,13 @@ const packages = [
   },
 ];
 
-const buyLink = (pkg: string) =>
-  `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(
+const buyLink = (waNumber: string, pkg: string) =>
+  `https://wa.me/${waNumber}?text=${encodeURIComponent(
     `Halo Admin, saya ingin memesan layanan ${pkg}.`
   )}`;
 
 export const Pricing = () => {
+  const { settings } = useAdminSettings();
   return (
     <section id="paket" className="bg-secondary/40 py-20 md:py-24">
       <div className="container">
@@ -97,7 +97,7 @@ export const Pricing = () => {
                     <span className="text-3xl font-bold tracking-tight">Rp{p.price}</span>
                   </div>
                   <Button asChild className="w-full" size="lg">
-                    <a href={buyLink(p.name)} target="_blank" rel="noopener noreferrer">
+                    <a href={buyLink(settings.wa_number, p.name)} target="_blank" rel="noopener noreferrer">
                       Pesan Layanan
                     </a>
                   </Button>

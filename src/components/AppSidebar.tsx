@@ -57,9 +57,7 @@ export const AppSidebar = () => {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <NavLink to="/dashboard" className="flex items-center gap-2 px-2 py-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <GraduationCap className="h-5 w-5" aria-hidden="true" />
-          </div>
+          <img src="/src/assets/logo-ruangcasn.webp" alt="Logo" className="h-8 w-auto shrink-0" />
           <span className="text-base font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">Ruang CASN</span>
         </NavLink>
       </SidebarHeader>

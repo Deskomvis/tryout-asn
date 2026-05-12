@@ -1,11 +1,14 @@
 import { MessageCircle } from "lucide-react";
-
-const ADMIN_WA = "6281234567890";
+import { useAdminSettings } from "@/hooks/useAdminSettings";
 
 export const WhatsAppButton = () => {
+  const { settings, loading } = useAdminSettings();
+
+  if (loading) return null;
+
   return (
     <a
-      href={`https://wa.me/${ADMIN_WA}?text=${encodeURIComponent("Halo Admin, saya ingin bertanya tentang Ruang CASN.")}`}
+      href={`https://wa.me/${settings.wa_number}?text=${encodeURIComponent(settings.wa_text)}`}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chat WhatsApp"

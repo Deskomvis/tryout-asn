@@ -161,6 +161,11 @@ const Admin = () => {
   const [savingPixel, setSavingPixel] = useState(false);
   const [savingLynkKey, setSavingLynkKey] = useState(false);
 
+  // WhatsApp Settings
+  const [adminWaNumber, setAdminWaNumber] = useState("6289611777177");
+  const [adminWaText, setAdminWaText] = useState("Halo Admin, saya ingin konsultasi mengenai Ruang CASN.");
+  const [savingWa, setSavingWa] = useState(false);
+
   const refresh = async () => {
     const { data: e } = await supabase.from("exams")
       .select("id,title,total_questions,description,duration,price,original_price,bundle_size,category,subcategory,exam_type,passing_score,cta_link,cover_image_url,parent_exam_id")
@@ -295,12 +300,14 @@ const Admin = () => {
   // Load saved keys on mount
   useEffect(() => {
     (async () => {
-      const { data: rows } = await supabase.from("admin_settings").select("key,value").in("key", ["kie_api_key", "lynk_merchant_key", "meta_pixel_id", "meta_capi_token"]);
+      const { data: rows } = await supabase.from("admin_settings").select("key,value").in("key", ["kie_api_key", "lynk_merchant_key", "meta_pixel_id", "meta_capi_token", "wa_number", "wa_text"]);
       (rows ?? []).forEach((r: any) => {
         if (r.key === "kie_api_key") setKieApiKey(r.value);
         if (r.key === "lynk_merchant_key") setLynkMerchantKey(r.value);
         if (r.key === "meta_pixel_id") setMetaPixelId(r.value ?? "");
         if (r.key === "meta_capi_token") setMetaCapiToken(r.value ?? "");
+        if (r.key === "wa_number") setAdminWaNumber(r.value ?? "6289611777177");
+        if (r.key === "wa_text") setAdminWaText(r.value ?? "Halo Admin, saya ingin konsultasi mengenai Ruang CASN.");
       });
     })();
   }, []);
@@ -405,16 +412,26 @@ const Admin = () => {
   };
 
   const savePixelSettings = async () => {
-    if (!metaPixelId.trim()) return toast.error("Masukkan Pixel ID terlebih dahulu");
     setSavingPixel(true);
     const upserts = [
-      { key: "meta_pixel_id", value: metaPixelId.trim(), updated_at: new Date().toISOString() },
-      ...(metaCapiToken.trim() ? [{ key: "meta_capi_token", value: metaCapiToken.trim(), updated_at: new Date().toISOString() }] : []),
+      { key: "meta_pixel_id", value: metaPixelId },
+      { key: "meta_capi_token", value: metaCapiToken }
     ];
     const { error } = await supabase.from("admin_settings").upsert(upserts, { onConflict: "key" });
     setSavingPixel(false);
-    if (error) return toast.error("Gagal menyimpan: " + error.message);
-    toast.success("Meta Pixel settings berhasil disimpan");
+    if (error) return toast.error("Gagal simpan pixel: " + error.message);
+    toast.success("Pengaturan Pixel & CAPI disimpan");
+  };
+
+  const saveWaSettings = async () => {
+    setSavingWa(true);
+    const { error } = await supabase.from("admin_settings").upsert([
+      { key: "wa_number", value: adminWaNumber },
+      { key: "wa_text", value: adminWaText },
+    ], { onConflict: "key" });
+    setSavingWa(false);
+    if (error) return toast.error("Gagal simpan WA: " + error.message);
+    toast.success("Pengaturan WhatsApp disimpan");
   };
 
   const approveTopup = async (t: Topup) => {
@@ -2702,7 +2719,6 @@ const Admin = () => {
                     <Check className="h-3.5 w-3.5 shrink-0" /> Pixel ID tersimpan. Pixel akan aktif di semua halaman.
                   </div>
                 )}
-
                 {/* Event reference table */}
                 <div className="space-y-2 pt-2">
                   <p className="text-xs font-semibold text-foreground">Event yang sudah terintegrasi:</p>
@@ -2741,6 +2757,54 @@ const Admin = () => {
                     * CAPI (server-side) akan diaktifkan menggunakan Access Token untuk Purchase & Lead events — menambah akurasi atribusi dan menangkap konversi yang diblokir oleh adblocker.
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* WhatsApp Settings */}
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold flex items-center gap-2">
+                  <span className="text-base">💬</span> Pengaturan WhatsApp Admin
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Atur nomor WhatsApp admin dan pesan otomatis untuk konsultasi di widget chat.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4 max-w-lg">
+                <div className="space-y-2">
+                  <Label htmlFor="wa-number">Nomor WhatsApp Admin</Label>
+                  <Input
+                    id="wa-number"
+                    placeholder="cth: 6289611777177"
+                    value={adminWaNumber}
+                    onChange={(e) => setAdminWaNumber(e.target.value)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Gunakan format internasional tanpa tanda + atau spasi (cth: 628...).
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="wa-text">Pesan Otomatis (Custom Text)</Label>
+                  <Textarea
+                    id="wa-text"
+                    placeholder="Halo Admin, saya ingin konsultasi..."
+                    value={adminWaText}
+                    onChange={(e) => setAdminWaText(e.target.value)}
+                    rows={3}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Pesan ini akan muncul secara otomatis saat user mengklik tombol WhatsApp.
+                  </p>
+                </div>
+                <Button onClick={saveWaSettings} disabled={savingWa} className="gap-2">
+                  {savingWa ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                  {savingWa ? "Menyimpan..." : "Simpan Pengaturan WA"}
+                </Button>
+                {adminWaNumber && !savingWa && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-800 flex items-center gap-2">
+                    <Check className="h-3.5 w-3.5 shrink-0" /> Pengaturan WhatsApp tersimpan.
+                  </div>
+                )}
               </CardContent>
             </Card>
 

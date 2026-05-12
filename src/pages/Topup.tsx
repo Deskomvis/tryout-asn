@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useBalance, formatPoint } from "@/hooks/useBalance";
+import { useAdminSettings } from "@/hooks/useAdminSettings";
 import { buildTopupWhatsAppUrl } from "@/lib/config";
 
 type TopupRow = {
@@ -33,6 +34,7 @@ const amountSchema = z
 const Topup = () => {
   const { user } = useAuth();
   const { balance } = useBalance();
+  const { settings } = useAdminSettings();
   const [amount, setAmount] = useState<number>(50000);
   const [submitting, setSubmitting] = useState(false);
   const [history, setHistory] = useState<TopupRow[]>([]);
@@ -67,6 +69,7 @@ const Topup = () => {
       userName: user.user_metadata?.full_name ?? user.email ?? "Pengguna",
       userEmail: user.email ?? "",
       requestId: data.id,
+      waNumber: settings.wa_number,
     });
     window.open(url, "_blank", "noopener,noreferrer");
     toast.success("Permintaan dibuat. Lanjutkan pembayaran via WhatsApp admin.");

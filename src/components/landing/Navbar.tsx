@@ -16,9 +16,7 @@ export const Navbar = () => {
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-lg">
       <nav className="container flex h-16 items-center justify-between">
         <a href="#beranda" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <GraduationCap className="h-5 w-5" />
-          </div>
+          <img src="/src/assets/logo-ruangcasn.webp" alt="Logo Ruang CASN" className="h-9 w-auto" />
           <span className="text-lg font-bold tracking-tight">Ruang CASN</span>
         </a>
 
