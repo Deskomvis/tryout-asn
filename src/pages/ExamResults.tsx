@@ -557,14 +557,15 @@ const ExamResults = () => {
                           <div className="px-6 py-4 border-b">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Semua Pilihan</p>
                             <div className="space-y-2">
-                              {question.options.map((option) => {
+                              {question.options.map((option, idx) => {
                                 const isUserAnswer = userAnswer === option;
                                 const isCorrect = option === question.correct_answer;
+                                const label = String.fromCharCode(65 + idx);
                                 return (
                                   <div
                                     key={option}
                                     className={cn(
-                                      "flex items-start gap-2 p-3 rounded-lg border text-sm",
+                                      "flex items-start gap-3 p-3 rounded-lg border text-sm",
                                       isCorrect
                                         ? "border-green-400 bg-green-50"
                                         : isUserAnswer
@@ -572,13 +573,12 @@ const ExamResults = () => {
                                         : "border-border bg-background"
                                     )}
                                   >
-                                    <span className={cn(
-                                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 mt-0.5",
-                                      isCorrect ? "border-green-500 bg-green-500" : isUserAnswer ? "border-red-400 bg-red-400" : "border-muted-foreground/30"
+                                    <div className={cn(
+                                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold transition-colors mt-0.5",
+                                      isCorrect ? "bg-green-500 border-green-500 text-white" : isUserAnswer ? "bg-red-500 border-red-500 text-white" : "border-muted-foreground/30 text-muted-foreground"
                                     )}>
-                                      {isCorrect && <span className="h-2 w-2 rounded-full bg-white" />}
-                                      {isUserAnswer && !isCorrect && <span className="h-2 w-2 rounded-full bg-white" />}
-                                    </span>
+                                      {label}
+                                    </div>
                                     <span className="flex-1">{option}</span>
                                     {isCorrect && (
                                       <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full shrink-0">Benar</span>

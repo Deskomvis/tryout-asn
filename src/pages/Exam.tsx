@@ -238,8 +238,9 @@ const Exam = () => {
                       </div>
                     )}
                     <div className="space-y-2">
-                      {q.options.map((opt) => {
+                      {q.options.map((opt, idx) => {
                         const selected = answers[q.id] === opt;
+                        const label = String.fromCharCode(65 + idx);
                         return (
                           <button
                             key={opt}
@@ -252,12 +253,12 @@ const Exam = () => {
                                 : "border-border hover:bg-accent"
                             )}
                           >
-                            <span className={cn(
-                              "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
-                              selected ? "border-primary bg-primary" : "border-muted-foreground/40"
+                            <div className={cn(
+                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold transition-colors",
+                              selected ? "bg-primary border-primary text-white" : "border-muted-foreground/30 text-muted-foreground"
                             )}>
-                              {selected && <span className="h-2 w-2 rounded-full bg-primary-foreground" />}
-                            </span>
+                              {label}
+                            </div>
                             <span className="flex-1">{opt}</span>
                           </button>
                         );
