@@ -14,7 +14,7 @@ import {
   Trash2, Check, X, Plus, Sparkles, Loader2,
   Pencil, Image, Upload, Key, Eye, EyeOff, ChevronLeft, ChevronDown, ChevronUp,
   RotateCcw, Copy,
-  BookOpen, FileText, Package,
+  BookOpen, FileText, Package, MessageCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
