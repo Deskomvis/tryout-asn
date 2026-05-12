@@ -525,29 +525,90 @@ export function GlobalBankTable({
             </div>
             <div className="p-6 space-y-3">
               <p className="text-sm text-muted-foreground">{globalBankSelectedIds.size} soal akan ditambahkan ke tryout yang dipilih di bawah (duplikat diabaikan otomatis).</p>
-              <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                {exams.map((ex) => {
-                  const isTarget = distributeTargetIds.has(ex.id);
-                  return (
-                    <label key={ex.id} className={cn("flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors", isTarget ? "border-primary bg-primary/5" : "border-border hover:bg-accent")}>
-                      <input
-                        type="checkbox"
-                        checked={isTarget}
-                        onChange={(e) => {
-                          const next = new Set(distributeTargetIds);
-                          e.target.checked ? next.add(ex.id) : next.delete(ex.id);
-                          setDistributeTargetIds(next);
-                        }}
-                        className="h-3.5 w-3.5 accent-primary"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium leading-tight">{ex.title}</p>
-                        <p className="text-[10px] text-muted-foreground">{ex.total_questions} soal saat ini</p>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
+
+              {/* Build the list: only show sub-packages and standalone exams (not bundle parents) */}
+              {(() => {
+                const parentIds = new Set(exams.filter(e => e.parent_exam_id).map(e => e.parent_exam_id!));
+                // Standalone exams: no parent AND no children
+                const standaloneExams = exams.filter(e => !e.parent_exam_id && !parentIds.has(e.id));
+                // Bundle parents (to group their children)
+                const parentExams = exams.filter(e => !e.parent_exam_id && parentIds.has(e.id));
+
+                return (
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                    {/* Standalone exams */}
+                    {standaloneExams.map((ex) => {
+                      const isTarget = distributeTargetIds.has(ex.id);
+                      return (
+                        <label key={ex.id} className={cn("flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors", isTarget ? "border-primary bg-primary/5" : "border-border hover:bg-accent")}>
+                          <input
+                            type="checkbox"
+                            checked={isTarget}
+                            onChange={(e) => {
+                              const next = new Set(distributeTargetIds);
+                              e.target.checked ? next.add(ex.id) : next.delete(ex.id);
+                              setDistributeTargetIds(next);
+                            }}
+                            className="h-3.5 w-3.5 accent-primary"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium leading-tight">{ex.title}</p>
+                            <p className="text-[10px] text-muted-foreground">{ex.total_questions} soal saat ini</p>
+                          </div>
+                        </label>
+                      );
+                    })}
+
+                    {/* Bundle parents → show only their sub-packages */}
+                    {parentExams.map((parent) => {
+                      const children = exams
+                        .filter(e => e.parent_exam_id === parent.id)
+                        .sort((a, b) => a.title.localeCompare(b.title));
+                      if (children.length === 0) return null;
+                      return (
+                        <div key={parent.id} className="space-y-1">
+                          {/* Parent label (non-selectable) */}
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1 pt-1">
+                            📦 {parent.title}
+                          </p>
+                          {children.map((ex) => {
+                            const isTarget = distributeTargetIds.has(ex.id);
+                            return (
+                              <label
+                                key={ex.id}
+                                className={cn(
+                                  "flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ml-2",
+                                  isTarget ? "border-primary bg-primary/5" : "border-border hover:bg-accent"
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isTarget}
+                                  onChange={(e) => {
+                                    const next = new Set(distributeTargetIds);
+                                    e.target.checked ? next.add(ex.id) : next.delete(ex.id);
+                                    setDistributeTargetIds(next);
+                                  }}
+                                  className="h-3.5 w-3.5 accent-primary"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium leading-tight">{ex.title}</p>
+                                  <p className="text-[10px] text-muted-foreground">{ex.total_questions} soal saat ini</p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+
+                    {standaloneExams.length === 0 && parentExams.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">Belum ada tryout tersedia.</p>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="flex gap-2 pt-2">
                 <Button
                   onClick={onBulkDistribute}
@@ -556,6 +617,7 @@ export function GlobalBankTable({
                 >
                   {distributing ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Memproses...</> : `Distribute ke ${distributeTargetIds.size} Tryout`}
                 </Button>
+
                 <Button variant="outline" onClick={() => setDistributeOpen(false)}>Batal</Button>
               </div>
             </div>
