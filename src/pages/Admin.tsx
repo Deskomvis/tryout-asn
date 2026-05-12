@@ -745,9 +745,10 @@ const Admin = () => {
     refresh();
   };
 
-  const generateViaAI = async (targetExamId?: string) => {
+  const generateViaAI = async (targetExamId?: string, bankOnly = false) => {
     const examIdToUse = targetExamId ?? selectedExam;
-    if (!targetExamId && !selectedExam) return toast.error("Pilih tryout dulu");
+    // If not bankOnly mode and no exam selected, show error
+    if (!bankOnly && !targetExamId && !selectedExam) return toast.error("Pilih tryout dulu");
     setAiStatus("loading"); setAiResult(null); setAiError("");
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1832,7 +1833,7 @@ const Admin = () => {
 
                     <div className="flex flex-wrap items-center gap-3">
                       <Button
-                        onClick={generateViaAI}
+                        onClick={() => generateViaAI(undefined, true)}
                         disabled={aiStatus === "loading" || aiImageUploading}
                         className="gap-2"
                       >
