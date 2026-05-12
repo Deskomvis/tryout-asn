@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import logo from "@/assets/logo-ruangcasn.webp";
 
 const items = [
   { title: "Home", url: "/dashboard", icon: Home },
@@ -57,8 +58,7 @@ export const AppSidebar = () => {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <NavLink to="/dashboard" className="flex items-center gap-2 px-2 py-3">
-          <img src="/src/assets/logo-ruangcasn.webp" alt="Logo" className="h-8 w-auto shrink-0" />
-          <span className="text-base font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">Ruang CASN</span>
+          <img src={logo} alt="Logo" className="h-8 w-auto shrink-0" />
         </NavLink>
       </SidebarHeader>
 

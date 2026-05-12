@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { GraduationCap } from "lucide-react";
 import { fbq } from "@/lib/metaPixel";
+import logo from "@/assets/logo-ruangcasn.webp";
 
 const usernameSchema = z
   .string()
@@ -95,8 +96,7 @@ const Auth = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <Link to="/" className="mx-auto flex items-center gap-2">
-            <img src="/src/assets/logo-ruangcasn.webp" alt="Logo" className="h-9 w-auto" />
-            <span className="text-lg font-bold">Ruang CASN</span>
+            <img src={logo} alt="Logo" className="h-10 w-auto" />
           </Link>
           <h1 className="mt-2 text-xl font-semibold">Selamat datang</h1>
           <p className="text-sm text-muted-foreground">Masuk atau daftar untuk mulai tryout</p>
