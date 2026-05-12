@@ -1013,17 +1013,41 @@ const Admin = () => {
     const qIds = Array.from(globalBankSelectedIds);
     if (qIds.length === 0) return;
     setDeleting(true);
-    // Remove assignments first
-    await (supabase as any).from("exam_question_assignments").delete().in("question_id", qIds);
-    // Delete questions
-    const { error } = await supabase.from("questions").delete().in("id", qIds);
-    setDeleting(false);
-    setDeleteConfirmOpen(false);
-    if (error) { toast.error("Gagal hapus soal: " + error.message); return; }
-    toast.success(`${qIds.length} soal dihapus dari bank`);
-    setGlobalBankSelectedIds(new Set());
-    await refresh();
-    loadGlobalBank();
+
+    try {
+      // 1. Get affected exams before deleting assignments
+      const { data: assignments } = await supabase
+        .from("exam_question_assignments")
+        .select("exam_id")
+        .in("question_id", qIds);
+      const affectedExamIds = Array.from(new Set(assignments?.map((a: any) => a.exam_id) || []));
+
+      // 2. Remove assignments
+      await (supabase as any).from("exam_question_assignments").delete().in("question_id", qIds);
+      
+      // 3. Delete questions
+      const { error } = await supabase.from("questions").delete().in("id", qIds);
+      if (error) throw error;
+
+      // 4. Update total_questions for all affected exams
+      for (const examId of affectedExamIds) {
+        const { count: total } = await (supabase as any)
+          .from("exam_question_assignments")
+          .select("*", { count: "exact", head: true })
+          .eq("exam_id", examId);
+        await supabase.from("exams").update({ total_questions: total ?? 0 }).eq("id", examId);
+      }
+
+      toast.success(`${qIds.length} soal dihapus dari bank`);
+      setGlobalBankSelectedIds(new Set());
+      setDeleteConfirmOpen(false);
+      await refresh();
+      loadGlobalBank();
+    } catch (error: any) {
+      toast.error("Gagal hapus soal: " + error.message);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // Open re-extract confirm modal — fetch stats first

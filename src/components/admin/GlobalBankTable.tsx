@@ -602,10 +602,14 @@ export function GlobalBankTable({
 
               {/* Build the list: only show sub-packages and standalone exams (not bundle parents) */}
               {(() => {
-                const parentIds = new Set(exams.filter(e => e.parent_exam_id).map(e => e.parent_exam_id!));
-                // Standalone exams: no parent AND no children
+                const parentIds = new Set([
+                  ...exams.filter(e => e.parent_exam_id).map(e => e.parent_exam_id!),
+                  ...exams.filter(e => (e.bundle_size || 0) > 1).map(e => e.id)
+                ]);
+                
+                // Standalone exams: no parent AND not a bundle parent
                 const standaloneExams = exams.filter(e => !e.parent_exam_id && !parentIds.has(e.id));
-                // Bundle parents (to group their children)
+                // Bundle parents (to group their children or show empty state)
                 const parentExams = exams.filter(e => !e.parent_exam_id && parentIds.has(e.id));
 
                 return (
@@ -633,45 +637,49 @@ export function GlobalBankTable({
                       );
                     })}
 
-                    {/* Bundle parents → show only their sub-packages */}
                     {parentExams.map((parent) => {
                       const children = exams
                         .filter(e => e.parent_exam_id === parent.id)
                         .sort((a, b) => a.title.localeCompare(b.title));
-                      if (children.length === 0) return null;
                       return (
                         <div key={parent.id} className="space-y-1">
                           {/* Parent label (non-selectable) */}
                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1 pt-1">
                             📦 {parent.title}
                           </p>
-                          {children.map((ex) => {
-                            const isTarget = distributeTargetIds.has(ex.id);
-                            return (
-                              <label
-                                key={ex.id}
-                                className={cn(
-                                  "flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ml-2",
-                                  isTarget ? "border-primary bg-primary/5" : "border-border hover:bg-accent"
-                                )}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isTarget}
-                                  onChange={(e) => {
-                                    const next = new Set(distributeTargetIds);
-                                    e.target.checked ? next.add(ex.id) : next.delete(ex.id);
-                                    setDistributeTargetIds(next);
-                                  }}
-                                  className="h-3.5 w-3.5 accent-primary"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium leading-tight">{ex.title}</p>
-                                  <p className="text-[10px] text-muted-foreground">{ex.total_questions} soal saat ini</p>
-                                </div>
-                              </label>
-                            );
-                          })}
+                          {children.length === 0 ? (
+                            <p className="text-[10px] text-muted-foreground italic px-3 py-2 border border-dashed rounded-lg ml-2">
+                              Belum ada sub-paket. Buat sub-paket terlebih dahulu di menu "Paket Tryout".
+                            </p>
+                          ) : (
+                            children.map((ex) => {
+                              const isTarget = distributeTargetIds.has(ex.id);
+                              return (
+                                <label
+                                  key={ex.id}
+                                  className={cn(
+                                    "flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ml-2",
+                                    isTarget ? "border-primary bg-primary/5" : "border-border hover:bg-accent"
+                                  )}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isTarget}
+                                    onChange={(e) => {
+                                      const next = new Set(distributeTargetIds);
+                                      e.target.checked ? next.add(ex.id) : next.delete(ex.id);
+                                      setDistributeTargetIds(next);
+                                    }}
+                                    className="h-3.5 w-3.5 accent-primary"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium leading-tight">{ex.title}</p>
+                                    <p className="text-[10px] text-muted-foreground">{ex.total_questions} soal saat ini</p>
+                                  </div>
+                                </label>
+                              );
+                            })
+                          )}
                         </div>
                       );
                     })}
