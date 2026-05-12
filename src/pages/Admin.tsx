@@ -603,7 +603,8 @@ const Admin = () => {
   };
 
   const addQuestion = async () => {
-    if (!selectedExam) return toast.error("Pilih tryout dulu");
+    // We allow adding even without selectedExam (it goes to global bank)
+    const examIdToUse = selectedExam || null;
     if (!newQ.question_text.trim()) return toast.error("Pertanyaan wajib diisi");
     const optsRaw = [
       { v: newQ.a, p: newQ.pa }, { v: newQ.b, p: newQ.pb }, { v: newQ.c, p: newQ.pc },
@@ -622,7 +623,7 @@ const Admin = () => {
 
     const options = optsRaw.map((o) => o.v);
     const payload: any = {
-      exam_id: selectedExam, question_text: newQ.question_text.trim(),
+      exam_id: examIdToUse, question_text: newQ.question_text.trim(),
       options, subtest: newQ.subtest, explanation: newQ.explanation.trim(), image_url: imageUrl || null,
       topic: newQ.topic.trim() || null, source: "manual",
     };
@@ -635,13 +636,18 @@ const Admin = () => {
     }
     const { data: newQData, error } = await supabase.from("questions").insert(payload).select("id").single();
     if (error) return toast.error(error.message);
-    // Also assign to this exam via junction table
-    await (supabase as any).from("exam_question_assignments").insert({
-      exam_id: selectedExam, question_id: (newQData as any).id, position: questions.length + 1,
-    });
-    await supabase.from("exams").update({ total_questions: questions.length + 1 }).eq("id", selectedExam);
-    toast.success("Soal ditambahkan");
-    setNewQ(emptyNewQ()); setNewQImageFile(null); setAddQuestionMode(null); refresh();
+    
+    // Also assign to this exam via junction table if exam selected
+    if (examIdToUse) {
+      await (supabase as any).from("exam_question_assignments").insert({
+        exam_id: examIdToUse, question_id: (newQData as any).id, position: questions.length + 1,
+      });
+      await supabase.from("exams").update({ total_questions: questions.length + 1 }).eq("id", examIdToUse);
+    }
+    
+    toast.success(examIdToUse ? "Soal ditambahkan ke tryout" : "Soal ditambahkan ke bank");
+    setNewQ(emptyNewQ()); setNewQImageFile(null); setAddQuestionMode(null);
+    if (bankView === "list") loadGlobalBank(); else refresh();
   };
 
   const addQuestionToBank = async () => {
@@ -746,9 +752,12 @@ const Admin = () => {
   };
 
   const generateViaAI = async (targetExamId?: string, bankOnly = false) => {
-    const examIdToUse = targetExamId ?? selectedExam;
-    // If not bankOnly mode and no exam selected, show error
-    if (!bankOnly && !targetExamId && !selectedExam) return toast.error("Pilih tryout dulu");
+    const examIdToUse = bankOnly ? null : (targetExamId ?? selectedExam);
+    
+    // Only require exam if not in bank-only mode
+    if (!bankOnly && !examIdToUse) {
+      return toast.error("Pilih tryout dulu");
+    }
     setAiStatus("loading"); setAiResult(null); setAiError("");
     try {
       const { data: { session } } = await supabase.auth.getSession();
