@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const items = [
   { title: "Home", url: "/dashboard", icon: Home },
@@ -52,6 +54,21 @@ export const AppSidebar = () => {
   const location = useLocation();
   const isAdminPage = location.pathname === "/admin";
   const currentTab = new URLSearchParams(location.search).get("tab") ?? "questions";
+  const [waLink, setWaLink] = useState("https://wa.me/...");
+  const [teleLink, setTeleLink] = useState("https://t.me/...");
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("admin_settings").select("value").eq("key", "community_links").maybeSingle();
+      if (data?.value) {
+        try {
+          const parsed = JSON.parse(data.value);
+          if (parsed.whatsapp) setWaLink(parsed.whatsapp);
+          if (parsed.telegram) setTeleLink(parsed.telegram);
+        } catch (e) { console.error(e); }
+      }
+    })();
+  }, []);
 
   return (
     <Sidebar collapsible="icon">
@@ -96,7 +113,7 @@ export const AppSidebar = () => {
             <SidebarMenu className="gap-2">
               <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="WhatsApp Group">
-                  <a href="https://wa.me/..." target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium bg-green-50/50 text-green-700 hover:bg-green-100 transition-colors">
+                  <a href={waLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium bg-green-50/50 text-green-700 hover:bg-green-100 transition-colors">
                     <MessageCircle className="h-4 w-4" />
                     <span className="group-data-[collapsible=icon]:hidden">Grup WhatsApp</span>
                   </a>
@@ -104,7 +121,7 @@ export const AppSidebar = () => {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="Telegram Group">
-                  <a href="https://t.me/..." target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium bg-blue-50/50 text-blue-700 hover:bg-blue-100 transition-colors">
+                  <a href={teleLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium bg-blue-50/50 text-blue-700 hover:bg-blue-100 transition-colors">
                     <Send className="h-4 w-4" />
                     <span className="group-data-[collapsible=icon]:hidden">Grup Telegram</span>
                   </a>

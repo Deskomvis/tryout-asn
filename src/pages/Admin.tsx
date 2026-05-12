@@ -166,7 +166,10 @@ const Admin = () => {
   // WhatsApp Settings
   const [adminWaNumber, setAdminWaNumber] = useState("6289611777177");
   const [adminWaText, setAdminWaText] = useState("Halo Admin, saya ingin konsultasi mengenai Ruang CASN.");
+  const [waCommunityLink, setWaCommunityLink] = useState("");
+  const [teleCommunityLink, setTeleCommunityLink] = useState("");
   const [savingWa, setSavingWa] = useState(false);
+  const [savingCommunity, setSavingCommunity] = useState(false);
   const [dynamicCategories, setDynamicCategories] = useState<ExamCategory[]>([]);
 
   const fetchDynamicCats = async () => {
@@ -315,7 +318,7 @@ const Admin = () => {
   // Load saved keys on mount
   useEffect(() => {
     (async () => {
-      const { data: rows } = await supabase.from("admin_settings").select("key,value").in("key", ["kie_api_key", "lynk_merchant_key", "meta_pixel_id", "meta_capi_token", "wa_number", "wa_text"]);
+      const { data: rows } = await supabase.from("admin_settings").select("key,value").in("key", ["kie_api_key", "lynk_merchant_key", "meta_pixel_id", "meta_capi_token", "wa_number", "wa_text", "community_links"]);
       (rows ?? []).forEach((r: any) => {
         if (r.key === "kie_api_key") setKieApiKey(r.value);
         if (r.key === "lynk_merchant_key") setLynkMerchantKey(r.value);
@@ -323,6 +326,13 @@ const Admin = () => {
         if (r.key === "meta_capi_token") setMetaCapiToken(r.value ?? "");
         if (r.key === "wa_number") setAdminWaNumber(r.value ?? "6289611777177");
         if (r.key === "wa_text") setAdminWaText(r.value ?? "Halo Admin, saya ingin konsultasi mengenai Ruang CASN.");
+        if (r.key === "community_links") {
+          try {
+            const links = JSON.parse(r.value);
+            setWaCommunityLink(links.whatsapp || "");
+            setTeleCommunityLink(links.telegram || "");
+          } catch (e) { console.error(e); }
+        }
       });
     })();
   }, []);
@@ -447,6 +457,16 @@ const Admin = () => {
     setSavingWa(false);
     if (error) return toast.error("Gagal simpan WA: " + error.message);
     toast.success("Pengaturan WhatsApp disimpan");
+  };
+
+  const saveCommunitySettings = async () => {
+    setSavingCommunity(true);
+    const { error } = await supabase.from("admin_settings").upsert([
+      { key: "community_links", value: JSON.stringify({ whatsapp: waCommunityLink, telegram: teleCommunityLink }) }
+    ], { onConflict: "key" });
+    setSavingCommunity(false);
+    if (error) return toast.error("Gagal simpan link: " + error.message);
+    toast.success("Link komunitas disimpan");
   };
 
   const approveTopup = async (t: Topup) => {
@@ -2812,6 +2832,42 @@ const Admin = () => {
                     * CAPI (server-side) akan diaktifkan menggunakan Access Token untuk Purchase & Lead events — menambah akurasi atribusi dan menangkap konversi yang diblokir oleh adblocker.
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Community Links Settings */}
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold flex items-center gap-2">
+                  <span className="text-base">🤝</span> Pengaturan Link Komunitas
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Atur link grup WhatsApp dan Telegram untuk sidebar user.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4 max-w-lg">
+                <div className="space-y-2">
+                  <Label htmlFor="wa-comm">Link Grup WhatsApp</Label>
+                  <Input
+                    id="wa-comm"
+                    placeholder="https://chat.whatsapp.com/..."
+                    value={waCommunityLink}
+                    onChange={(e) => setWaCommunityLink(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tele-comm">Link Grup Telegram</Label>
+                  <Input
+                    id="tele-comm"
+                    placeholder="https://t.me/..."
+                    value={teleCommunityLink}
+                    onChange={(e) => setTeleCommunityLink(e.target.value)}
+                  />
+                </div>
+                <Button onClick={saveCommunitySettings} disabled={savingCommunity} className="gap-2">
+                  {savingCommunity ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {savingCommunity ? "Menyimpan..." : "Simpan Link Komunitas"}
+                </Button>
               </CardContent>
             </Card>
 
