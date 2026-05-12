@@ -29,6 +29,7 @@ import { splitTextIntoChunks } from "@/lib/adminUtils";
 import { AdminTabBar } from "@/components/admin/AdminTabBar";
 import { GlobalBankTable } from "@/components/admin/GlobalBankTable";
 import { MaterialRow } from "@/components/admin/MaterialRow";
+import { ExamCategoryManager } from "@/components/admin/ExamCategoryManager";
 
 const Admin = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -143,6 +144,7 @@ const Admin = () => {
   const [selectedParentExam, setSelectedParentExam] = useState<string | null>(null);
   const [expandedExams, setExpandedExams] = useState<Set<string>>(new Set());
   const [selectedQIds, setSelectedQIds] = useState<Set<string>>(new Set());
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("");
 
   // Settings
   const [kieApiKey, setKieApiKey] = useState("");
@@ -2204,11 +2206,28 @@ const Admin = () => {
 
           {/* ── TRYOUT ── */}
           <TabsContent value="exams" className="space-y-4">
-            <div className="flex justify-end">
-              <Button onClick={() => setShowNewExamForm((v) => !v)} variant={showNewExamForm ? "outline" : "default"} className="gap-2">
-                <Plus className="h-4 w-4" />
-                {showNewExamForm ? "Tutup Form" : "Buat Tryout Baru"}
-              </Button>
+            {/* Category selector */}
+            <Card>
+              <CardContent className="pt-5 pb-4">
+                <ExamCategoryManager
+                  selectedCategory={selectedCategoryFilter}
+                  onSelectCategory={setSelectedCategoryFilter}
+                />
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              {selectedCategoryFilter && (
+                <div className="text-sm text-muted-foreground">
+                  Filter: <span className="font-semibold text-foreground">{selectedCategoryFilter}</span>
+                </div>
+              )}
+              <div className="ml-auto">
+                <Button onClick={() => setShowNewExamForm((v) => !v)} variant={showNewExamForm ? "outline" : "default"} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  {showNewExamForm ? "Tutup Form" : "Buat Tryout Baru"}
+                </Button>
+              </div>
             </div>
 
             {/* Create new — collapsible */}
@@ -2294,13 +2313,20 @@ const Admin = () => {
               </Card>
             )}
 
-            {/* Existing exams — hierarchical (parent + sub-packages) */}
+            {/* Existing exams — hierarchical (parent + sub-packages), filtered by category */}
             {(() => {
-              const parentExams = exams.filter((e) => !e.parent_exam_id);
+              const allParents = exams.filter((e) => !e.parent_exam_id);
+              const parentExams = selectedCategoryFilter
+                ? allParents.filter(e => (e.category ?? "").toLowerCase() === selectedCategoryFilter.toLowerCase())
+                : allParents;
               const childrenOf = (pid: string) => exams.filter((e) => e.parent_exam_id === pid);
               return (
                 <Card>
-                  <CardHeader><h2 className="font-semibold text-sm">Paket Tryout ({parentExams.length} paket induk · {exams.length} total)</h2></CardHeader>
+                  <CardHeader>
+                    <h2 className="font-semibold text-sm">
+                      {selectedCategoryFilter ? `Paket ${selectedCategoryFilter}` : "Semua Paket Tryout"} ({parentExams.length} paket induk{!selectedCategoryFilter ? ` · ${exams.length} total` : ""})
+                    </h2>
+                  </CardHeader>
                   <CardContent className="p-0">
                     <div className="divide-y divide-border">
                        {parentExams.map((ex) => {
