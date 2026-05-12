@@ -334,10 +334,36 @@ Deno.serve(async (req: Request) => {
       const topicMap = subtest === "twk" ? TWK_TOPICS : subtest === "tiu" ? TIU_TOPICS : TKP_TOPICS;
       const topicDesc = topicMap[topic] ?? topic;
       const isTkp = subtest === "tkp";
+      const isFigural = ["figural_analogi", "figural_ketidaksamaan", "figural_serial"].includes(topic);
 
-      const sysPrompt = `You are a JSON generator for Indonesian CPNS exam questions. Output ONLY a single valid JSON object. No prose, no markdown, no code fences.
+      let sysPrompt: string;
+      if (isFigural) {
+        // For figural/visual topics: Claude generates text describing the visual pattern.
+        // The actual SVG illustration will be generated in the next step.
+        const figuralGuide: Record<string, string> = {
+          figural_analogi: `Generate a figural analogy question. Describe shapes/figures using text labels (e.g., "Gambar A: segitiga besar menghadap kanan", "Gambar B: segitiga kecil menghadap kiri"). The question asks: gambar A : gambar B = gambar C : ?`,
+          figural_ketidaksamaan: `Generate a figural odd-one-out question. Describe 5 figures using text (e.g., shapes, rotations, symmetry). One figure is different from the rest.`,
+          figural_serial: `Generate a figural series question. Describe a sequence of 4 figures that follow a visual pattern (e.g., rotation, addition/removal of elements, size change). The 5th is missing.`,
+        };
+        sysPrompt = `You are a JSON generator for Indonesian CPNS TIU ${topicDesc} exam questions.
+This question will be paired with an SVG illustration generated afterward — so describe visual elements clearly in text.
+Output ONLY a single valid JSON object. No prose, no markdown, no code fences.
 
-${isTkp ? `Generate ONE TKP (Tes Karakteristik Pribadi) question about: ${topicDesc}
+${figuralGuide[topic] ?? ""}
+${custom_instruction ? `\nCustom instruction: ${custom_instruction}` : ""}
+
+Output a JSON object with exactly:
+- "question_text": question string in Indonesian (describe figures/shapes textually, e.g. "Perhatikan pola gambar berikut: ...")
+- "options": array of exactly 5 strings — describe each answer choice as a shape/figure description (e.g. "Segitiga besar menghadap kiri")
+- "correct_answer": string EXACTLY matching one of the options
+- "explanation": 2-3 sentences in Indonesian explaining the visual pattern and why the answer is correct
+- "svg_prompt": precise description for SVG generator (e.g. "4 boxes in a row: large triangle right, small triangle left, large circle right, small circle left. 5th box empty = small circle right")
+
+Output ONLY the JSON object.`;
+      } else if (isTkp) {
+        sysPrompt = `You are a JSON generator for Indonesian CPNS exam questions. Output ONLY a single valid JSON object. No prose, no markdown, no code fences.
+
+Generate ONE TKP (Tes Karakteristik Pribadi) question about: ${topicDesc}
 
 Output a JSON object with exactly:
 - "question_text": situational scenario string (in Indonesian)
@@ -345,9 +371,13 @@ Output a JSON object with exactly:
 - "option_points": object mapping each option string to a unique integer 1-5 (each of 1,2,3,4,5 used exactly once, keys must match options exactly)
 - "correct_answer": the option string with the highest points
 - "explanation": 2-3 sentence explanation of why highest-point option is best
-- "svg_prompt": one-sentence description of a helpful diagram/illustration for this question (or "none" if no visual needed)` :
+- "svg_prompt": "none"
 
-`Generate ONE ${subtest.toUpperCase()} question about: ${topicDesc}
+Output ONLY the JSON object.`;
+      } else {
+        sysPrompt = `You are a JSON generator for Indonesian CPNS exam questions. Output ONLY a single valid JSON object. No prose, no markdown, no code fences.
+
+Generate ONE ${subtest.toUpperCase()} question about: ${topicDesc}
 ${custom_instruction ? `\nCustom instruction: ${custom_instruction}` : ""}
 
 Output a JSON object with exactly:
@@ -355,21 +385,28 @@ Output a JSON object with exactly:
 - "options": array of exactly 5 strings (answer choices)
 - "correct_answer": string EXACTLY matching one of the options
 - "explanation": 2-3 sentence explanation in Indonesian
-- "svg_prompt": one-sentence description of a helpful diagram/illustration for this question (e.g., "a number line showing sequence 3,6,12,24,?" or "a bar chart comparing..." or "none" if no visual is helpful)`}
+- "svg_prompt": one-sentence description for an SVG illustration (e.g. "a number line showing 3,6,12,24,?" or "none" if not visual)
 
 Output ONLY the JSON object.`;
+      }
 
       const res = await fetch(KIE_API_URL, {
         method: "POST",
         headers: { "Authorization": `Bearer ${globalKieApiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: MODEL, max_tokens: 2000, system: sysPrompt, messages: [{ role: "user", content: "Generate the question." }], stream: false }),
+        body: JSON.stringify({ model: MODEL, max_tokens: 1500, system: sysPrompt, messages: [{ role: "user", content: "Generate the question now." }], stream: false }),
       });
-      if (!res.ok) return json({ error: `KIE API error ${res.status}` }, 500);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        return json({ error: `KIE API error ${res.status}: ${errText.slice(0, 200)}` }, 500);
+      }
       const resData = await res.json();
+      if (resData?.type === "error" || resData?.error) {
+        return json({ error: resData?.error?.message ?? "KIE API error" }, 500);
+      }
       const rawText = (resData.content as Array<{ type: string; text?: string }>)?.find(b => b.type === "text")?.text ?? "";
       const objStart = rawText.indexOf("{");
       const objEnd = rawText.lastIndexOf("}");
-      if (objStart === -1 || objEnd <= objStart) return json({ error: "AI tidak mengembalikan JSON yang valid" }, 500);
+      if (objStart === -1 || objEnd <= objStart) return json({ error: `AI tidak mengembalikan JSON yang valid. Preview: ${rawText.slice(0, 100)}` }, 500);
       try {
         const q = JSON.parse(rawText.slice(objStart, objEnd + 1));
         return json({ question: q });
