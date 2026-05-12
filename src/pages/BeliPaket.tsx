@@ -12,10 +12,8 @@ import { SKD_PASSING, SKD_QUESTIONS, SKD_MAX } from "@/lib/skdScoring";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 
-const categories = [
-  { id: "cpns", label: "CPNS", image: "/tryout-cpns.png" },
-  { id: "pppk", label: "PPPK", image: "/tryout-pppk.png" },
-];
+import { supabase } from "@/integrations/supabase/client";
+import type { ExamCategory } from "@/components/admin/ExamCategoryManager";
 
 type Step = { categoryId?: string; subcategory?: string };
 
@@ -43,62 +41,115 @@ const BeliPaket = () => {
   const { exams } = useExams();
   const [step, setStep] = useState<Step>({});
   const [search, setSearch] = useState("");
+  const [dynamicCategories, setDynamicCategories] = useState<ExamCategory[]>([]);
+  const [loadingCats, setLoadingCats] = useState(true);
 
-  const activeCategory = categories.find((c) => c.id === step.categoryId);
+  useEffect(() => {
+    const fetchCats = async () => {
+      const { data } = await supabase.from("admin_settings").select("value").eq("key", "exam_categories").maybeSingle();
+      if (data?.value) {
+        try {
+          setDynamicCategories(JSON.parse(data.value));
+        } catch (e) {
+          console.error("Failed to parse categories", e);
+        }
+      }
+      setLoadingCats(false);
+    };
+    fetchCats();
+  }, []);
+
+  const activeCategory = dynamicCategories.find((c) => c.id === step.categoryId);
 
   const subcategories = useMemo(() => {
-    if (!step.categoryId) return [];
-    const list = exams.filter((e) => e.category === step.categoryId);
+    if (!step.categoryId || !activeCategory) return [];
+    // Match by name or ID to be safe
+    const list = exams.filter((e) => e.category?.toLowerCase() === activeCategory.name.toLowerCase());
     const set = new Set<string>();
     list.forEach((e) => { if (e.subcategory) set.add(e.subcategory); });
     return Array.from(set).sort();
-  }, [exams, step.categoryId]);
+  }, [exams, activeCategory]);
 
   const filteredExams = useMemo(() => {
-    if (!step.categoryId) return [];
-    let list = exams.filter((e) => e.category === step.categoryId);
+    if (!step.categoryId || !activeCategory) return [];
+    let list = exams.filter((e) => e.category?.toLowerCase() === activeCategory.name.toLowerCase());
     if (step.subcategory) list = list.filter((e) => e.subcategory === step.subcategory);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((e) => e.title.toLowerCase().includes(q));
     }
     return list;
-  }, [exams, step, search]);
+  }, [exams, activeCategory, step.subcategory, search]);
 
   useEffect(() => {
     if (filteredExams.length > 0) {
       fbq.viewContent({
-        content_name: `Paket ${step.subcategory ?? step.categoryId ?? "Tryout"}`,
+        content_name: `Paket ${step.subcategory ?? activeCategory?.name ?? "Tryout"}`,
         content_ids: filteredExams.map((e) => e.id),
       });
     }
-  }, [filteredExams.length, step.subcategory, step.categoryId]);
+  }, [filteredExams.length, step.subcategory, activeCategory]);
 
   // Step 1: pick category
   if (!step.categoryId) {
     return (
       <AppLayout>
         <PageHeader title="Pilih Kategori" breadcrumbs={[{ label: "Beli Paket" }]} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {categories.map((c, i) => (
-            <motion.button
-              key={c.id}
-              type="button"
-              onClick={() => setStep({ categoryId: c.id })}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: i * 0.1 }}
-              whileHover={{ scale: 1.02, y: -3 }}
-              whileTap={{ scale: 0.97 }}
-              className="group relative overflow-hidden rounded-2xl shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        
+        <div className="space-y-6">
+          <div className="flex flex-wrap gap-4 justify-start">
+            {dynamicCategories.map((c, i) => (
+              <motion.div
+                key={c.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, delay: i * 0.05 }}
+                className="w-full sm:w-[calc(50%-1rem)] lg:w-[calc(25%-1rem)] max-w-[280px]"
+              >
+                <button
+                  type="button"
+                  onClick={() => setStep({ categoryId: c.id })}
+                  className="group w-full text-left bg-white rounded-2xl border border-border overflow-hidden shadow-sm hover:shadow-md hover:border-primary/50 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  {/* Image Container */}
+                  <div className="aspect-[16/9] w-full bg-slate-100 overflow-hidden">
+                    {c.image_url ? (
+                      <img
+                        src={c.image_url}
+                        alt={c.name}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-primary/5 text-primary/20 font-bold text-4xl">
+                        {c.name[0]}
+                      </div>
+                    )}
+                  </div>
+                  {/* Content */}
+                  <div className="p-4 border-t border-border">
+                    <h3 className="font-bold text-base text-foreground group-hover:text-primary transition-colors">{c.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{c.description || "Lihat paket tersedia"}</p>
+                    <div className="mt-3 flex items-center gap-1.5 text-[10px] font-bold text-primary uppercase tracking-wider">
+                      Pilih Paket <ArrowUpRight className="h-3 w-3" />
+                    </div>
+                  </div>
+                </button>
+              </motion.div>
+            ))}
+
+            {/* Coming Soon Placeholder */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              className="w-full sm:w-[calc(50%-1rem)] lg:w-[calc(25%-1rem)] max-w-[280px] rounded-2xl border border-dashed border-border bg-muted/20 flex flex-col items-center justify-center p-8 text-center min-h-[220px]"
             >
-              <img
-                src={c.image}
-                alt={`Tryout ${c.label}`}
-                className="w-full h-auto block transition-transform duration-300 group-hover:scale-105"
-              />
-            </motion.button>
-          ))}
+              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-3">
+                <Layers className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-semibold text-muted-foreground">Kategori Lainnya</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Coming Soon</p>
+            </motion.div>
+          </div>
         </div>
       </AppLayout>
     );
@@ -109,10 +160,10 @@ const BeliPaket = () => {
     return (
       <AppLayout>
         <PageHeader
-          title={`Pilih ${activeCategory?.label ?? ""}`}
+          title={`Pilih ${activeCategory?.name ?? ""}`}
           breadcrumbs={[
             { label: "Beli Paket", to: "#" },
-            { label: activeCategory?.label ?? "" },
+            { label: activeCategory?.name ?? "" },
           ]}
         />
         <button
@@ -135,10 +186,10 @@ const BeliPaket = () => {
   return (
     <AppLayout>
       <PageHeader
-        title={`Pilih ${step.subcategory ?? activeCategory?.label ?? "Paket"}`}
+        title={`Pilih ${step.subcategory ?? activeCategory?.name ?? "Paket"}`}
         breadcrumbs={[
           { label: "Beli Paket", to: "#" },
-          ...(activeCategory ? [{ label: activeCategory.label }] : []),
+          ...(activeCategory ? [{ label: activeCategory.name }] : []),
           ...(step.subcategory ? [{ label: step.subcategory }] : []),
         ]}
         actions={

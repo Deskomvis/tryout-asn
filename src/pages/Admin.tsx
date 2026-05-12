@@ -29,7 +29,7 @@ import { splitTextIntoChunks } from "@/lib/adminUtils";
 import { AdminTabBar } from "@/components/admin/AdminTabBar";
 import { GlobalBankTable } from "@/components/admin/GlobalBankTable";
 import { MaterialRow } from "@/components/admin/MaterialRow";
-import { ExamCategoryManager } from "@/components/admin/ExamCategoryManager";
+import { ExamCategoryManager, type ExamCategory } from "@/components/admin/ExamCategoryManager";
 
 const Admin = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -167,6 +167,18 @@ const Admin = () => {
   const [adminWaNumber, setAdminWaNumber] = useState("6289611777177");
   const [adminWaText, setAdminWaText] = useState("Halo Admin, saya ingin konsultasi mengenai Ruang CASN.");
   const [savingWa, setSavingWa] = useState(false);
+  const [dynamicCategories, setDynamicCategories] = useState<ExamCategory[]>([]);
+
+  const fetchDynamicCats = async () => {
+    const { data } = await supabase.from("admin_settings").select("value").eq("key", "exam_categories").maybeSingle();
+    if (data?.value) {
+      try {
+        setDynamicCategories(JSON.parse(data.value));
+      } catch (e) {
+        console.error("Failed to parse categories", e);
+      }
+    }
+  };
 
   const refresh = async () => {
     const { data: e } = await supabase.from("exams")
@@ -238,6 +250,7 @@ const Admin = () => {
     }));
     allBalances.sort((a, b) => b.balance - a.balance);
     setBalances(allBalances);
+    await fetchDynamicCats();
   };
 
   const loadGlobalBank = async (page = 0, filter = globalBankFilter) => {
@@ -2275,9 +2288,15 @@ const Admin = () => {
                       <Select value={newExam.category} onValueChange={(v) => setNewExam({ ...newExam, category: v, subcategory: "" })}>
                         <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="cpns">CPNS</SelectItem>
-                          <SelectItem value="pppk">PPPK</SelectItem>
-                          <SelectItem value="kedinasan">Kedinasan</SelectItem>
+                          {dynamicCategories.map(cat => (
+                            <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                          ))}
+                          {dynamicCategories.length === 0 && (
+                            <>
+                              <SelectItem value="cpns">CPNS</SelectItem>
+                              <SelectItem value="pppk">PPPK</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -3176,9 +3195,15 @@ const Admin = () => {
                   <Select value={editExam.category} onValueChange={(v) => setEditExam({ ...editExam, category: v, subcategory: "" })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cpns">CPNS</SelectItem>
-                      <SelectItem value="pppk">PPPK</SelectItem>
-                      <SelectItem value="kedinasan">Kedinasan</SelectItem>
+                      {dynamicCategories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                      ))}
+                      {dynamicCategories.length === 0 && (
+                        <>
+                          <SelectItem value="cpns">CPNS</SelectItem>
+                          <SelectItem value="pppk">PPPK</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
