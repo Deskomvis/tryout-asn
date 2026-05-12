@@ -328,9 +328,11 @@ const Admin = () => {
         if (r.key === "wa_text") setAdminWaText(r.value ?? "Halo Admin, saya ingin konsultasi mengenai Ruang CASN.");
         if (r.key === "community_links") {
           try {
-            const links = JSON.parse(r.value);
-            setWaCommunityLink(links.whatsapp || "");
-            setTeleCommunityLink(links.telegram || "");
+            const links = r.value ? JSON.parse(r.value) : null;
+            if (links) {
+              setWaCommunityLink(links.whatsapp || "");
+              setTeleCommunityLink(links.telegram || "");
+            }
           } catch (e) { console.error(e); }
         }
       });

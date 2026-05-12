@@ -63,8 +63,8 @@ export const AppSidebar = () => {
       if (data?.value) {
         try {
           const parsed = JSON.parse(data.value);
-          if (parsed.whatsapp) setWaLink(parsed.whatsapp);
-          if (parsed.telegram) setTeleLink(parsed.telegram);
+          if (parsed?.whatsapp) setWaLink(parsed.whatsapp);
+          if (parsed?.telegram) setTeleLink(parsed.telegram);
         } catch (e) { console.error(e); }
       }
     })();
