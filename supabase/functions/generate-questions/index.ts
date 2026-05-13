@@ -101,6 +101,8 @@ Each object in the array MUST have exactly these fields:
 - "option_points": object mapping each option string to a unique integer 1-5 (each of 1,2,3,4,5 used exactly once)
 - "explanation": 2-3 sentence string explaining why the option with 5 points is best${hasChart ? '\n- "chart_data": chart data object as specified above' : ""}
 
+IMPORTANT: Randomize the position of the high-scoring options. Do not always place the 5-point option in the same position.
+
 CRITICAL: Keys in option_points must be identical to strings in options. Output ONLY the JSON array.`;
   }
 
@@ -115,6 +117,8 @@ Each object in the array MUST have exactly these fields:
 - "options": array of exactly 5 strings (answer choices)
 - "correct_answer": string that is EXACTLY one of the options strings
 - "explanation": 2-3 sentence string in Indonesian explaining why the answer is correct${hasChart ? '\n- "chart_data": chart data object as specified above' : ""}
+
+IMPORTANT: Randomly distribute the correct answer among the 5 options.
 
 Output ONLY the JSON array starting with [.`;
 }
@@ -266,6 +270,15 @@ function buildSVGFromChartData(chartData: Record<string, unknown>): string | nul
   return null;
 }
 
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -359,6 +372,8 @@ Output a JSON object with exactly:
 - "explanation": 2-3 sentences in Indonesian explaining the visual pattern and why the answer is correct
 - "svg_prompt": precise description for SVG generator (e.g. "4 boxes in a row: large triangle right, small triangle left, large circle right, small circle left. 5th box empty = small circle right")
 
+IMPORTANT: Randomize the order of the options.
+
 Output ONLY the JSON object.`;
       } else if (isTkp) {
         sysPrompt = `You are a JSON generator for Indonesian CPNS exam questions. Output ONLY a single valid JSON object. No prose, no markdown, no code fences.
@@ -373,6 +388,8 @@ Output a JSON object with exactly:
 - "explanation": 2-3 sentence explanation of why highest-point option is best
 - "svg_prompt": "none"
 
+IMPORTANT: Randomize the order of the options and their corresponding point mappings.
+
 Output ONLY the JSON object.`;
       } else {
         sysPrompt = `You are a JSON generator for Indonesian CPNS exam questions. Output ONLY a single valid JSON object. No prose, no markdown, no code fences.
@@ -386,6 +403,8 @@ Output a JSON object with exactly:
 - "correct_answer": string EXACTLY matching one of the options
 - "explanation": 2-3 sentence explanation in Indonesian
 - "svg_prompt": one-sentence description for an SVG illustration (e.g. "a number line showing 3,6,12,24,?" or "none" if not visual)
+
+IMPORTANT: Randomize the order of the options.
 
 Output ONLY the JSON object.`;
       }
@@ -409,6 +428,9 @@ Output ONLY the JSON object.`;
       if (objStart === -1 || objEnd <= objStart) return json({ error: `AI tidak mengembalikan JSON yang valid. Preview: ${rawText.slice(0, 100)}` }, 500);
       try {
         const q = JSON.parse(rawText.slice(objStart, objEnd + 1));
+        if (q.options && Array.isArray(q.options)) {
+          q.options = shuffleArray(q.options);
+        }
         return json({ question: q });
       } catch {
         return json({ error: "Gagal parse JSON dari AI" }, 500);
@@ -572,7 +594,7 @@ ${illustrationPrompt}`;
         const payload: Record<string, unknown> = {
           exam_id: exam_id ?? null,
           question_text: q.question_text,
-          options: q.options,
+          options: Array.isArray(q.options) ? shuffleArray(q.options as string[]) : q.options,
           subtest,
           explanation: q.explanation || "",
           image_url: image_url || null,
