@@ -34,6 +34,77 @@ function extractOptions(rawOptions: unknown): string[] {
   return [];
 }
 
+function normalizeWhitespace(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function inferSubtest(text: string, category?: string, topic?: string) {
+  const seed = `${category ?? ""} ${topic ?? ""} ${text}`.toLowerCase();
+  if (seed.includes("tkp") || /pelayanan publik|profesionalisme|jejaring kerja|sosial budaya|anti radikalisme|tindakan yang paling tepat|sikap yang paling tepat/.test(seed)) {
+    return "tkp";
+  }
+  if (seed.includes("twk") || /pancasila|uud|nkri|bhinneka|nasionalisme|bela negara|bahasa indonesia/.test(seed)) {
+    return "twk";
+  }
+  return "tiu";
+}
+
+function parseStructuredQuestions(text: string, category?: string, topic?: string) {
+  const matches = Array.from(text.matchAll(/(^|\n)(Soal\s+\d+[^\n]*)/gi));
+  if (matches.length === 0) return [];
+
+  const blocks = matches.map((match, index) => {
+    const start = match.index! + match[1].length;
+    const end = index + 1 < matches.length ? matches[index + 1].index! : text.length;
+    return text.slice(start, end).trim();
+  });
+
+  const parsed: Array<Record<string, unknown>> = [];
+
+  for (const block of blocks) {
+    const headerMatch = block.match(/^Soal\s+\d+\s*[–-]\s*(.+)$/im);
+    const title = headerMatch?.[1]?.trim() ?? topic ?? "";
+
+    const answerMatch = block.match(/Kunci\s+Jawaban\s*:\s*([A-E])/i);
+    if (!answerMatch) continue;
+
+    const explanationMatch = block.match(/Pembahasan\s*:\s*([\s\S]*)$/i);
+    const explanation = explanationMatch ? normalizeWhitespace(explanationMatch[1]) : "";
+
+    const questionPart = block
+      .replace(/^Soal\s+\d+[^\n]*\n?/i, "")
+      .replace(/Kunci\s+Jawaban\s*:[\s\S]*$/i, "")
+      .trim();
+
+    const optionMatches = Array.from(
+      questionPart.matchAll(/(?:^|\n)\s*([A-E])\.\s*([\s\S]*?)(?=(?:\n\s*[A-E]\.\s)|$)/g),
+    );
+    if (optionMatches.length < 2) continue;
+
+    const questionText = normalizeWhitespace(
+      questionPart.slice(0, optionMatches[0].index).trim(),
+    );
+    if (!questionText) continue;
+
+    const options = optionMatches.map((match) => normalizeWhitespace(match[2]));
+    const answerLetter = answerMatch[1].toUpperCase();
+    const correctAnswer = options[answerLetter.charCodeAt(0) - 65];
+    if (!correctAnswer) continue;
+
+    parsed.push({
+      question_text: questionText,
+      options,
+      correct_answer: correctAnswer,
+      subtest: inferSubtest(`${title}\n${questionText}`, category, topic),
+      topic: title || topic || null,
+      explanation,
+      svg_content: null,
+    });
+  }
+
+  return parsed;
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -135,6 +206,51 @@ Deno.serve(async (req) => {
   if (exam_id) {
     const { data: exam } = await supabase.from("exams").select("id").eq("id", exam_id).single();
     if (!exam) return json({ error: "Exam tidak ditemukan" }, 404);
+  }
+
+  const directParsed = parseStructuredQuestions(text_chunk, category, topic);
+  if (directParsed.length > 0) {
+    const valid = directParsed.map((q: any) => ({
+      exam_id: exam_id ?? null,
+      material_id: material_id ?? null,
+      question_text: q.question_text,
+      options: q.options,
+      correct_answer: q.correct_answer,
+      subtest: q.subtest,
+      topic: q.topic,
+      explanation: q.explanation || null,
+      svg_content: null,
+      option_points: null,
+      source: "ai",
+    }));
+
+    const { data: inserted, error: insertErr } = await supabase
+      .from("questions").insert(valid).select("id");
+    if (insertErr) return json({ error: "DB error: " + insertErr.message }, 500);
+
+    if (exam_id && inserted && inserted.length > 0) {
+      const { count: existingCount } = await supabase
+        .from("exam_question_assignments")
+        .select("*", { count: "exact", head: true })
+        .eq("exam_id", exam_id);
+
+      const startPos = existingCount ?? 0;
+      await supabase.from("exam_question_assignments").insert(
+        (inserted ?? []).map((q: any, i: number) => ({
+          exam_id,
+          question_id: q.id,
+          position: startPos + i + 1,
+        })),
+      );
+
+      const { count: total } = await supabase
+        .from("exam_question_assignments")
+        .select("*", { count: "exact", head: true })
+        .eq("exam_id", exam_id);
+      await supabase.from("exams").update({ total_questions: total ?? 0 }).eq("id", exam_id);
+    }
+
+    return json({ count: valid.length, skipped: 0, with_svg: 0, parser: "direct" });
   }
 
   const { data: settingRow } = await supabase
