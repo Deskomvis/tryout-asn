@@ -54,6 +54,9 @@ export type Database = {
       }
       exams: {
         Row: {
+          bonus_description: string | null
+          bonus_link: string | null
+          bonus_title: string | null
           bundle_size: number
           category: string | null
           created_at: string
@@ -69,6 +72,9 @@ export type Database = {
           total_questions: number
         }
         Insert: {
+          bonus_description?: string | null
+          bonus_link?: string | null
+          bonus_title?: string | null
           bundle_size?: number
           category?: string | null
           created_at?: string
@@ -84,6 +90,9 @@ export type Database = {
           total_questions?: number
         }
         Update: {
+          bonus_description?: string | null
+          bonus_link?: string | null
+          bonus_title?: string | null
           bundle_size?: number
           category?: string | null
           created_at?: string

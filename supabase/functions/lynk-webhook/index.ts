@@ -18,6 +18,82 @@ async function hmacSha256Hex(key: string, data: string): Promise<string> {
   return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function extractBuyerEmail(payload: any): string | null {
+  const messageData = payload?.data?.message_data;
+  const candidates = [
+    payload?.customer?.email,
+    payload?.buyer_email,
+    payload?.email,
+    payload?.data?.customer?.email,
+    messageData?.customer?.email,
+    payload?.customer_email,
+    payload?.payer?.email,
+    payload?.billing_email,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim().toLowerCase();
+    }
+  }
+
+  return null;
+}
+
+function extractLynkItems(payload: any): any[] {
+  const candidates = [
+    payload?.items,
+    payload?.data?.items,
+    payload?.data?.message_data?.items,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate) && candidate.length > 0) return candidate;
+  }
+
+  return [];
+}
+
+function extractLynkUuid(payload: any): string | null {
+  const items = extractLynkItems(payload);
+  const itemUuid = items.find((item) => typeof item?.uuid === "string" && item.uuid.trim())?.uuid;
+
+  const candidates = [
+    itemUuid,
+    payload?.product_uuid,
+    payload?.uuid,
+    payload?.data?.product_uuid,
+    payload?.data?.uuid,
+    payload?.data?.message_data?.product_uuid,
+    payload?.data?.message_data?.uuid,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+  }
+
+  return null;
+}
+
+function extractPaymentAmount(payload: any): number {
+  const messageData = payload?.data?.message_data;
+  const candidates = [
+    payload?.amount,
+    payload?.data?.amount,
+    messageData?.amount,
+    messageData?.totals?.grandTotal,
+    messageData?.totals?.customerPay,
+    extractLynkItems(payload)?.[0]?.price,
+  ];
+
+  for (const candidate of candidates) {
+    const numeric = Number(candidate);
+    if (Number.isFinite(numeric) && numeric >= 0) return numeric;
+  }
+
+  return 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { status: 200, headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -58,10 +134,17 @@ Deno.serve(async (req) => {
     return json({ error: "Invalid JSON" }, 400);
   }
 
-  // Extract Lynk product UUID — Lynk sends items[0].uuid
-  const lynkUuid: string | undefined =
-    payload?.items?.[0]?.uuid ?? payload?.product_uuid ?? payload?.uuid;
+  const eventName = payload?.event;
+  const actionStatus = payload?.data?.message_action;
+  if (eventName && eventName !== "payment.received") {
+    return json({ ignored: true, reason: `Unhandled event: ${eventName}` });
+  }
+  if (actionStatus && actionStatus !== "SUCCESS") {
+    return json({ ignored: true, reason: `Payment action not successful: ${actionStatus}` });
+  }
 
+  // Extract Lynk product UUID — Lynk sends items[0].uuid
+  const lynkUuid = extractLynkUuid(payload);
   if (!lynkUuid) {
     return json({ error: "No product UUID found in payload", received: payload }, 400);
   }
@@ -79,52 +162,66 @@ Deno.serve(async (req) => {
   if (!pkg.exam_id) return json({ error: "Package has no exam linked" }, 422);
 
   // Extract buyer email from Lynk payload
-  const buyerEmail: string | undefined =
-    payload?.customer?.email ?? payload?.buyer_email ?? payload?.email ?? payload?.data?.customer?.email;
-
+  const buyerEmail = extractBuyerEmail(payload);
   if (!buyerEmail) {
     return json({ error: "No buyer email in payload", received: payload }, 400);
   }
 
-  // Find user by email
-  const { data: { users }, error: userErr } = await db.auth.admin.listUsers();
-  if (userErr) return json({ error: userErr.message }, 500);
+  // Find user by email from profiles instead of auth.admin.listUsers().
+  // listUsers() is paginated and can silently miss valid users when the account count grows.
+  const { data: profile, error: profileErr } = await db
+    .from("profiles")
+    .select("id,email,username")
+    .ilike("email", buyerEmail)
+    .maybeSingle();
 
-  const user = users.find((u) => u.email?.toLowerCase() === buyerEmail.toLowerCase());
-  if (!user) {
+  if (profileErr) return json({ error: profileErr.message }, 500);
+  if (!profile?.id) {
     return json({
       error: `User with email ${buyerEmail} not found. They must register first at the platform.`,
     }, 404);
   }
 
-  // Check if user already has access (idempotency — don't double-grant)
-  const { count: existingCount } = await db
-    .from("exam_purchases")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .eq("exam_id", pkg.exam_id);
+  const { data: childExams, error: childErr } = await db
+    .from("exams")
+    .select("id")
+    .eq("parent_exam_id", pkg.exam_id);
+  if (childErr) return json({ error: childErr.message }, 500);
 
-  if ((existingCount ?? 0) > 0) {
-    return json({
-      success: true,
-      already_granted: true,
-      message: `Access to "${pkg.exams?.title}" was already granted for ${buyerEmail}`,
-      exam_id: pkg.exam_id,
-      user_id: user.id,
-    });
+  const examIdsToGrant = [pkg.exam_id, ...(childExams ?? []).map((exam) => exam.id)];
+  const grantedExamIds: string[] = [];
+  const alreadyGrantedExamIds: string[] = [];
+
+  for (const examId of examIdsToGrant) {
+    const { count: existingCount } = await db
+      .from("exam_purchases")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", profile.id)
+      .eq("exam_id", examId)
+      .eq("used", false);
+
+    if ((existingCount ?? 0) > 0) {
+      alreadyGrantedExamIds.push(examId);
+      continue;
+    }
+
+    const { error: purchaseErr } = await db
+      .from("exam_purchases")
+      .insert({ user_id: profile.id, exam_id: examId, price_paid: extractPaymentAmount(payload) });
+
+    if (purchaseErr) return json({ error: purchaseErr.message, exam_id: examId }, 500);
+    grantedExamIds.push(examId);
   }
-
-  // Grant exam access
-  const { error: purchaseErr } = await db
-    .from("exam_purchases")
-    .insert({ user_id: user.id, exam_id: pkg.exam_id, price_paid: payload?.amount ?? 0 });
-
-  if (purchaseErr) return json({ error: purchaseErr.message }, 500);
 
   return json({
     success: true,
-    message: `Access granted to "${pkg.exams?.title}" for ${buyerEmail}`,
+    already_granted: grantedExamIds.length === 0,
+    message: grantedExamIds.length > 0
+      ? `Access granted to "${pkg.exams?.title}" for ${buyerEmail}`
+      : `Access to "${pkg.exams?.title}" was already granted for ${buyerEmail}`,
     exam_id: pkg.exam_id,
-    user_id: user.id,
+    user_id: profile.id,
+    granted_exam_ids: grantedExamIds,
+    already_granted_exam_ids: alreadyGrantedExamIds,
   });
 });

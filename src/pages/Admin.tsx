@@ -118,7 +118,21 @@ const Admin = () => {
   const [showNewLynkForm, setShowNewLynkForm] = useState(false);
 
   // New exam form
-  const [newExam, setNewExam] = useState({ title: "", description: "", duration: 5400, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
+  const [newExam, setNewExam] = useState({
+    title: "",
+    description: "",
+    duration: 5400,
+    price: 0,
+    original_price: 0,
+    bundle_size: 1,
+    category: "",
+    subcategory: "",
+    passing_score: 0,
+    cta_link: "",
+    bonus_title: "",
+    bonus_description: "",
+    bonus_link: "",
+  });
   // Edit exam modal
   const [editExam, setEditExam] = useState<Exam | null>(null);
   const [editExamCoverFile, setEditExamCoverFile] = useState<File | null>(null);
@@ -185,7 +199,7 @@ const Admin = () => {
 
   const refresh = async () => {
     const { data: e } = await supabase.from("exams")
-      .select("id,title,total_questions,description,duration,price,original_price,bundle_size,category,subcategory,exam_type,passing_score,cta_link,cover_image_url,parent_exam_id")
+      .select("id,title,total_questions,description,duration,price,original_price,bundle_size,category,subcategory,exam_type,passing_score,cta_link,cover_image_url,bonus_title,bonus_description,bonus_link,parent_exam_id")
       .order("created_at");
     setExams((e as Exam[]) ?? []);
 
@@ -496,7 +510,15 @@ const Admin = () => {
     if (!newExam.title.trim()) return toast.error("Judul wajib");
     if (!newExam.category) return toast.error("Kategori utama wajib");
     if (!newExam.subcategory.trim()) return toast.error("Subkategori wajib");
-    const { data: created, error } = await supabase.from("exams").insert({ ...newExam, title: newExam.title.trim(), total_questions: 0 }).select("id").single();
+    const { data: created, error } = await supabase.from("exams").insert({
+      ...newExam,
+      title: newExam.title.trim(),
+      cta_link: newExam.cta_link.trim() || null,
+      bonus_title: newExam.bonus_title.trim() || null,
+      bonus_description: newExam.bonus_description.trim() || null,
+      bonus_link: newExam.bonus_link.trim() || null,
+      total_questions: 0,
+    }).select("id").single();
     if (error) return toast.error(error.message);
 
     if (newExam.bundle_size > 1 && created) {
@@ -510,6 +532,9 @@ const Admin = () => {
         category: newExam.category,
         subcategory: newExam.subcategory,
         passing_score: newExam.passing_score ?? 0,
+        bonus_title: null,
+        bonus_description: null,
+        bonus_link: null,
         total_questions: 0,
       }));
       const { error: subErr } = await supabase.from("exams").insert(subPkgs);
@@ -519,7 +544,21 @@ const Admin = () => {
       toast.success("Tryout dibuat");
     }
 
-    setNewExam({ title: "", description: "", duration: 5400, price: 0, original_price: 0, bundle_size: 1, category: "", subcategory: "", passing_score: 0, cta_link: "" });
+    setNewExam({
+      title: "",
+      description: "",
+      duration: 5400,
+      price: 0,
+      original_price: 0,
+      bundle_size: 1,
+      category: "",
+      subcategory: "",
+      passing_score: 0,
+      cta_link: "",
+      bonus_title: "",
+      bonus_description: "",
+      bonus_link: "",
+    });
     refresh();
   };
 
@@ -547,6 +586,9 @@ const Admin = () => {
       subcategory: editExam.subcategory,
       passing_score: editExam.passing_score ?? 0,
       cta_link: editExam.cta_link?.trim() || null,
+      bonus_title: editExam.bonus_title?.trim() || null,
+      bonus_description: editExam.bonus_description?.trim() || null,
+      bonus_link: editExam.bonus_link?.trim() || null,
       cover_image_url: coverUrl,
     }).eq("id", editExam.id);
     if (error) return toast.error(error.message);
@@ -566,6 +608,9 @@ const Admin = () => {
           category: editExam.category,
           subcategory: editExam.subcategory,
           passing_score: editExam.passing_score ?? 0,
+          bonus_title: null,
+          bonus_description: null,
+          bonus_link: null,
           total_questions: 0,
         }));
         const { error: subErr } = await supabase.from("exams").insert(newSubPkgs);
@@ -596,6 +641,9 @@ const Admin = () => {
       exam_type: ex.exam_type ?? null,
       passing_score: ex.passing_score ?? 0,
       cta_link: ex.cta_link ?? null,
+      bonus_title: ex.bonus_title ?? null,
+      bonus_description: ex.bonus_description ?? null,
+      bonus_link: ex.bonus_link ?? null,
       cover_image_url: ex.cover_image_url ?? null,
       total_questions: 0,
     }).select("id").single();
@@ -628,6 +676,9 @@ const Admin = () => {
       subcategory: parent.subcategory,
       exam_type: parent.exam_type ?? null,
       passing_score: parent.passing_score ?? 0,
+      bonus_title: null,
+      bonus_description: null,
+      bonus_link: null,
       total_questions: 0,
     });
     if (error) return toast.error(error.message);
@@ -2349,6 +2400,33 @@ const Admin = () => {
                   <div><Label>CTA Link Beli <span className="text-muted-foreground text-xs">(opsional — misal WhatsApp atau link eksternal)</span></Label>
                     <Input placeholder="https://wa.me/62..." value={newExam.cta_link} onChange={(e) => setNewExam({ ...newExam, cta_link: e.target.value })} />
                   </div>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
+                    <div>
+                      <Label>Nama Bonus <span className="text-muted-foreground text-xs">(opsional)</span></Label>
+                      <Input
+                        placeholder="cth: Video Pembelajaran SKD"
+                        value={newExam.bonus_title}
+                        onChange={(e) => setNewExam({ ...newExam, bonus_title: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Deskripsi Bonus <span className="text-muted-foreground text-xs">(opsional)</span></Label>
+                      <Textarea
+                        rows={2}
+                        placeholder="cth: Akses video pembahasan lengkap via Google Drive"
+                        value={newExam.bonus_description}
+                        onChange={(e) => setNewExam({ ...newExam, bonus_description: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Link Bonus / Google Drive <span className="text-muted-foreground text-xs">(opsional)</span></Label>
+                      <Input
+                        placeholder="https://drive.google.com/..."
+                        value={newExam.bonus_link}
+                        onChange={(e) => setNewExam({ ...newExam, bonus_link: e.target.value })}
+                      />
+                    </div>
+                  </div>
                   <Button onClick={async () => { await addExam(); setShowNewExamForm(false); }}>Buat Tryout</Button>
                 </CardContent>
               </Card>
@@ -2415,6 +2493,7 @@ const Admin = () => {
                                    {ex.price === 0 ? "Gratis" : `Rp ${ex.price.toLocaleString("id-ID")}`}
                                    {ex.original_price ? ` (coret: Rp ${ex.original_price.toLocaleString("id-ID")})` : ""}
                                    {ex.cta_link ? " · Ada CTA link" : ""}
+                                   {ex.bonus_link ? " · Ada bonus" : ""}
                                  </p>
                                </div>
                                <div className="flex gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -3319,6 +3398,33 @@ const Admin = () => {
               <div>
                 <Label>CTA Link Beli <span className="text-muted-foreground text-xs">(WhatsApp / link eksternal — kosongkan untuk beli via saldo)</span></Label>
                 <Input value={editExam.cta_link ?? ""} onChange={(e) => setEditExam({ ...editExam, cta_link: e.target.value })} placeholder="https://wa.me/62..." />
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
+                <div>
+                  <Label>Nama Bonus <span className="text-muted-foreground text-xs">(opsional)</span></Label>
+                  <Input
+                    value={editExam.bonus_title ?? ""}
+                    onChange={(e) => setEditExam({ ...editExam, bonus_title: e.target.value })}
+                    placeholder="cth: Video Pembelajaran SKD"
+                  />
+                </div>
+                <div>
+                  <Label>Deskripsi Bonus</Label>
+                  <Textarea
+                    value={editExam.bonus_description ?? ""}
+                    onChange={(e) => setEditExam({ ...editExam, bonus_description: e.target.value })}
+                    rows={2}
+                    placeholder="cth: Akses video pembelajaran lengkap via Google Drive"
+                  />
+                </div>
+                <div>
+                  <Label>Link Bonus / Google Drive</Label>
+                  <Input
+                    value={editExam.bonus_link ?? ""}
+                    onChange={(e) => setEditExam({ ...editExam, bonus_link: e.target.value })}
+                    placeholder="https://drive.google.com/..."
+                  />
+                </div>
               </div>
               <div>
                 <Label>Gambar Cover <span className="text-muted-foreground text-xs">(opsional — tampil di card Beli Paket)</span></Label>

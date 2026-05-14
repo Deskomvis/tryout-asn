@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Wallet, GraduationCap } from "lucide-react";
+import { Wallet, GraduationCap, Gift } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,9 @@ export type ExamLite = {
   bundle_size?: number | null;
   cover_image_url?: string | null;
   cta_link?: string | null;
+  bonus_title?: string | null;
+  bonus_description?: string | null;
+  bonus_link?: string | null;
 };
 
 type Mode = "buy" | "play";
@@ -46,6 +49,7 @@ export const ExamCard = ({
   const hasDiscount = original > exam.price && exam.price > 0;
   const discountPct = hasDiscount ? Math.round(((original - exam.price) / original) * 100) : 0;
   const bundle = exam.bundle_size ?? 1;
+  const hasBonus = !!(exam.bonus_title?.trim() || exam.bonus_description?.trim() || exam.bonus_link?.trim());
 
   const handleBuy = async () => {
     if (isFree) {
@@ -109,6 +113,21 @@ export const ExamCard = ({
           {/* Title — full, no clamp */}
           <h4 className="mb-1 text-base font-bold leading-snug text-foreground">{exam.title}</h4>
           <p className="mb-3 text-xs text-muted-foreground">{bundle} Paket</p>
+          {hasBonus && (
+            <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+              <div className="flex items-start gap-2">
+                <Gift className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-amber-900">
+                    Bonus pembelian{exam.bonus_title ? `: ${exam.bonus_title}` : ""}
+                  </p>
+                  {exam.bonus_description && (
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-amber-800">{exam.bonus_description}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Pricing row */}
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

@@ -20,7 +20,7 @@ export function useAdminData() {
     setLynkPackages: (pkgs: LynkPackage[]) => void
   ) => {
     const { data: e } = await supabase.from("exams")
-      .select("id,title,total_questions,description,duration,price,original_price,bundle_size,category,subcategory,exam_type,passing_score,cta_link,cover_image_url")
+      .select("id,title,total_questions,description,duration,price,original_price,bundle_size,category,subcategory,exam_type,passing_score,cta_link,cover_image_url,bonus_title,bonus_description,bonus_link")
       .order("created_at");
     setExams((e as Exam[]) ?? []);
 

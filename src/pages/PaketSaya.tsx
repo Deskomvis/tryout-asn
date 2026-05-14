@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CheckCircle2, Clock, Trophy } from "lucide-react";
+import { CheckCircle2, Clock, Trophy, Gift, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
@@ -16,7 +16,15 @@ type Purchase = {
   used_at: string | null;
   purchased_at: string;
   price_paid: number;
-  exams: { id: string; title: string; total_questions: number; duration: number } | null;
+  exams: {
+    id: string;
+    title: string;
+    total_questions: number;
+    duration: number;
+    bonus_title?: string | null;
+    bonus_description?: string | null;
+    bonus_link?: string | null;
+  } | null;
 };
 
 const PaketSaya = () => {
@@ -30,7 +38,7 @@ const PaketSaya = () => {
     (async () => {
       const { data } = await supabase
         .from("exam_purchases")
-        .select("id,used,used_at,purchased_at,price_paid,exams(id,title,total_questions,duration)")
+        .select("id,used,used_at,purchased_at,price_paid,exams(id,title,total_questions,duration,bonus_title,bonus_description,bonus_link)")
         .eq("user_id", user.id)
         .order("purchased_at", { ascending: false });
 
@@ -107,6 +115,29 @@ const PaketSaya = () => {
                     <p className="mb-4 text-xs text-muted-foreground">
                       {p.exams ? `${Math.round(p.exams.duration / 60)} menit · ${p.exams.total_questions} soal` : ""}
                     </p>
+                    {p.exams?.bonus_link && (
+                      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                        <div className="flex items-start gap-2">
+                          <Gift className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-amber-900">
+                              {p.exams.bonus_title?.trim() || "Bonus pembelian"}
+                            </p>
+                            {p.exams.bonus_description && (
+                              <p className="mt-1 text-[11px] leading-relaxed text-amber-800">{p.exams.bonus_description}</p>
+                            )}
+                            <a
+                              href={p.exams.bonus_link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:underline"
+                            >
+                              Buka bonus <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-auto space-y-2">
                       <p className="text-xs text-muted-foreground">Akses 1x — saldo terpotong: Rp {p.price_paid.toLocaleString("id-ID")}</p>
                       <Button asChild className="w-full rounded-full">
@@ -152,6 +183,20 @@ const PaketSaya = () => {
                             {p.used && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
                             {p.exams?.title ?? "-"}
                           </span>
+                          {p.exams?.bonus_link && (
+                            <div className="mt-1">
+                              <a
+                                href={p.exams.bonus_link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:underline"
+                              >
+                                <Gift className="h-3 w-3" />
+                                {p.exams.bonus_title?.trim() || "Buka bonus"}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{new Date(p.purchased_at).toLocaleString("id-ID")}</td>
                         <td className="px-4 py-3 text-muted-foreground">{p.used_at ? new Date(p.used_at).toLocaleString("id-ID") : "-"}</td>
