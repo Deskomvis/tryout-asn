@@ -838,25 +838,15 @@ const Admin = () => {
       const chartLabel = aiGen.chartType !== "none" ? ` (grafik ${aiGen.chartType})` : "";
       if (data.count === 0) {
         toast.warning(`AI merespons tapi tidak ada soal yang bisa diproses. Coba lagi.`);
+      } else if ((data.skipped ?? 0) > 0) {
+        toast.success(`${data.count} soal${chartLabel} berhasil disimpan, ${data.skipped} dilewati saat validasi`);
       } else {
         toast.success(`${data.count} soal${chartLabel} + pembahasan berhasil di-generate`);
       }
       setAiGen((g) => ({ ...g, imageFile: null, imageUrl: "" }));
       setAddQuestionMode(null);
       setBankListMode(null);
-      // Sync newly generated questions to assignment table (only when targeting a specific exam)
-      if (data.count > 0 && examIdToUse) {
-        const currentIds = new Set(questions.map((q) => q.id));
-        const { data: newQs } = await supabase.from("questions").select("id").eq("exam_id", examIdToUse).order("created_at", { ascending: false }).limit(data.count + 5);
-        const toAssign = (newQs ?? []).filter((q: any) => !currentIds.has(q.id));
-        if (toAssign.length > 0) {
-          const maxPos = questions.length;
-          await (supabase as any).from("exam_question_assignments").insert(
-            toAssign.map((q: any, i: number) => ({ exam_id: examIdToUse, question_id: q.id, position: maxPos + i + 1 }))
-          );
-        }
-      }
-      if (bankView === "list") loadGlobalBank(); else refresh();
+      if (bankView === "list") loadGlobalBank(0); else refresh();
     } catch (e: any) {
       const msg = e?.message ?? "Terjadi kesalahan";
       setAiStatus("error"); setAiError(msg); toast.error(msg);
@@ -993,7 +983,7 @@ const Admin = () => {
 
     setExtractRunning(false);
     refresh();
-    loadGlobalBank();
+    loadGlobalBank(0);
   };
 
   const addLynkPkg = async () => {
@@ -1152,7 +1142,7 @@ const Admin = () => {
     resetExtractChunks(m);
     setExtractPanelId(m.id);
     setExtractExamId("");
-    loadGlobalBank();
+    loadGlobalBank(0);
     toast.success(`${qIds.length} soal lama dihapus. Siap proses ulang.`);
   };
 

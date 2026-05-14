@@ -279,6 +279,168 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
+function normalizeOptionText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/^[A-Z][.)]\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function dedupeOptions(options: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const option of options) {
+    const normalized = normalizeOptionText(option);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    deduped.push(normalized);
+  }
+  return deduped;
+}
+
+function resolveOptionFromChoices(options: string[], candidate: unknown): string | null {
+  const rawCandidate = String(candidate ?? "").trim();
+  if (/^[A-Z]$/i.test(rawCandidate)) {
+    return options[rawCandidate.toUpperCase().charCodeAt(0) - 65] ?? null;
+  }
+  const normalizedCandidate = normalizeOptionText(candidate);
+  if (!normalizedCandidate) return null;
+  return options.find((option) => normalizeOptionText(option) === normalizedCandidate) ?? null;
+}
+
+function buildDistributedPositions(questionCount: number, optionCount: number): number[] {
+  const positions: number[] = [];
+  while (positions.length < questionCount) {
+    const cycle = shuffleArray(Array.from({ length: optionCount }, (_, index) => index));
+    for (const position of cycle) {
+      if (positions.length >= questionCount) break;
+      positions.push(position);
+    }
+  }
+  return positions;
+}
+
+type PreparedQuestion = {
+  question_text: string;
+  options: string[];
+  subtest: "twk" | "tiu" | "tkp";
+  explanation: string;
+  image_url: string | null;
+  svg_content: string | null;
+  source: "ai";
+  exam_id: string | null;
+  correct_answer: string;
+  option_points?: Record<string, number>;
+};
+
+function prepareGeneratedQuestion({
+  item,
+  subtest,
+  exam_id,
+  image_url,
+}: {
+  item: unknown;
+  subtest: "twk" | "tiu" | "tkp";
+  exam_id?: string;
+  image_url?: string | null;
+}): PreparedQuestion | null {
+  const q = item as Record<string, unknown>;
+  if (typeof q.question_text !== "string") return null;
+
+  const options = dedupeOptions(
+    Array.isArray(q.options) ? q.options.map((option) => normalizeOptionText(option)) : [],
+  );
+  if (options.length < 2) return null;
+
+  let svgContent: string | null = null;
+  if (q.chart_data && typeof q.chart_data === "object") {
+    svgContent = buildSVGFromChartData(q.chart_data as Record<string, unknown>);
+  }
+
+  const base: PreparedQuestion = {
+    exam_id: exam_id ?? null,
+    question_text: q.question_text.trim(),
+    options,
+    subtest,
+    explanation: typeof q.explanation === "string" ? q.explanation.trim() : "",
+    image_url: image_url || null,
+    svg_content: svgContent,
+    source: "ai",
+    correct_answer: "",
+  };
+
+  if (!base.question_text) return null;
+
+  if (subtest === "tkp") {
+    if (!q.option_points || typeof q.option_points !== "object") return null;
+
+    const rawPoints = q.option_points as Record<string, unknown>;
+    const pointMap: Record<string, number> = {};
+    for (const option of options) {
+      const rawKey = Object.keys(rawPoints).find(
+        (key) => normalizeOptionText(key) === normalizeOptionText(option),
+      );
+      if (!rawKey) return null;
+      const numericPoint = Number(rawPoints[rawKey]);
+      if (!Number.isFinite(numericPoint)) return null;
+      pointMap[option] = numericPoint;
+    }
+
+    const pointValues = Object.values(pointMap);
+    if (pointValues.length !== options.length || new Set(pointValues).size !== pointValues.length) {
+      return null;
+    }
+    if (options.length === 5 && ![1, 2, 3, 4, 5].every((value) => pointValues.includes(value))) {
+      return null;
+    }
+
+    const correctAnswer = Object.entries(pointMap).reduce((best, current) =>
+      current[1] > best[1] ? current : best,
+    )[0];
+
+    return {
+      ...base,
+      option_points: pointMap,
+      correct_answer: correctAnswer,
+    };
+  }
+
+  const correctAnswer = resolveOptionFromChoices(options, q.correct_answer);
+  if (!correctAnswer) return null;
+
+  return {
+    ...base,
+    correct_answer: correctAnswer,
+  };
+}
+
+function rebalanceCorrectAnswerPositions(questions: PreparedQuestion[]): PreparedQuestion[] {
+  const grouped = new Map<number, PreparedQuestion[]>();
+  for (const question of questions) {
+    const bucket = grouped.get(question.options.length) ?? [];
+    bucket.push(question);
+    grouped.set(question.options.length, bucket);
+  }
+
+  const rebalanced: PreparedQuestion[] = [];
+  for (const [, group] of grouped) {
+    const positions = buildDistributedPositions(group.length, group[0].options.length);
+    group.forEach((question, index) => {
+      const wrongOptions = shuffleArray(
+        question.options.filter((option) => option !== question.correct_answer),
+      );
+      const nextOptions = [...wrongOptions];
+      nextOptions.splice(positions[index], 0, question.correct_answer);
+      rebalanced.push({
+        ...question,
+        options: nextOptions,
+      });
+    });
+  }
+
+  return rebalanced;
+}
+
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -428,10 +590,20 @@ Output ONLY the JSON object.`;
       if (objStart === -1 || objEnd <= objStart) return json({ error: `AI tidak mengembalikan JSON yang valid. Preview: ${rawText.slice(0, 100)}` }, 500);
       try {
         const q = JSON.parse(rawText.slice(objStart, objEnd + 1));
-        if (q.options && Array.isArray(q.options)) {
-          q.options = shuffleArray(q.options);
-        }
-        return json({ question: q });
+        const prepared = prepareGeneratedQuestion({ item: q, subtest, image_url: null });
+        if (!prepared) return json({ error: "AI mengembalikan format soal yang tidak valid" }, 500);
+        const [rebalanced] = rebalanceCorrectAnswerPositions([prepared]);
+        return json({
+          question: {
+            question_text: rebalanced.question_text,
+            options: rebalanced.options,
+            correct_answer: rebalanced.correct_answer,
+            explanation: rebalanced.explanation,
+            option_points: rebalanced.option_points ?? null,
+            svg_content: rebalanced.svg_content,
+            svg_prompt: typeof q.svg_prompt === "string" ? q.svg_prompt : "",
+          },
+        });
       } catch {
         return json({ error: "Gagal parse JSON dari AI" }, 500);
       }
@@ -578,55 +750,57 @@ ${illustrationPrompt}`;
       return json({ error: `AI tidak mengembalikan JSON yang valid. Coba lagi. (Preview: ${rawText.slice(0, 150)})` }, 500);
     }
 
-    const inserted: string[] = [];
+    const prepared = questionList
+      .map((item) => prepareGeneratedQuestion({ item, subtest, exam_id, image_url }))
+      .filter((question): question is PreparedQuestion => question !== null);
 
-    for (const item of questionList) {
-      try {
-        const q = item as Record<string, unknown>;
-        if (!q.question_text || !Array.isArray(q.options) || (q.options as unknown[]).length < 2) continue;
-
-        // Build SVG from chart_data if present
-        let svgContent: string | null = null;
-        if (q.chart_data && typeof q.chart_data === "object") {
-          svgContent = buildSVGFromChartData(q.chart_data as Record<string, unknown>);
-        }
-
-        const payload: Record<string, unknown> = {
-          exam_id: exam_id ?? null,
-          question_text: q.question_text,
-          options: Array.isArray(q.options) ? shuffleArray(q.options as string[]) : q.options,
-          subtest,
-          explanation: q.explanation || "",
-          image_url: image_url || null,
-          svg_content: svgContent,
-          source: "ai",
-        };
-
-        if (subtest === "tkp") {
-          if (!q.option_points || typeof q.option_points !== "object") continue;
-          const pointVals = Object.values(q.option_points as Record<string, number>);
-          if (new Set(pointVals).size !== 5 || !pointVals.every((v) => [1,2,3,4,5].includes(Number(v)))) continue;
-          payload.option_points = q.option_points;
-          payload.correct_answer = Object.entries(q.option_points as Record<string, number>)
-            .reduce((a, b) => (b[1] > a[1] ? b : a))[0];
-        } else {
-          const opts = q.options as string[];
-          if (!q.correct_answer || !opts.includes(q.correct_answer as string)) continue;
-          payload.correct_answer = q.correct_answer;
-        }
-
-        const { error: insertErr } = await supabase.from("questions").insert(payload);
-        if (!insertErr) inserted.push(q.question_text as string);
-      } catch { /* skip malformed */ }
+    if (prepared.length === 0) {
+      return json({
+        error: "AI merespons, tetapi semua soal gagal divalidasi sebelum disimpan.",
+        requested: safeCount,
+        parsed: questionList.length,
+      }, 500);
     }
 
-    if (inserted.length > 0 && exam_id) {
-      const { count: currentCount } = await supabase
-        .from("questions").select("*", { count: "exact", head: true }).eq("exam_id", exam_id);
-      await supabase.from("exams").update({ total_questions: currentCount ?? inserted.length }).eq("id", exam_id);
+    const readyToInsert = rebalanceCorrectAnswerPositions(prepared);
+    const insertedIds: string[] = [];
+
+    for (const payload of readyToInsert) {
+      const { data: insertedRow, error: insertErr } = await supabase
+        .from("questions")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (!insertErr && insertedRow?.id) insertedIds.push(insertedRow.id);
     }
 
-    return json({ count: inserted.length, requested: safeCount });
+    if (insertedIds.length > 0 && exam_id) {
+      const { count: existingAssignments } = await supabase
+        .from("exam_question_assignments")
+        .select("*", { count: "exact", head: true })
+        .eq("exam_id", exam_id);
+
+      await supabase.from("exam_question_assignments").insert(
+        insertedIds.map((questionId, index) => ({
+          exam_id,
+          question_id: questionId,
+          position: (existingAssignments ?? 0) + index + 1,
+        })),
+      );
+
+      const { count: totalAssigned } = await supabase
+        .from("exam_question_assignments")
+        .select("*", { count: "exact", head: true })
+        .eq("exam_id", exam_id);
+      await supabase.from("exams").update({ total_questions: totalAssigned ?? insertedIds.length }).eq("id", exam_id);
+    }
+
+    return json({
+      count: insertedIds.length,
+      requested: safeCount,
+      parsed: questionList.length,
+      skipped: Math.max(questionList.length - insertedIds.length, 0),
+    });
   } catch (err: unknown) {
     return json({ error: err instanceof Error ? err.message : "Internal server error" }, 500);
   }

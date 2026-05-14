@@ -10,6 +10,30 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function stripPrefix(s: string) {
+  return s.replace(/^[A-Ea-e][.)]\s*/, "").replace(/\s+/g, " ").trim();
+}
+
+function splitOptionBlob(value: string): string[] {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) return [];
+  const pieces = normalized.split(/(?=\b[A-Ea-e][.)]\s*)/).map((part) => stripPrefix(part));
+  const usable = pieces.filter(Boolean);
+  return usable.length > 1 ? usable : [stripPrefix(normalized)];
+}
+
+function extractOptions(rawOptions: unknown): string[] {
+  if (Array.isArray(rawOptions)) {
+    return rawOptions
+      .flatMap((option) => splitOptionBlob(String(option ?? "")))
+      .filter(Boolean);
+  }
+  if (typeof rawOptions === "string") {
+    return splitOptionBlob(rawOptions);
+  }
+  return [];
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -36,6 +60,7 @@ ATURAN EKSTRAKSI:
 - Jangan buat soal baru — hanya ekstrak yang ada
 - Lewati soal tidak lengkap atau jawaban tidak jelas
 - correct_answer harus IDENTIK dengan salah satu elemen options (karakter per karakter)
+- Pastikan setiap opsi jawaban A, B, C, D, E ikut masuk ke field options, jangan hanya pertanyaan saja
 - Hapus awalan "A." "B." "C." "D." "E." dari teks options
 - subtest: twk (Pancasila/UUD/NKRI/sejarah), tiu (logika/analogi/hitung/figural/deret), tkp (situasi kerja/etika ASN)
 - Jika ada kunci jawaban terpisah di akhir teks, gunakan untuk correct_answer
@@ -180,28 +205,31 @@ Ekstrak semua soal. Untuk setiap soal yang memiliki data tabel/pola/grafik dalam
     return json({ count: 0, skipped: 0 });
   }
 
-  // Strip "A." / "A)" / "a." letter-prefix from answer/option text
-  const stripPrefix = (s: string) => s.replace(/^[A-Ea-e][.)]\s*/, "").trim();
-
   // Validate and normalise
   const valid: any[] = [];
   for (const q of questionList as any[]) {
     if (
       typeof q.question_text !== "string" || q.question_text.trim().length < 5 ||
-      !Array.isArray(q.options) || q.options.length < 2 ||
       typeof q.correct_answer !== "string"
     ) continue;
 
-    const opts = q.options.map((o: any) => String(o).trim());
+    const opts = extractOptions(q.options);
+    if (opts.length < 2) continue;
     const ans = q.correct_answer.trim();
 
     // Try exact match first, then normalized (strip letter prefix from both sides)
     let resolvedAns = ans;
     if (!opts.includes(ans)) {
-      const normAns = stripPrefix(ans);
-      const matched = opts.find((o) => stripPrefix(o) === normAns || o === normAns);
-      if (!matched) continue;
-      resolvedAns = matched;
+      if (/^[A-Ea-e]$/.test(ans)) {
+        const optionByLetter = opts[ans.toUpperCase().charCodeAt(0) - 65];
+        if (!optionByLetter) continue;
+        resolvedAns = optionByLetter;
+      } else {
+        const normAns = stripPrefix(ans);
+        const matched = opts.find((o) => stripPrefix(o) === normAns || o === normAns);
+        if (!matched) continue;
+        resolvedAns = matched;
+      }
     }
 
     // Validate svg_content: must be a non-empty string starting with '<' or null
