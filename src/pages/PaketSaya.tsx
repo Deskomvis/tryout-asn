@@ -1,7 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CheckCircle2, Clock, Trophy, Gift, ExternalLink } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  Trophy,
+  Gift,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  Package2,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
@@ -9,6 +18,18 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+type PurchaseExam = {
+  id: string;
+  title: string;
+  total_questions: number;
+  duration: number;
+  parent_exam_id?: string | null;
+  bonus_title?: string | null;
+  bonus_description?: string | null;
+  bonus_link?: string | null;
+};
 
 type Purchase = {
   id: string;
@@ -16,15 +37,32 @@ type Purchase = {
   used_at: string | null;
   purchased_at: string;
   price_paid: number;
-  exams: {
-    id: string;
-    title: string;
-    total_questions: number;
-    duration: number;
-    bonus_title?: string | null;
-    bonus_description?: string | null;
-    bonus_link?: string | null;
-  } | null;
+  exams: PurchaseExam | null;
+};
+
+type ActiveStandalone = {
+  type: "standalone";
+  purchase: Purchase;
+};
+
+type ActiveBundle = {
+  type: "bundle";
+  parent: Purchase;
+  children: Purchase[];
+};
+
+type ActiveGroup = ActiveStandalone | ActiveBundle;
+
+const getBundleKey = (purchase: Purchase) => purchase.exams?.parent_exam_id ?? purchase.exams?.id ?? purchase.id;
+
+const getBundleLabel = (purchase: Purchase) => {
+  const title = purchase.exams?.title ?? "";
+  return title.replace(/\s*-\s*Paket\s+[A-Z]$/i, "").trim() || title;
+};
+
+const getChildLetter = (title?: string | null) => {
+  const match = title?.match(/-\s*Paket\s+([A-Z])$/i);
+  return match?.[1]?.toUpperCase() ?? "";
 };
 
 const PaketSaya = () => {
@@ -32,13 +70,14 @@ const PaketSaya = () => {
   const [rows, setRows] = useState<Purchase[]>([]);
   const [scoreMap, setScoreMap] = useState<Record<string, number>>({});
   const [rankMap, setRankMap] = useState<Record<string, number>>({});
+  const [expandedBundleIds, setExpandedBundleIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
     (async () => {
       const { data } = await supabase
         .from("exam_purchases")
-        .select("id,used,used_at,purchased_at,price_paid,exams(id,title,total_questions,duration,bonus_title,bonus_description,bonus_link)")
+        .select("id,used,used_at,purchased_at,price_paid,exams(id,title,total_questions,duration,parent_exam_id,bonus_title,bonus_description,bonus_link)")
         .eq("user_id", user.id)
         .order("purchased_at", { ascending: false });
 
@@ -50,7 +89,6 @@ const PaketSaya = () => {
       ];
       if (usedExamIds.length === 0) return;
 
-      // Best score per exam from exam_results
       const { data: results } = await supabase
         .from("exam_results")
         .select("exam_id, total_score")
@@ -65,7 +103,6 @@ const PaketSaya = () => {
       }
       setScoreMap(scores);
 
-      // Rank from user_scores (paid exams only — free exams won't be in user_scores)
       const { data: myBest } = await supabase
         .from("user_scores")
         .select("exam_id, score")
@@ -84,13 +121,98 @@ const PaketSaya = () => {
             .eq("exam_id", eid)
             .gt("score", myBestMap[eid]);
           ranks[eid] = (count ?? 0) + 1;
-        })
+        }),
       );
       setRankMap(ranks);
     })();
   }, [user]);
 
-  const active = rows.filter((r) => !r.used);
+  const activeGroups = useMemo<ActiveGroup[]>(() => {
+    const activeRows = rows.filter((r) => !r.used && r.exams);
+    const parentMap = new Map<string, Purchase>();
+    const childMap = new Map<string, Purchase[]>();
+    const standalone: Purchase[] = [];
+
+    for (const purchase of activeRows) {
+      const exam = purchase.exams;
+      if (!exam) continue;
+      if (exam.parent_exam_id) {
+        const bucket = childMap.get(exam.parent_exam_id) ?? [];
+        bucket.push(purchase);
+        childMap.set(exam.parent_exam_id, bucket);
+      } else if ((rows.some((row) => row.exams?.parent_exam_id === exam.id))) {
+        parentMap.set(exam.id, purchase);
+      } else {
+        standalone.push(purchase);
+      }
+    }
+
+    const bundles: ActiveBundle[] = Array.from(parentMap.entries())
+      .map(([parentId, parent]) => ({
+        type: "bundle" as const,
+        parent,
+        children: (childMap.get(parentId) ?? []).sort((a, b) => {
+          const letterA = getChildLetter(a.exams?.title);
+          const letterB = getChildLetter(b.exams?.title);
+          return letterA.localeCompare(letterB);
+        }),
+      }))
+      .filter((group) => group.children.length > 0);
+
+    const childOnlyBundles: ActiveBundle[] = Array.from(childMap.entries())
+      .filter(([parentId]) => !parentMap.has(parentId))
+      .map(([, children]) => ({
+        type: "bundle" as const,
+        parent: children[0],
+        children: [...children].sort((a, b) => {
+          const letterA = getChildLetter(a.exams?.title);
+          const letterB = getChildLetter(b.exams?.title);
+          return letterA.localeCompare(letterB);
+        }),
+      }));
+
+    const standaloneGroups: ActiveStandalone[] = standalone.map((purchase) => ({
+      type: "standalone" as const,
+      purchase,
+    }));
+
+    return [...bundles, ...childOnlyBundles, ...standaloneGroups].sort((a, b) => {
+      const dateA = a.type === "bundle" ? a.parent.purchased_at : a.purchase.purchased_at;
+      const dateB = b.type === "bundle" ? b.parent.purchased_at : b.purchase.purchased_at;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+  }, [rows]);
+
+  const historyRows = useMemo(() => {
+    const bundleHistoryMap = new Map<string, Purchase>();
+    const standaloneHistory: Purchase[] = [];
+
+    for (const purchase of rows) {
+      const exam = purchase.exams;
+      if (!exam) continue;
+
+      if (exam.parent_exam_id) continue;
+
+      if (rows.some((row) => row.exams?.parent_exam_id === exam.id)) {
+        if (!bundleHistoryMap.has(exam.id)) bundleHistoryMap.set(exam.id, purchase);
+      } else {
+        standaloneHistory.push(purchase);
+      }
+    }
+
+    return [...bundleHistoryMap.values(), ...standaloneHistory].sort(
+      (a, b) => new Date(b.purchased_at).getTime() - new Date(a.purchased_at).getTime(),
+    );
+  }, [rows]);
+
+  const toggleBundle = (bundleId: string) => {
+    setExpandedBundleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(bundleId)) next.delete(bundleId);
+      else next.add(bundleId);
+      return next;
+    });
+  };
 
   return (
     <AppLayout>
@@ -98,63 +220,159 @@ const PaketSaya = () => {
 
       <section>
         <h2 className="mb-3 text-base font-semibold text-foreground">Aktif (Akses 1x)</h2>
-        {active.length === 0 ? (
+        {activeGroups.length === 0 ? (
           <Card><CardContent className="p-6 text-sm text-muted-foreground">
             Belum ada paket aktif. <Link to="/beli-paket" className="font-medium text-primary hover:underline">Beli paket sekarang</Link>.
           </CardContent></Card>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {active.map((p, i) => (
-              <motion.div key={p.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: i * 0.04 }}>
-                <Card className="h-full border-primary/30">
-                  <CardContent className="flex h-full flex-col p-5">
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <h4 className="font-semibold text-foreground">{p.exams?.title}</h4>
-                      <Badge className="gap-1"><Clock className="h-3 w-3" />Siap</Badge>
-                    </div>
-                    <p className="mb-4 text-xs text-muted-foreground">
-                      {p.exams ? `${Math.round(p.exams.duration / 60)} menit · ${p.exams.total_questions} soal` : ""}
-                    </p>
-                    {p.exams?.bonus_link && (
-                      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                        <div className="flex items-start gap-2">
-                          <Gift className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-amber-900">
-                              {p.exams.bonus_title?.trim() || "Bonus pembelian"}
+          <div className="space-y-4">
+            {activeGroups.map((group, i) => {
+              if (group.type === "standalone") {
+                const p = group.purchase;
+                return (
+                  <motion.div key={p.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: i * 0.04 }}>
+                    <Card className="border-primary/30">
+                      <CardContent className="flex flex-col gap-4 p-5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="font-semibold text-foreground">{p.exams?.title}</h4>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {p.exams ? `${Math.round(p.exams.duration / 60)} menit · ${p.exams.total_questions} soal` : ""}
                             </p>
-                            {p.exams.bonus_description && (
-                              <p className="mt-1 text-[11px] leading-relaxed text-amber-800">{p.exams.bonus_description}</p>
-                            )}
-                            <a
-                              href={p.exams.bonus_link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:underline"
-                            >
-                              Buka bonus <ExternalLink className="h-3 w-3" />
-                            </a>
                           </div>
+                          <Badge className="gap-1"><Clock className="h-3 w-3" />Siap</Badge>
                         </div>
+                        {p.exams?.bonus_link && (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                            <div className="flex items-start gap-2">
+                              <Gift className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-amber-900">
+                                  {p.exams.bonus_title?.trim() || "Bonus pembelian"}
+                                </p>
+                                {p.exams.bonus_description && (
+                                  <p className="mt-1 text-[11px] leading-relaxed text-amber-800">{p.exams.bonus_description}</p>
+                                )}
+                                <a
+                                  href={p.exams.bonus_link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:underline"
+                                >
+                                  Buka bonus <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <div className="mt-auto space-y-2">
+                          <p className="text-xs text-muted-foreground">Akses 1x — saldo terpotong: Rp {p.price_paid.toLocaleString("id-ID")}</p>
+                          <Button asChild className="w-full rounded-full">
+                            <Link to={`/exam/${p.exams?.id}`}>Mulai Tryout</Link>
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                );
+              }
+
+              const bundleId = group.parent.exams?.id ?? group.parent.id;
+              const expanded = expandedBundleIds.has(bundleId);
+              const bundleTitle = getBundleLabel(group.parent);
+              const parentExam = group.parent.exams;
+
+              return (
+                <motion.div key={bundleId} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: i * 0.04 }}>
+                  <Card className="border-primary/30">
+                    <CardContent className="p-5">
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Package2 className="h-4 w-4 text-primary" />
+                              <h4 className="font-semibold text-foreground">{bundleTitle}</h4>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {group.children.length} paket aktif siap dikerjakan
+                            </p>
+                          </div>
+                          <Badge className="gap-1"><Clock className="h-3 w-3" />Siap</Badge>
+                        </div>
+
+                        {parentExam?.bonus_link && (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                            <div className="flex items-start gap-2">
+                              <Gift className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-amber-900">
+                                  {parentExam.bonus_title?.trim() || "Bonus pembelian"}
+                                </p>
+                                {parentExam.bonus_description && (
+                                  <p className="mt-1 text-[11px] leading-relaxed text-amber-800">{parentExam.bonus_description}</p>
+                                )}
+                                <a
+                                  href={parentExam.bonus_link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:underline"
+                                >
+                                  Buka bonus <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground">
+                            Pembelian paket: Rp {group.parent.price_paid.toLocaleString("id-ID")}
+                          </p>
+                          <Button variant="outline" className="gap-2 rounded-full" onClick={() => toggleBundle(bundleId)}>
+                            {expanded ? "Sembunyikan isi paket" : "Lihat isi paket"}
+                            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                        </div>
+
+                        {expanded && (
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {group.children.map((child) => {
+                              const childLetter = getChildLetter(child.exams?.title) || "Paket";
+                              return (
+                                <div
+                                  key={child.id}
+                                  className="rounded-2xl border border-border bg-background p-4 shadow-sm transition-colors hover:bg-accent/30"
+                                >
+                                  <div className="mb-3 flex items-start justify-between gap-2">
+                                    <div>
+                                      <p className="text-sm font-semibold text-foreground">Paket {childLetter}</p>
+                                      <p className="mt-1 text-[11px] text-muted-foreground">
+                                        {child.exams ? `${Math.round(child.exams.duration / 60)} menit · ${child.exams.total_questions} soal` : ""}
+                                      </p>
+                                    </div>
+                                    <Badge variant="secondary" className="text-[10px]">Siap</Badge>
+                                  </div>
+                                  <Button asChild className="w-full rounded-full">
+                                    <Link to={`/exam/${child.exams?.id}`}>Kerjakan Paket {childLetter}</Link>
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    <div className="mt-auto space-y-2">
-                      <p className="text-xs text-muted-foreground">Akses 1x — saldo terpotong: Rp {p.price_paid.toLocaleString("id-ID")}</p>
-                      <Button asChild className="w-full rounded-full">
-                        <Link to={`/exam/${p.exams?.id}`}>Mulai Tryout</Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </section>
 
       <section className="mt-10">
         <h2 className="mb-3 text-base font-semibold text-foreground">Riwayat Pembelian</h2>
-        {rows.length === 0 ? (
+        {historyRows.length === 0 ? (
           <Card><CardContent className="p-6 text-sm text-muted-foreground">Belum ada transaksi.</CardContent></Card>
         ) : (
           <Card><CardContent className="p-0">
@@ -164,24 +382,19 @@ const PaketSaya = () => {
                   <tr>
                     <th className="px-4 py-3">Paket</th>
                     <th className="px-4 py-3">Tanggal Beli</th>
-                    <th className="px-4 py-3">Selesai</th>
-                    <th className="px-4 py-3 text-right">Skor</th>
-                    <th className="px-4 py-3 text-right">Rangking</th>
-                    <th className="px-4 py-3">Harga</th>
+                    <th className="px-4 py-3 text-right">Harga</th>
                     <th className="px-4 py-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {rows.map((p) => {
-                    const examId = p.exams?.id;
-                    const score = examId ? scoreMap[examId] : undefined;
-                    const rank = examId ? rankMap[examId] : undefined;
+                  {historyRows.map((p) => {
+                    const bundleTitle = getBundleLabel(p);
                     return (
                       <tr key={p.id} className="hover:bg-secondary/50">
                         <td className="px-4 py-3 font-medium text-foreground">
                           <span className="inline-flex items-center gap-2">
                             {p.used && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
-                            {p.exams?.title ?? "-"}
+                            {bundleTitle || p.exams?.title || "-"}
                           </span>
                           {p.exams?.bonus_link && (
                             <div className="mt-1">
@@ -199,20 +412,7 @@ const PaketSaya = () => {
                           )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{new Date(p.purchased_at).toLocaleString("id-ID")}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{p.used_at ? new Date(p.used_at).toLocaleString("id-ID") : "-"}</td>
-                        <td className="px-4 py-3 text-right">
-                          {p.used && score != null
-                            ? <span className="font-bold text-primary">{score}</span>
-                            : <span className="text-muted-foreground">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {p.used && rank != null
-                            ? <span className="inline-flex items-center gap-1 font-semibold text-amber-600">
-                                <Trophy className="h-3.5 w-3.5" />#{rank}
-                              </span>
-                            : <span className="text-muted-foreground">—</span>}
-                        </td>
-                        <td className="px-4 py-3">Rp {p.price_paid.toLocaleString("id-ID")}</td>
+                        <td className="px-4 py-3 text-right">Rp {p.price_paid.toLocaleString("id-ID")}</td>
                         <td className="px-4 py-3">
                           {p.used ? <Badge variant="secondary">Selesai</Badge> : <Badge>Aktif</Badge>}
                         </td>
