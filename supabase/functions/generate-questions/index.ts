@@ -372,25 +372,73 @@ function prepareGeneratedQuestion({
   if (!base.question_text) return null;
 
   if (subtest === "tkp") {
-    if (!q.option_points || typeof q.option_points !== "object") return null;
+    if (!q.option_points) return null;
 
-    const rawPoints = q.option_points as Record<string, unknown>;
     const pointMap: Record<string, number> = {};
-    for (const option of options) {
-      const rawKey = Object.keys(rawPoints).find(
-        (key) => normalizeOptionText(key) === normalizeOptionText(option),
-      );
-      if (!rawKey) return null;
-      const numericPoint = Number(rawPoints[rawKey]);
-      if (!Number.isFinite(numericPoint)) return null;
-      pointMap[option] = numericPoint;
+
+    // Handle array format: [5, 4, 3, 2, 1] — positional by option index
+    if (Array.isArray(q.option_points)) {
+      const arr = q.option_points as unknown[];
+      for (let i = 0; i < options.length; i++) {
+        const val = Number(arr[i]);
+        if (!Number.isFinite(val)) {
+          console.error(`TKP array option_points: invalid value at index ${i}:`, arr[i]);
+          return null;
+        }
+        pointMap[options[i]] = val;
+      }
+    } else if (typeof q.option_points === "object") {
+      const rawPoints = q.option_points as Record<string, unknown>;
+      const rawKeys = Object.keys(rawPoints);
+
+      for (let i = 0; i < options.length; i++) {
+        const option = options[i];
+        const letter = String.fromCharCode(65 + i); // A, B, C, D, E
+
+        // Strategy 1: normalized text match
+        let rawKey = rawKeys.find(
+          (key) => normalizeOptionText(key) === normalizeOptionText(option),
+        );
+
+        // Strategy 2: letter-only key (e.g. {"A": 5, "B": 4})
+        if (!rawKey) {
+          rawKey = rawKeys.find(
+            (key) => key.trim().toUpperCase() === letter,
+          );
+        }
+
+        // Strategy 3: positional fallback when key count matches option count
+        if (!rawKey && rawKeys.length === options.length) {
+          rawKey = rawKeys[i];
+        }
+
+        if (!rawKey) {
+          console.error(
+            `TKP validation failed: no key for option[${i}]="${option}" letter="${letter}"`,
+            `rawKeys=[${rawKeys.join(", ")}]`,
+          );
+          return null;
+        }
+
+        const numericPoint = Number(rawPoints[rawKey]);
+        if (!Number.isFinite(numericPoint)) {
+          console.error(`TKP validation: non-numeric point for key "${rawKey}":`, rawPoints[rawKey]);
+          return null;
+        }
+        pointMap[option] = numericPoint;
+      }
+    } else {
+      console.error("TKP validation: option_points is not object or array:", typeof q.option_points);
+      return null;
     }
 
     const pointValues = Object.values(pointMap);
     if (pointValues.length !== options.length || new Set(pointValues).size !== pointValues.length) {
+      console.error("TKP validation: duplicate or missing point values:", pointValues);
       return null;
     }
     if (options.length === 5 && ![1, 2, 3, 4, 5].every((value) => pointValues.includes(value))) {
+      console.error("TKP validation: point values not exactly 1-5:", pointValues);
       return null;
     }
 
