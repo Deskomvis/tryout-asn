@@ -441,6 +441,41 @@ function rebalanceCorrectAnswerPositions(questions: PreparedQuestion[]): Prepare
   return rebalanced;
 }
 
+// ─── Robust JSON object extractor ────────────────────────────────────────────
+// Extracts individual { } objects from raw text using bracket counting.
+// Works even if the enclosing array is truncated/cut off mid-stream.
+function extractJsonObjects(text: string): unknown[] {
+  const objects: unknown[] = [];
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] !== "{") { i++; continue; }
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    let j = i;
+    while (j < text.length) {
+      const c = text[j];
+      if (escape) { escape = false; j++; continue; }
+      if (c === "\\" && inString) { escape = true; j++; continue; }
+      if (c === '"') { inString = !inString; j++; continue; }
+      if (!inString) {
+        if (c === "{") depth++;
+        else if (c === "}") {
+          depth--;
+          if (depth === 0) {
+            try { objects.push(JSON.parse(text.slice(i, j + 1))); } catch { /* skip malformed */ }
+            i = j + 1;
+            break;
+          }
+        }
+      }
+      j++;
+    }
+    if (depth > 0) break; // truncated — stop scanning
+  }
+  return objects;
+}
+
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -734,25 +769,20 @@ ${illustrationPrompt}`;
 
     const rawText = textBlock.text;
 
-    // Extract JSON array: find first [ and last ] regardless of surrounding text/markdown
+    // 1. Try full array parse first
     let questionList: unknown[] = [];
     const arrStart = rawText.indexOf("[");
     const arrEnd = rawText.lastIndexOf("]");
     if (arrStart !== -1 && arrEnd > arrStart) {
       try {
         questionList = JSON.parse(rawText.slice(arrStart, arrEnd + 1));
-      } catch { /* fall through to line extraction */ }
+      } catch { /* fall through */ }
     }
 
-    // Fallback: extract individual JSON objects from lines (JSONL)
+    // 2. Robust fallback: extract each { ... } object individually using bracket counting.
+    //    Works even if the JSON array is truncated (e.g. response cut off before final ]).
     if (questionList.length === 0) {
-      const lines = rawText.split("\n").map((l: string) => l.trim()).filter((l: string) => l.startsWith("{"));
-      for (const line of lines) {
-        try {
-          const trimmed = line.endsWith(",") ? line.slice(0, -1) : line;
-          questionList.push(JSON.parse(trimmed));
-        } catch { /* skip */ }
-      }
+      questionList = extractJsonObjects(rawText);
     }
 
     if (questionList.length === 0) {
