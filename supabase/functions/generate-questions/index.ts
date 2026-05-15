@@ -308,6 +308,28 @@ function resolveOptionFromChoices(options: string[], candidate: unknown): string
   return options.find((option) => normalizeOptionText(option) === normalizedCandidate) ?? null;
 }
 
+function parsePointValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const match = value.match(/[1-5]/);
+    if (match) return Number(match[0]);
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return parsePointValue(obj.point ?? obj.points ?? obj.score ?? obj.value ?? obj.nilai);
+  }
+  return null;
+}
+
+function buildFallbackTkpPoints(options: string[], bestAnswer: string): Record<string, number> {
+  const wrongOptions = options.filter((option) => option !== bestAnswer);
+  const scores = [4, 3, 2, 1];
+  return {
+    [bestAnswer]: 5,
+    ...Object.fromEntries(wrongOptions.map((option, index) => [option, scores[index] ?? 1])),
+  };
+}
+
 function buildDistributedPositions(questionCount: number, optionCount: number): number[] {
   const positions: number[] = [];
   while (positions.length < questionCount) {
@@ -372,16 +394,22 @@ function prepareGeneratedQuestion({
   if (!base.question_text) return null;
 
   if (subtest === "tkp") {
-    if (!q.option_points) return null;
-
     const pointMap: Record<string, number> = {};
+    const explicitBestAnswer = resolveOptionFromChoices(
+      options,
+      q.correct_answer ?? q.best_answer ?? q.answer ?? q.highest_answer,
+    );
 
     // Handle array format: [5, 4, 3, 2, 1] — positional by option index
-    if (Array.isArray(q.option_points)) {
+    if (!q.option_points && explicitBestAnswer) {
+      Object.assign(pointMap, buildFallbackTkpPoints(options, explicitBestAnswer));
+    } else if (!q.option_points) {
+      return null;
+    } else if (Array.isArray(q.option_points)) {
       const arr = q.option_points as unknown[];
       for (let i = 0; i < options.length; i++) {
-        const val = Number(arr[i]);
-        if (!Number.isFinite(val)) {
+        const val = parsePointValue(arr[i]);
+        if (val === null) {
           console.error(`TKP array option_points: invalid value at index ${i}:`, arr[i]);
           return null;
         }
@@ -420,8 +448,8 @@ function prepareGeneratedQuestion({
           return null;
         }
 
-        const numericPoint = Number(rawPoints[rawKey]);
-        if (!Number.isFinite(numericPoint)) {
+        const numericPoint = parsePointValue(rawPoints[rawKey]);
+        if (numericPoint === null) {
           console.error(`TKP validation: non-numeric point for key "${rawKey}":`, rawPoints[rawKey]);
           return null;
         }
@@ -434,12 +462,20 @@ function prepareGeneratedQuestion({
 
     const pointValues = Object.values(pointMap);
     if (pointValues.length !== options.length || new Set(pointValues).size !== pointValues.length) {
-      console.error("TKP validation: duplicate or missing point values:", pointValues);
-      return null;
+      if (!explicitBestAnswer) {
+        console.error("TKP validation: duplicate or missing point values:", pointValues);
+        return null;
+      }
+      Object.assign(pointMap, buildFallbackTkpPoints(options, explicitBestAnswer));
     }
-    if (options.length === 5 && ![1, 2, 3, 4, 5].every((value) => pointValues.includes(value))) {
-      console.error("TKP validation: point values not exactly 1-5:", pointValues);
-      return null;
+
+    const finalPointValues = Object.values(pointMap);
+    if (options.length === 5 && ![1, 2, 3, 4, 5].every((value) => finalPointValues.includes(value))) {
+      if (!explicitBestAnswer) {
+        console.error("TKP validation: point values not exactly 1-5:", finalPointValues);
+        return null;
+      }
+      Object.assign(pointMap, buildFallbackTkpPoints(options, explicitBestAnswer));
     }
 
     const correctAnswer = Object.entries(pointMap).reduce((best, current) =>
