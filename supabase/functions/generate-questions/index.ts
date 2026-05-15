@@ -578,20 +578,20 @@ Output ONLY the JSON object.`;
       });
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
-        return json({ error: `KIE API error ${res.status}: ${errText.slice(0, 200)}` }, 500);
+        return json({ error: `KIE API error ${res.status}: ${errText.slice(0, 200)}` });
       }
       const resData = await res.json();
       if (resData?.type === "error" || resData?.error) {
-        return json({ error: resData?.error?.message ?? "KIE API error" }, 500);
+        return json({ error: resData?.error?.message ?? "KIE API error" });
       }
       const rawText = (resData.content as Array<{ type: string; text?: string }>)?.find(b => b.type === "text")?.text ?? "";
       const objStart = rawText.indexOf("{");
       const objEnd = rawText.lastIndexOf("}");
-      if (objStart === -1 || objEnd <= objStart) return json({ error: `AI tidak mengembalikan JSON yang valid. Preview: ${rawText.slice(0, 100)}` }, 500);
+      if (objStart === -1 || objEnd <= objStart) return json({ error: `AI tidak mengembalikan JSON yang valid. Preview: ${rawText.slice(0, 100)}` });
       try {
         const q = JSON.parse(rawText.slice(objStart, objEnd + 1));
         const prepared = prepareGeneratedQuestion({ item: q, subtest, image_url: null });
-        if (!prepared) return json({ error: "AI mengembalikan format soal yang tidak valid" }, 500);
+        if (!prepared) return json({ error: "AI mengembalikan format soal yang tidak valid" });
         const [rebalanced] = rebalanceCorrectAnswerPositions([prepared]);
         return json({
           question: {
@@ -605,7 +605,7 @@ Output ONLY the JSON object.`;
           },
         });
       } catch {
-        return json({ error: "Gagal parse JSON dari AI" }, 500);
+        return json({ error: "Gagal parse JSON dari AI" });
       }
     }
 
@@ -650,12 +650,15 @@ ${illustrationPrompt}`;
         headers: { "Authorization": `Bearer ${globalKieApiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 4000, system: svgSysPrompt, messages: [{ role: "user", content: userMsg }], stream: false }),
       });
-      if (!res.ok) return json({ error: `KIE API error ${res.status}` }, 500);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        return json({ error: `KIE API error ${res.status}: ${errBody.slice(0, 200)}` });
+      }
       const resData = await res.json();
       const rawText = (resData.content as Array<{ type: string; text?: string }>)?.find(b => b.type === "text")?.text ?? "";
       const svgStart = rawText.indexOf("<svg");
       const svgEnd = rawText.lastIndexOf("</svg>");
-      if (svgStart === -1 || svgEnd === -1) return json({ error: "AI tidak menghasilkan SVG yang valid" }, 500);
+      if (svgStart === -1 || svgEnd === -1) return json({ error: "AI tidak menghasilkan SVG yang valid" });
       const svgContent = rawText.slice(svgStart, svgEnd + 6);
       return json({ svg_content: svgContent });
     }
@@ -688,7 +691,7 @@ ${illustrationPrompt}`;
     // KIE API key already loaded above in globalKieApiKey
     const kieApiKey = globalKieApiKey;
     if (!kieApiKey) {
-      return json({ error: "KIE API key belum dikonfigurasi. Masukkan di tab Pengaturan admin." }, 400);
+      return json({ error: "KIE API key belum dikonfigurasi. Masukkan di tab Pengaturan admin." });
     }
 
 
@@ -716,12 +719,18 @@ ${illustrationPrompt}`;
 
     if (!apiResponse.ok) {
       const errorText = await apiResponse.text().catch(() => "");
-      return json({ error: `KIE API error ${apiResponse.status}: ${errorText.slice(0, 300)}` }, 500);
+      console.error(`KIE API error ${apiResponse.status}:`, errorText.slice(0, 500));
+      return json({ error: `KIE API error ${apiResponse.status}: ${errorText.slice(0, 300)}` });
     }
 
     const response = await apiResponse.json();
+    if (response?.type === "error" || response?.error) {
+      const errMsg = response?.error?.message ?? JSON.stringify(response?.error);
+      console.error("KIE API returned error:", errMsg);
+      return json({ error: `KIE API: ${errMsg}` });
+    }
     const textBlock = (response.content as Array<{ type: string; text?: string }>)?.find((b) => b.type === "text");
-    if (!textBlock?.text) return json({ error: "Tidak ada output dari AI" }, 500);
+    if (!textBlock?.text) return json({ error: "Tidak ada output dari AI" });
 
     const rawText = textBlock.text;
 
@@ -747,7 +756,7 @@ ${illustrationPrompt}`;
     }
 
     if (questionList.length === 0) {
-      return json({ error: `AI tidak mengembalikan JSON yang valid. Coba lagi. (Preview: ${rawText.slice(0, 150)})` }, 500);
+      return json({ error: `AI tidak mengembalikan JSON yang valid. Coba lagi. (Preview: ${rawText.slice(0, 150)})` });
     }
 
     const prepared = questionList
@@ -759,7 +768,7 @@ ${illustrationPrompt}`;
         error: "AI merespons, tetapi semua soal gagal divalidasi sebelum disimpan.",
         requested: safeCount,
         parsed: questionList.length,
-      }, 500);
+      });
     }
 
     const readyToInsert = rebalanceCorrectAnswerPositions(prepared);
@@ -802,7 +811,8 @@ ${illustrationPrompt}`;
       skipped: Math.max(questionList.length - insertedIds.length, 0),
     });
   } catch (err: unknown) {
-    return json({ error: err instanceof Error ? err.message : "Internal server error" }, 500);
+    console.error("Unhandled error:", err);
+    return json({ error: err instanceof Error ? err.message : "Internal server error" });
   }
 });
 

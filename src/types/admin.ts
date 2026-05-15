@@ -10,38 +10,38 @@ export const CHART_OPTIONS: { value: ChartType; label: string; icon: React.Eleme
   { value: "table", label: "Tabel Data", icon: Table2, desc: "Tabel data numerik terstruktur" },
 ];
 
-export const TOPIC_OPTIONS = {
+export const TOPIC_OPTIONS: Record<string, { value: string; label: string; count?: number }[]> = {
   twk: [
-    { value: "nasionalisme", label: "Nasionalisme" },
-    { value: "bela_negara", label: "Bela Negara" },
-    { value: "integritas", label: "Integritas" },
-    { value: "pilar_negara", label: "Pilar Negara" },
-    { value: "bahasa", label: "Bahasa Indonesia" },
+    { value: "nasionalisme", label: "Nasionalisme", count: 6 },
+    { value: "bela_negara", label: "Bela Negara", count: 6 },
+    { value: "integritas", label: "Integritas", count: 6 },
+    { value: "pilar_negara", label: "Pilar Negara", count: 6 },
+    { value: "bahasa", label: "Bahasa Indonesia", count: 6 },
     { value: "custom", label: "Lainnya (Input Manual)..." },
   ],
   tiu: [
-    { value: "analogi", label: "Analogi" },
-    { value: "silogisme", label: "Silogisme" },
-    { value: "analitis", label: "Penalaran Analitis" },
-    { value: "hitung", label: "Hitung Cepat" },
-    { value: "deret", label: "Deret Angka" },
-    { value: "kuantitatif", label: "Perbandingan Kuantitatif" },
-    { value: "cerita", label: "Soal Cerita" },
-    { value: "figural_analogi", label: "Analogi Gambar" },
-    { value: "figural_ketidaksamaan", label: "Ketidaksamaan Gambar" },
-    { value: "figural_serial", label: "Serial Gambar" },
+    { value: "analogi", label: "Analogi", count: 3 },
+    { value: "silogisme", label: "Silogisme", count: 3 },
+    { value: "analitis", label: "Penalaran Analitis", count: 4 },
+    { value: "hitung", label: "Hitung Cepat", count: 4 },
+    { value: "deret", label: "Deret Angka", count: 4 },
+    { value: "kuantitatif", label: "Perbandingan Kuantitatif", count: 4 },
+    { value: "cerita", label: "Soal Cerita", count: 3 },
+    { value: "figural_analogi", label: "Analogi Gambar", count: 3 },
+    { value: "figural_ketidaksamaan", label: "Ketidaksamaan Gambar", count: 3 },
+    { value: "figural_serial", label: "Serial Gambar", count: 4 },
     { value: "custom", label: "Lainnya (Input Manual)..." },
   ],
   tkp: [
-    { value: "pelayanan", label: "Pelayanan Publik" },
-    { value: "profesionalisme", label: "Profesionalisme" },
-    { value: "jejaring", label: "Jejaring Kerja" },
-    { value: "sosial", label: "Sosial Budaya" },
-    { value: "tik", label: "TIK" },
-    { value: "antiradikalisme", label: "Anti Radikalisme" },
+    { value: "pelayanan", label: "Pelayanan Publik", count: 8 },
+    { value: "profesionalisme", label: "Profesionalisme", count: 8 },
+    { value: "jejaring", label: "Jejaring Kerja", count: 8 },
+    { value: "sosial", label: "Sosial Budaya", count: 7 },
+    { value: "tik", label: "TIK", count: 7 },
+    { value: "antiradikalisme", label: "Anti Radikalisme", count: 7 },
     { value: "custom", label: "Lainnya (Input Manual)..." },
   ],
-} as const;
+};
 
 export type Exam = {
   id: string; title: string; total_questions: number;

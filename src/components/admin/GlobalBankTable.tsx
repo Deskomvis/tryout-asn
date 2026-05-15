@@ -51,7 +51,7 @@ interface GlobalBankTableProps {
   setAiStatus: React.Dispatch<React.SetStateAction<"idle" | "loading" | "done" | "error">>;
   aiResult: { count: number; requested: number } | null;
   aiError: string;
-  TOPIC_OPTIONS: Record<string, { value: string; label: string }[]>;
+  TOPIC_OPTIONS: Record<string, { value: string; label: string; count?: number }[]>;
   emptyNewQ: () => any;
   onAddQuestionToBank: () => Promise<void>;
   onGenerateViaAI: (targetExamId?: string, bankOnly?: boolean) => Promise<void>;
@@ -400,7 +400,10 @@ export function GlobalBankTable({
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label className="text-xs">Subtes *</Label>
-                <Select value={aiGen.subtest} onValueChange={(v: any) => setAiGen((g: any) => ({ ...g, subtest: v, topic: v === "twk" ? "nasionalisme" : v === "tiu" ? "analogi" : "pelayanan" }))}>
+                <Select value={aiGen.subtest} onValueChange={(v: any) => {
+                  const firstTopic = TOPIC_OPTIONS[v]?.[0];
+                  setAiGen((g: any) => ({ ...g, subtest: v, topic: firstTopic?.value ?? "nasionalisme", count: firstTopic?.count ?? g.count }));
+                }}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="twk">TWK</SelectItem>
@@ -409,13 +412,18 @@ export function GlobalBankTable({
                   </SelectContent>
                 </Select>
               </div>
-              <div className={cn(aiGen.topic === "custom" ? "col-span-1" : "col-span-1")}>
+              <div>
                 <Label className="text-xs">Topik *</Label>
-                <Select value={aiGen.topic} onValueChange={(v) => setAiGen((g: any) => ({ ...g, topic: v }))}>
+                <Select value={aiGen.topic} onValueChange={(v) => {
+                  const topicObj = TOPIC_OPTIONS[aiGen.subtest]?.find(t => t.value === v);
+                  setAiGen((g: any) => ({ ...g, topic: v, ...(topicObj?.count ? { count: topicObj.count } : {}) }));
+                }}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(TOPIC_OPTIONS[aiGen.subtest] ?? []).map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}{t.count ? ` — ${t.count} soal` : ""}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
