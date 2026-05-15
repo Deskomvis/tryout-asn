@@ -99,6 +99,7 @@ Each object in the array MUST have exactly these fields:
 - "question_text": situational scenario string
 - "options": array of exactly 5 strings (attitude choices)
 - "option_points": object mapping each option string to a unique integer 1-5 (each of 1,2,3,4,5 used exactly once)
+- "correct_answer": the option string with the highest score / 5 points
 - "explanation": 2-3 sentence string explaining why the option with 5 points is best${hasChart ? '\n- "chart_data": chart data object as specified above' : ""}
 
 IMPORTANT: Randomize the position of the high-scoring options. Do not always place the 5-point option in the same position.
@@ -330,6 +331,39 @@ function buildFallbackTkpPoints(options: string[], bestAnswer: string): Record<s
   };
 }
 
+function normalizeTkpPointMap(
+  options: string[],
+  pointMap: Record<string, number>,
+  explicitBestAnswer: string | null,
+): Record<string, number> | null {
+  const ranked = options.map((option, index) => ({
+    option,
+    index,
+    score: Number.isFinite(pointMap[option]) ? pointMap[option] : null,
+    preferred: option === explicitBestAnswer,
+  }));
+
+  const hasAnyScore = ranked.some((entry) => entry.score !== null);
+  if (!hasAnyScore) {
+    return explicitBestAnswer ? buildFallbackTkpPoints(options, explicitBestAnswer) : null;
+  }
+
+  ranked.sort((a, b) => {
+    if (a.preferred !== b.preferred) return a.preferred ? -1 : 1;
+    const scoreA = a.score ?? Number.NEGATIVE_INFINITY;
+    const scoreB = b.score ?? Number.NEGATIVE_INFINITY;
+    if (scoreA !== scoreB) return scoreB - scoreA;
+    return a.index - b.index;
+  });
+
+  const normalized: Record<string, number> = {};
+  const descending = [5, 4, 3, 2, 1];
+  ranked.forEach((entry, index) => {
+    normalized[entry.option] = descending[index] ?? Math.max(1, 5 - index);
+  });
+  return normalized;
+}
+
 function buildDistributedPositions(questionCount: number, optionCount: number): number[] {
   const positions: number[] = [];
   while (positions.length < questionCount) {
@@ -460,31 +494,19 @@ function prepareGeneratedQuestion({
       return null;
     }
 
-    const pointValues = Object.values(pointMap);
-    if (pointValues.length !== options.length || new Set(pointValues).size !== pointValues.length) {
-      if (!explicitBestAnswer) {
-        console.error("TKP validation: duplicate or missing point values:", pointValues);
-        return null;
-      }
-      Object.assign(pointMap, buildFallbackTkpPoints(options, explicitBestAnswer));
+    const normalizedPointMap = normalizeTkpPointMap(options, pointMap, explicitBestAnswer);
+    if (!normalizedPointMap) {
+      console.error("TKP validation: unable to normalize points", pointMap);
+      return null;
     }
 
-    const finalPointValues = Object.values(pointMap);
-    if (options.length === 5 && ![1, 2, 3, 4, 5].every((value) => finalPointValues.includes(value))) {
-      if (!explicitBestAnswer) {
-        console.error("TKP validation: point values not exactly 1-5:", finalPointValues);
-        return null;
-      }
-      Object.assign(pointMap, buildFallbackTkpPoints(options, explicitBestAnswer));
-    }
-
-    const correctAnswer = Object.entries(pointMap).reduce((best, current) =>
+    const correctAnswer = Object.entries(normalizedPointMap).reduce((best, current) =>
       current[1] > best[1] ? current : best,
     )[0];
 
     return {
       ...base,
-      option_points: pointMap,
+      option_points: normalizedPointMap,
       correct_answer: correctAnswer,
     };
   }
