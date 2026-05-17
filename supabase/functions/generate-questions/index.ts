@@ -33,6 +33,39 @@ const TKP_TOPICS: Record<string, string> = {
   tik: "Teknologi Informasi dan Komunikasi (pemanfaatan teknologi informasi untuk meningkatkan kinerja)",
 };
 
+const IMAGE_QUESTION_VARIANTS = [
+  "matrix 3x3 with one missing cell",
+  "sequence of numbered boxes with one missing item",
+  "mini table with two or three rows of data",
+  "flowchart with a missing step",
+  "Venn-style relationship diagram",
+  "number line or scale diagram",
+  "bar comparison diagram",
+  "calendar/time grid",
+  "logic seating or ordering chart",
+  "geometric pattern with rotation/reflection",
+];
+
+const TIU_IMAGE_GUIDES: Record<string, string> = {
+  analogi: `Use visual analogy when possible: word-pair mapping, symbol-pair mapping, relationship arrows, or small comparison diagrams. Avoid only circles/squares.`,
+  silogisme: `Use a Venn diagram, set relationship chart, or premise-conclusion boxes. The image should show the premises only, not the conclusion.`,
+  analitis: `Use a logic grid, seating/order chart, schedule table, route map, or dependency diagram. One part can be unknown and answered from options.`,
+  hitung: `Use a number line, weighing scale, simple transaction table, ratio bars, clock/time diagram, or measurement sketch.`,
+  deret: `Use number/symbol sequences, tile patterns, alternating arithmetic/geometric patterns, or a 3x3 matrix with one missing cell.`,
+  kuantitatif: `Use a mini table, bar comparison, proportion diagram, or two-column quantitative comparison. Include realistic numbers.`,
+  cerita: `Use a compact situation diagram: distance route, work-rate timeline, container/volume sketch, price table, or schedule grid.`,
+  figural_analogi: `Use varied figural analogy: arrows, rotations, shading changes, line counts, nested shapes, orientation, or fill patterns. Avoid repeating only circle/square size changes.`,
+  figural_ketidaksamaan: `Use varied odd-one-out figures: symmetry, rotation, number of elements, line intersections, shading, position, or mirror direction.`,
+  figural_serial: `Use varied serial figures: rotation, element addition/removal, alternating shading, position shifts, line count changes, or nested shape progression.`,
+};
+
+function pickImageVariant(topic: string) {
+  const index = Math.abs(
+    Array.from(`${topic}-${Date.now()}-${Math.random()}`).reduce((acc, char) => acc + char.charCodeAt(0), 0),
+  ) % IMAGE_QUESTION_VARIANTS.length;
+  return IMAGE_QUESTION_VARIANTS[index];
+}
+
 // Chart types supported for programmatic SVG generation
 type ChartType = "bar" | "line" | "pie" | "table" | "none";
 
@@ -651,6 +684,8 @@ Deno.serve(async (req: Request) => {
       const topicDesc = topicMap[topic] ?? topic;
       const isTkp = subtest === "tkp";
       const isFigural = ["figural_analogi", "figural_ketidaksamaan", "figural_serial"].includes(topic);
+      const imageVariant = pickImageVariant(topic);
+      const tiuImageGuide = TIU_IMAGE_GUIDES[topic] ?? `Use a relevant TIU visual stimulus such as a table, diagram, grid, chart, sequence, or map.`;
 
       let sysPrompt: string;
       if (isFigural) {
@@ -666,6 +701,7 @@ This question will be paired with an SVG illustration generated afterward — so
 Output ONLY a single valid JSON object. No prose, no markdown, no code fences.
 
 ${figuralGuide[topic] ?? ""}
+Visual variation target for this request: ${imageVariant}.
 ${custom_instruction ? `\nCustom instruction: ${custom_instruction}` : ""}
 
 Output a JSON object with exactly:
@@ -704,13 +740,25 @@ Output ONLY the JSON object.`;
 
 Generate ONE ${subtest.toUpperCase()} question about: ${topicDesc}
 ${custom_instruction ? `\nCustom instruction: ${custom_instruction}` : ""}
+${subtest === "tiu" ? `
+This is a "soal bergambar" flow. Prefer a question that NEEDS a visual stimulus.
+Visual direction for topic:
+${tiuImageGuide}
+Visual variation target for this request: ${imageVariant}.
+Do not default to only circles/squares. Use varied diagrams, patterns, grids, tables, symbols, numbers, arrows, rotations, shading, positions, or realistic quantitative data when appropriate.
+` : ""}
 
 Output a JSON object with exactly:
 - "question_text": clear question string in Indonesian
 - "options": array of exactly 5 strings (answer choices)
 - "correct_answer": string EXACTLY matching one of the options
 - "explanation": 2-3 sentence explanation in Indonesian
-- "svg_prompt": one-sentence description for an SVG illustration (e.g. "a number line showing 3,6,12,24,?" or "none" if not visual)
+- "svg_prompt": one-sentence description for an image stimulus. For TIU, this should usually be a concrete diagram/table/grid/pattern prompt, not "none".
+
+CRITICAL FOR svg_prompt:
+- It must contain only the exam stimulus, never the correct answer.
+- If an item is missing, show it as a blank cell, empty box, or question mark.
+- Do not include answer choices, check marks, solution arrows, or explanation text in the image.
 
 IMPORTANT: Randomize the order of the options.
 
@@ -767,7 +815,7 @@ Output ONLY the JSON object.`;
 
       const promptSeed = image_prompt && image_prompt.trim()
         ? image_prompt.trim()
-        : `Create the visual stimulus for this Indonesian civil servant exam question: "${question_text}".`;
+        : `Create a varied visual stimulus for this Indonesian civil servant exam question: "${question_text}". Use one suitable format such as a matrix grid, number sequence, mini table, flowchart, Venn-style diagram, number line, comparison chart, schedule grid, route map, or geometric pattern.`;
       const prompt = `${promptSeed}
 
 Important exam-image rules:
@@ -775,6 +823,8 @@ Important exam-image rules:
 - Do not show, label, highlight, or imply the correct answer.
 - If the question asks for a missing figure/item, draw that area as a blank box or question mark.
 - Do not include answer choices, check marks, solution arrows to the final answer, or explanation panels.
+- Avoid repetitive plain circle/square-only images unless the question specifically requires them.
+- Prefer varied TIU visual stimuli: patterns, matrices, diagrams, tables, grids, arrows, rotations, shading, quantities, or realistic small datasets.
 - Use clean educational diagram style on a white background.`;
 
       const createRes = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {

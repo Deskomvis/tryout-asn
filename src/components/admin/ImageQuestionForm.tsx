@@ -442,13 +442,13 @@ Aturan penting:
               <Label className="text-xs">Deskripsi Gambar untuk AI</Label>
               <Textarea
                 rows={2}
-                placeholder="cth: tiga kotak pertama berisi pola, kotak terakhir kosong dengan tanda tanya"
+                placeholder="cth: matriks 3x3 dengan satu sel kosong, tabel kecil, garis bilangan, pola rotasi, atau diagram Venn"
                 value={draft.image_prompt === "none" ? "" : draft.image_prompt}
                 onChange={e => setDraft(d => ({ ...d, image_prompt: e.target.value }))}
                 className="text-xs resize-none mt-1"
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                Deskripsikan stimulus soalnya saja. Jangan masukkan jawaban benar ke gambar. Generate bisa memakan waktu ~30 detik.
+                Deskripsikan stimulus soalnya saja. Bisa berupa pola, matriks, tabel, diagram, garis bilangan, atau visual TIU lain. Jangan masukkan jawaban benar ke gambar.
               </p>
             </div>
 
