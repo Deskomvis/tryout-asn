@@ -659,7 +659,7 @@ Deno.serve(async (req: Request) => {
         const figuralGuide: Record<string, string> = {
           figural_analogi: `Generate a figural analogy question. Describe shapes/figures using text labels (e.g., "Gambar A: segitiga besar menghadap kanan", "Gambar B: segitiga kecil menghadap kiri"). The question asks: gambar A : gambar B = gambar C : ?`,
           figural_ketidaksamaan: `Generate a figural odd-one-out question. Describe 5 figures using text (e.g., shapes, rotations, symmetry). One figure is different from the rest.`,
-          figural_serial: `Generate a figural series question. Describe a sequence of 4 figures that follow a visual pattern (e.g., rotation, addition/removal of elements, size change). The 5th is missing.`,
+          figural_serial: `Generate a figural series question. Describe a sequence of 4 figures that follow a visual pattern (e.g., rotation, addition/removal of elements, size change). The final item is missing and must be answered from the text options.`,
         };
         sysPrompt = `You are a JSON generator for Indonesian CPNS TIU ${topicDesc} exam questions.
 This question will be paired with an SVG illustration generated afterward — so describe visual elements clearly in text.
@@ -673,7 +673,12 @@ Output a JSON object with exactly:
 - "options": array of exactly 5 strings — describe each answer choice as a shape/figure description (e.g. "Segitiga besar menghadap kiri")
 - "correct_answer": string EXACTLY matching one of the options
 - "explanation": 2-3 sentences in Indonesian explaining the visual pattern and why the answer is correct
-- "svg_prompt": precise description for SVG generator (e.g. "4 boxes in a row: large triangle right, small triangle left, large circle right, small circle left. 5th box empty = small circle right")
+- "svg_prompt": precise description for image generator that contains ONLY the stimulus image, never the answer. Use a blank box, question mark, or missing slot where the answer should be.
+
+CRITICAL FOR svg_prompt:
+- Do NOT include the correct answer or final solved item.
+- Do NOT write "answer", "solution", "Box D (answer)", or any wording that reveals which option is correct.
+- The image must behave like the exam stimulus. It may show given figures A, B, C and a blank/question-mark area, but the answer must remain only in the text options.
 
 IMPORTANT: Randomize the order of the options.
 
@@ -760,9 +765,17 @@ Output ONLY the JSON object.`;
       if (!globalKieApiKey) return json({ error: "KIE API key belum dikonfigurasi." });
       if (!question_text) return json({ error: "question_text diperlukan" });
 
-      const prompt = image_prompt && image_prompt.trim()
+      const promptSeed = image_prompt && image_prompt.trim()
         ? image_prompt.trim()
-        : `Educational illustration for Indonesian civil servant exam (ASN/CPNS). Question: "${question_text}". Options: ${(options ?? []).slice(0, 3).join(", ")}. Create a clean, minimal diagram or visual that helps students understand the question. White background, professional style.`;
+        : `Create the visual stimulus for this Indonesian civil servant exam question: "${question_text}".`;
+      const prompt = `${promptSeed}
+
+Important exam-image rules:
+- The image must show only the information needed to answer the question.
+- Do not show, label, highlight, or imply the correct answer.
+- If the question asks for a missing figure/item, draw that area as a blank box or question mark.
+- Do not include answer choices, check marks, solution arrows to the final answer, or explanation panels.
+- Use clean educational diagram style on a white background.`;
 
       const createRes = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
         method: "POST",

@@ -62,6 +62,18 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
 
   const topicResolved = draft.topic === "custom" ? draft.customTopic.trim() : draft.topic;
 
+  const buildStimulusImagePrompt = () => {
+    const prompt = draft.image_prompt === "none" ? "" : draft.image_prompt.trim();
+    const seed = prompt || `Buat gambar stimulus untuk soal berikut: ${draft.question_text}`;
+    return `${seed}
+
+Aturan penting:
+- Gambar hanya boleh menjadi stimulus soal.
+- Jangan tampilkan jawaban benar, label "answer", tanda centang, pembahasan, atau panel solusi.
+- Jika ada item yang ditanyakan/hilang, tampilkan sebagai kotak kosong atau tanda tanya.
+- Pilihan jawaban tetap berada di teks opsi, bukan di gambar.`;
+  };
+
   // ── Step 1: Generate question via AI ────────────────────────────────────────
   const handleGenerateSoal = async () => {
     if (!topicResolved) return toast.error("Isi topik terlebih dahulu");
@@ -126,8 +138,8 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
         body: {
           action: "create_image_task",
           question_text: draft.question_text,
-          options: draft.options.filter(Boolean),
-          image_prompt: draft.image_prompt || undefined,
+          options: [],
+          image_prompt: buildStimulusImagePrompt(),
         },
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -430,13 +442,13 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
               <Label className="text-xs">Deskripsi Gambar untuk AI</Label>
               <Textarea
                 rows={2}
-                placeholder="cth: a number line showing sequence 3, 6, 12, 24 in boxes — atau biarkan kosong untuk biarkan AI memilih"
+                placeholder="cth: tiga kotak pertama berisi pola, kotak terakhir kosong dengan tanda tanya"
                 value={draft.image_prompt === "none" ? "" : draft.image_prompt}
                 onChange={e => setDraft(d => ({ ...d, image_prompt: e.target.value }))}
                 className="text-xs resize-none mt-1"
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                Deskripsikan ilustrasi yang ingin Anda lihat, atau kosongkan dan biarkan AI memilih. Generate bisa memakan waktu ~30 detik.
+                Deskripsikan stimulus soalnya saja. Jangan masukkan jawaban benar ke gambar. Generate bisa memakan waktu ~30 detik.
               </p>
             </div>
 
