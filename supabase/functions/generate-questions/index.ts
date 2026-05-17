@@ -789,7 +789,7 @@ Output ONLY the JSON object.`;
       if (!globalKieApiKey) return json({ error: "KIE API key belum dikonfigurasi." });
       if (!taskId) return json({ error: "taskId diperlukan" });
 
-      const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/getTaskDetail?taskId=${encodeURIComponent(taskId)}`, {
+      const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`, {
         headers: { "Authorization": `Bearer ${globalKieApiKey}` },
       });
       const pollText = await pollRes.text();
@@ -797,18 +797,44 @@ Output ONLY the JSON object.`;
       try { pollData = JSON.parse(pollText); } catch { return json({ error: `Poll response tidak valid: ${pollText.slice(0, 200)}` }); }
 
       const d = pollData.data ?? {};
-      const status: string = (d.taskStatus ?? d.status ?? "").toUpperCase();
+      const status = String(d.state ?? d.taskStatus ?? d.status ?? "").toLowerCase();
 
-      if (status === "FAILED" || status === "ERROR") {
-        return json({ status: "failed", error: "Generate gambar gagal di server KIE" });
+      if (pollData.code && pollData.code !== 200 && pollData.code !== 1) {
+        return json({ status: "failed", error: `KIE Polling error ${pollData.code}: ${pollData.msg ?? JSON.stringify(pollData)}` });
       }
-      if (status !== "SUCCESS" && status !== "COMPLETED") {
+
+      if (["fail", "failed", "error"].includes(status)) {
+        return json({ status: "failed", error: `Generate gambar gagal: ${JSON.stringify(d)}` });
+      }
+      if (!["success", "completed"].includes(status)) {
+        if (["waiting", "queuing", "generating", "processing", "pending"].includes(status)) {
+          return json({ status: "processing" });
+        }
+        if (!status) {
+          return json({ status: "failed", error: `Format task KIE tidak dikenali: ${JSON.stringify(pollData)}` });
+        }
         return json({ status: "processing" });
       }
 
       // Task selesai — ambil URL gambar
+      let result: any = null;
+      if (typeof d.resultJson === "string" && d.resultJson.trim()) {
+        try { result = JSON.parse(d.resultJson); } catch { /* ignore invalid resultJson */ }
+      } else if (d.resultJson && typeof d.resultJson === "object") {
+        result = d.resultJson;
+      }
+
       let outputUrl: string | null =
-        d.output?.imageUrl ?? d.output?.image_url ?? d.imageUrl ?? null;
+        result?.resultUrls?.[0] ??
+        result?.result_urls?.[0] ??
+        result?.imageUrls?.[0] ??
+        result?.images?.[0] ??
+        result?.url ??
+        result?.imageUrl ??
+        d.output?.imageUrl ??
+        d.output?.image_url ??
+        d.imageUrl ??
+        null;
       if (!outputUrl && Array.isArray(d.output?.images)) outputUrl = d.output.images[0];
       if (!outputUrl && Array.isArray(d.output)) outputUrl = d.output[0]?.url ?? d.output[0] ?? null;
       if (!outputUrl) return json({ error: `URL gambar tidak ditemukan. Resp: ${JSON.stringify(d).slice(0, 300)}` });

@@ -134,8 +134,8 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
       if (createError || createData?.error) throw new Error(createData?.error ?? createError?.message);
       const taskId: string = createData.taskId;
 
-      // Step 2: Poll setiap 4 detik, max 20x (80 detik)
-      for (let i = 0; i < 20; i++) {
+      // Step 2: Poll setiap 4 detik, max 45x (180 detik)
+      for (let i = 0; i < 45; i++) {
         await new Promise((r) => setTimeout(r, 4000));
         const { data: pollData, error: pollError } = await supabase.functions.invoke("generate-questions", {
           body: { action: "get_image_result", taskId },
@@ -151,7 +151,7 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
           return;
         }
       }
-      throw new Error("Timeout: gambar belum selesai dalam 80 detik. Coba lagi.");
+      throw new Error("Timeout: gambar belum selesai dalam 180 detik. Silakan coba klik generate lagi.");
     } catch (e: any) {
       setGenImgStatus("error");
       setGenImgError(e.message ?? "Gagal generate gambar");
