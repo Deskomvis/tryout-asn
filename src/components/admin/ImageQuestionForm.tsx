@@ -111,7 +111,7 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
     }
   };
 
-  // ── Step 2: Generate image via GPT Image-2 ───────────────────────────────────
+  // ── Step 2: Generate image via GPT Image-2 (polling dari frontend) ───────────
   const handleGenerateImage = async () => {
     if (!draft.question_text.trim()) return toast.error("Isi soal terlebih dahulu");
     setGenImgStatus("loading");
@@ -121,21 +121,37 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
       const token = session?.access_token;
       if (!token) throw new Error("Sesi tidak ditemukan");
 
-      const { data, error } = await supabase.functions.invoke("generate-questions", {
+      // Step 1: Buat task, dapat taskId
+      const { data: createData, error: createError } = await supabase.functions.invoke("generate-questions", {
         body: {
-          action: "generate_image_gpt",
+          action: "create_image_task",
           question_text: draft.question_text,
           options: draft.options.filter(Boolean),
           image_prompt: draft.image_prompt || undefined,
         },
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (createError || createData?.error) throw new Error(createData?.error ?? createError?.message);
+      const taskId: string = createData.taskId;
 
-      if (error || data?.error) throw new Error(data?.error ?? error?.message);
-
-      setDraft(d => ({ ...d, image_url: data.image_url }));
-      setGenImgStatus("idle");
-      toast.success("Gambar berhasil dibuat!");
+      // Step 2: Poll setiap 4 detik, max 20x (80 detik)
+      for (let i = 0; i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 4000));
+        const { data: pollData, error: pollError } = await supabase.functions.invoke("generate-questions", {
+          body: { action: "get_image_result", taskId },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (pollError || pollData?.error) throw new Error(pollData?.error ?? pollError?.message);
+        if (pollData.status === "processing") continue;
+        if (pollData.status === "failed") throw new Error(pollData.error ?? "Generate gambar gagal");
+        if (pollData.status === "success" && pollData.image_url) {
+          setDraft(d => ({ ...d, image_url: pollData.image_url }));
+          setGenImgStatus("idle");
+          toast.success("Gambar berhasil dibuat!");
+          return;
+        }
+      }
+      throw new Error("Timeout: gambar belum selesai dalam 80 detik. Coba lagi.");
     } catch (e: any) {
       setGenImgStatus("error");
       setGenImgError(e.message ?? "Gagal generate gambar");

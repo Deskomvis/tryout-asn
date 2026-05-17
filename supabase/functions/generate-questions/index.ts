@@ -750,21 +750,20 @@ Output ONLY the JSON object.`;
       }
     }
 
-    // ── Generate Image via GPT Image-2 ──────────────────────────────────────
-    if (body.action === "generate_image_gpt") {
+    // ── Create GPT Image-2 Task (returns taskId immediately) ────────────────
+    if (body.action === "create_image_task") {
       const { question_text, options, image_prompt } = body as {
         question_text: string;
         options: string[];
         image_prompt?: string;
       };
-      if (!globalKieApiKey) return json({ error: "KIE API key belum dikonfigurasi." }, 400);
-      if (!question_text) return json({ error: "question_text diperlukan" }, 400);
+      if (!globalKieApiKey) return json({ error: "KIE API key belum dikonfigurasi." });
+      if (!question_text) return json({ error: "question_text diperlukan" });
 
       const prompt = image_prompt && image_prompt.trim()
         ? image_prompt.trim()
-        : `Educational illustration for Indonesian civil servant exam (ASN/CPNS). Question: "${question_text}". Options: ${options?.slice(0, 3).join(", ")}. Create a clean, clear diagram or visual that helps students understand the question context. Style: minimal, professional, white background.`;
+        : `Educational illustration for Indonesian civil servant exam (ASN/CPNS). Question: "${question_text}". Options: ${(options ?? []).slice(0, 3).join(", ")}. Create a clean, minimal diagram or visual that helps students understand the question. White background, professional style.`;
 
-      // Step 1: Create image generation task
       const createRes = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
         method: "POST",
         headers: { "Authorization": `Bearer ${globalKieApiKey}`, "Content-Type": "application/json" },
@@ -773,41 +772,50 @@ Output ONLY the JSON object.`;
           input: { prompt, aspect_ratio: "4:3", resolution: "1K" },
         }),
       });
-      if (!createRes.ok) {
-        const errBody = await createRes.text().catch(() => "");
-        return json({ error: `KIE API error ${createRes.status}: ${errBody.slice(0, 200)}` });
+      const createText = await createRes.text();
+      let createData: any;
+      try { createData = JSON.parse(createText); } catch { return json({ error: `KIE response tidak valid: ${createText.slice(0, 200)}` }); }
+      if (!createRes.ok || createData.code !== 200) {
+        return json({ error: `KIE error ${createRes.status}: ${createData.msg ?? createText.slice(0, 200)}` });
       }
-      const createData = await createRes.json();
-      if (createData.code !== 200 || !createData.data?.taskId) {
-        return json({ error: `Gagal buat task: ${createData.msg ?? "unknown error"}` });
-      }
-      const taskId: string = createData.data.taskId;
+      if (!createData.data?.taskId) return json({ error: "KIE tidak mengembalikan taskId" });
+      return json({ taskId: createData.data.taskId });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
-      // Step 2: Poll for completion (max 45 seconds)
-      let outputUrl: string | null = null;
-      for (let i = 0; i < 15; i++) {
-        await new Promise((r) => setTimeout(r, 3000));
-        const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/getTaskDetail?taskId=${taskId}`, {
-          headers: { "Authorization": `Bearer ${globalKieApiKey}` },
-        });
-        if (!pollRes.ok) continue;
-        const pollData = await pollRes.json();
-        const d = pollData.data ?? {};
-        const status: string = d.taskStatus ?? d.status ?? "";
-        if (status === "SUCCESS" || status === "COMPLETED") {
-          outputUrl = d.output?.imageUrl ?? d.output?.image_url ?? d.imageUrl ?? null;
-          if (!outputUrl && Array.isArray(d.output?.images)) outputUrl = d.output.images[0];
-          break;
-        }
-        if (status === "FAILED" || status === "ERROR") {
-          return json({ error: "Generate gambar gagal di server KIE" });
-        }
-      }
-      if (!outputUrl) return json({ error: "Timeout: gambar belum selesai dalam 45 detik. Coba lagi." });
+    // ── Poll GPT Image-2 Task & Upload to Storage ─────────────────────────────
+    if (body.action === "get_image_result") {
+      const { taskId } = body as { taskId: string };
+      if (!globalKieApiKey) return json({ error: "KIE API key belum dikonfigurasi." });
+      if (!taskId) return json({ error: "taskId diperlukan" });
 
-      // Step 3: Download image and upload to Supabase storage
+      const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/getTaskDetail?taskId=${encodeURIComponent(taskId)}`, {
+        headers: { "Authorization": `Bearer ${globalKieApiKey}` },
+      });
+      const pollText = await pollRes.text();
+      let pollData: any;
+      try { pollData = JSON.parse(pollText); } catch { return json({ error: `Poll response tidak valid: ${pollText.slice(0, 200)}` }); }
+
+      const d = pollData.data ?? {};
+      const status: string = (d.taskStatus ?? d.status ?? "").toUpperCase();
+
+      if (status === "FAILED" || status === "ERROR") {
+        return json({ status: "failed", error: "Generate gambar gagal di server KIE" });
+      }
+      if (status !== "SUCCESS" && status !== "COMPLETED") {
+        return json({ status: "processing" });
+      }
+
+      // Task selesai — ambil URL gambar
+      let outputUrl: string | null =
+        d.output?.imageUrl ?? d.output?.image_url ?? d.imageUrl ?? null;
+      if (!outputUrl && Array.isArray(d.output?.images)) outputUrl = d.output.images[0];
+      if (!outputUrl && Array.isArray(d.output)) outputUrl = d.output[0]?.url ?? d.output[0] ?? null;
+      if (!outputUrl) return json({ error: `URL gambar tidak ditemukan. Resp: ${JSON.stringify(d).slice(0, 300)}` });
+
+      // Download gambar dan upload ke Supabase storage
       const imgRes = await fetch(outputUrl);
-      if (!imgRes.ok) return json({ error: "Gagal download gambar dari KIE" });
+      if (!imgRes.ok) return json({ error: `Gagal download gambar: HTTP ${imgRes.status}` });
       const imgBuffer = await imgRes.arrayBuffer();
       const contentType = imgRes.headers.get("content-type") ?? "image/png";
       const ext = contentType.includes("webp") ? "webp" : contentType.includes("jpeg") ? "jpg" : "png";
@@ -823,7 +831,7 @@ Output ONLY the JSON object.`;
         .from("question-images")
         .getPublicUrl(fileName);
 
-      return json({ image_url: publicUrl });
+      return json({ status: "success", image_url: publicUrl });
     }
     // ─────────────────────────────────────────────────────────────────────────
 
