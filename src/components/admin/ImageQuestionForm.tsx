@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Loader2, Sparkles, Image, Check, X, ChevronRight, ChevronLeft,
-  Pencil, Wand2, ImageOff, RefreshCw, Save,
+  Wand2, ImageOff, RefreshCw, Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,8 +34,8 @@ interface QuestionDraft {
   // TKP
   option_points: Record<string, number>;
   // Image
-  svg_content: string;
-  svg_prompt: string;
+  image_url: string;
+  image_prompt: string;
 }
 
 const emptyDraft = (): QuestionDraft => ({
@@ -47,8 +47,8 @@ const emptyDraft = (): QuestionDraft => ({
   correct_answer: "",
   explanation: "",
   option_points: {},
-  svg_content: "",
-  svg_prompt: "",
+  image_url: "",
+  image_prompt: "",
 });
 
 export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQuestionFormProps) {
@@ -100,7 +100,7 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
         correct_answer: q.correct_answer ?? "",
         explanation: q.explanation ?? "",
         option_points: q.option_points ?? {},
-        svg_prompt: q.svg_prompt ?? "",
+        image_prompt: q.svg_prompt ?? "",
       }));
       setGenSoalStatus("idle");
       toast.success(hasContext ? "Soal di-generate berdasarkan konteks Anda!" : "Soal berhasil di-generate!");
@@ -111,8 +111,8 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
     }
   };
 
-  // ── Step 2: Generate SVG illustration via Claude ─────────────────────────────
-  const handleGenerateSVG = async () => {
+  // ── Step 2: Generate image via GPT Image-2 ───────────────────────────────────
+  const handleGenerateImage = async () => {
     if (!draft.question_text.trim()) return toast.error("Isi soal terlebih dahulu");
     setGenImgStatus("loading");
     setGenImgError("");
@@ -123,23 +123,23 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
 
       const { data, error } = await supabase.functions.invoke("generate-questions", {
         body: {
-          action: "generate_svg_illustration",
+          action: "generate_image_gpt",
           question_text: draft.question_text,
           options: draft.options.filter(Boolean),
-          svg_prompt: draft.svg_prompt || undefined,
+          image_prompt: draft.image_prompt || undefined,
         },
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (error || data?.error) throw new Error(data?.error ?? error?.message);
 
-      setDraft(d => ({ ...d, svg_content: data.svg_content }));
+      setDraft(d => ({ ...d, image_url: data.image_url }));
       setGenImgStatus("idle");
-      toast.success("Ilustrasi SVG berhasil dibuat!");
+      toast.success("Gambar berhasil dibuat!");
     } catch (e: any) {
       setGenImgStatus("error");
-      setGenImgError(e.message ?? "Gagal generate SVG");
-      toast.error(e.message ?? "Gagal generate ilustrasi");
+      setGenImgError(e.message ?? "Gagal generate gambar");
+      toast.error(e.message ?? "Gagal generate gambar");
     }
   };
 
@@ -158,7 +158,7 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
         options: validOpts,
         subtest: draft.subtest,
         explanation: draft.explanation.trim() || null,
-        svg_content: draft.svg_content || null,
+        image_url: draft.image_url || null,
         topic: topicResolved || null,
         source: "manual",
       };
@@ -194,7 +194,7 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
             <Image className="h-4 w-4 text-blue-600" />
             <h3 className="font-semibold text-sm text-blue-800">Generate Soal Gambar</h3>
             <Badge variant="outline" className="text-[9px] border-blue-300 text-blue-600">
-              SVG via Claude AI
+              GPT Image-2
             </Badge>
           </div>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onClose}>
@@ -368,11 +368,11 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
               />
             </div>
 
-            {/* SVG prompt hint */}
-            {draft.svg_prompt && draft.svg_prompt !== "none" && (
+            {/* image prompt hint */}
+            {draft.image_prompt && draft.image_prompt !== "none" && (
               <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2">
                 <p className="text-[11px] text-blue-700 font-semibold">💡 Saran Ilustrasi dari AI:</p>
-                <p className="text-[11px] text-blue-600">{draft.svg_prompt}</p>
+                <p className="text-[11px] text-blue-600">{draft.image_prompt}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">Bisa diedit di Langkah 2</p>
               </div>
             )}
@@ -409,54 +409,55 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
               </div>
             </div>
 
-            {/* SVG prompt control */}
+            {/* Image prompt control */}
             <div>
-              <Label className="text-xs">Deskripsi Ilustrasi untuk AI</Label>
+              <Label className="text-xs">Deskripsi Gambar untuk AI</Label>
               <Textarea
                 rows={2}
-                placeholder="cth: a number line showing sequence 3, 6, 12, 24, ? in boxes — atau biarkan kosong untuk biarkan AI memilih"
-                value={draft.svg_prompt === "none" ? "" : draft.svg_prompt}
-                onChange={e => setDraft(d => ({ ...d, svg_prompt: e.target.value }))}
+                placeholder="cth: a number line showing sequence 3, 6, 12, 24 in boxes — atau biarkan kosong untuk biarkan AI memilih"
+                value={draft.image_prompt === "none" ? "" : draft.image_prompt}
+                onChange={e => setDraft(d => ({ ...d, image_prompt: e.target.value }))}
                 className="text-xs resize-none mt-1"
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                Deskripsikan ilustrasi yang ingin Anda lihat, atau kosongkan dan biarkan Claude memilih.
+                Deskripsikan ilustrasi yang ingin Anda lihat, atau kosongkan dan biarkan AI memilih. Generate bisa memakan waktu ~30 detik.
               </p>
             </div>
 
             {/* Generate button */}
             <Button
-              onClick={handleGenerateSVG}
+              onClick={handleGenerateImage}
               disabled={genImgStatus === "loading"}
               className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
             >
               {genImgStatus === "loading"
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Claude sedang menggambar SVG...</>
-                : draft.svg_content
-                  ? <><RefreshCw className="h-4 w-4" /> Re-generate Ilustrasi</>
-                  : <><Image className="h-4 w-4" /> Generate Ilustrasi SVG via Claude</>
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> GPT Image-2 sedang generate gambar...</>
+                : draft.image_url
+                  ? <><RefreshCw className="h-4 w-4" /> Re-generate Gambar</>
+                  : <><Image className="h-4 w-4" /> Generate Gambar via GPT Image-2</>
               }
             </Button>
             {genImgStatus === "error" && (
               <p className="text-xs text-red-600 flex items-center gap-1"><X className="h-3 w-3" />{genImgError}</p>
             )}
 
-            {/* SVG Preview */}
-            {draft.svg_content && (
+            {/* Image Preview */}
+            {draft.image_url && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-green-600" />
-                  <p className="text-xs text-green-700 font-semibold">Ilustrasi SVG berhasil dibuat!</p>
+                  <p className="text-xs text-green-700 font-semibold">Gambar berhasil dibuat!</p>
                 </div>
-                <div
-                  className="rounded-lg border border-border overflow-hidden bg-white"
-                  dangerouslySetInnerHTML={{ __html: draft.svg_content }}
+                <img
+                  src={draft.image_url}
+                  alt="Generated illustration"
+                  className="rounded-lg border border-border overflow-hidden bg-white w-full object-contain max-h-64"
                 />
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs text-destructive hover:bg-destructive/10 gap-1"
-                  onClick={() => setDraft(d => ({ ...d, svg_content: "" }))}
+                  onClick={() => setDraft(d => ({ ...d, image_url: "" }))}
                 >
                   <ImageOff className="h-3 w-3" /> Hapus Gambar (simpan tanpa gambar)
                 </Button>
@@ -487,18 +488,20 @@ export function ImageQuestionForm({ TOPIC_OPTIONS, onSaved, onClose }: ImageQues
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="uppercase text-[9px]">{draft.subtest}</Badge>
                 <Badge variant="secondary" className="text-[9px]">{topicResolved}</Badge>
-                {draft.svg_content
-                  ? <Badge className="text-[9px] bg-blue-100 text-blue-700 border-blue-300">Ada Ilustrasi SVG ✓</Badge>
+                {draft.image_url
+                  ? <Badge className="text-[9px] bg-blue-100 text-blue-700 border-blue-300">Ada Gambar GPT Image-2 ✓</Badge>
                   : <Badge className="text-[9px] bg-gray-100 text-gray-600">Tanpa Gambar</Badge>
                 }
               </div>
 
               <p className="text-sm leading-snug font-medium">{draft.question_text}</p>
 
-              {draft.svg_content && (
-                <div className="rounded border border-border overflow-hidden bg-white max-h-48">
-                  <div dangerouslySetInnerHTML={{ __html: draft.svg_content }} className="w-full" />
-                </div>
+              {draft.image_url && (
+                <img
+                  src={draft.image_url}
+                  alt="Generated illustration"
+                  className="rounded border border-border overflow-hidden bg-white w-full object-contain max-h-48"
+                />
               )}
 
               <div className="space-y-0.5">

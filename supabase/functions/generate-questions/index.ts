@@ -750,58 +750,80 @@ Output ONLY the JSON object.`;
       }
     }
 
-    // ── Generate SVG Illustration via Claude ─────────────────────────────────
-    if (body.action === "generate_svg_illustration") {
-      const { question_text, options, svg_prompt } = body as {
+    // ── Generate Image via GPT Image-2 ──────────────────────────────────────
+    if (body.action === "generate_image_gpt") {
+      const { question_text, options, image_prompt } = body as {
         question_text: string;
         options: string[];
-        svg_prompt?: string;
+        image_prompt?: string;
       };
       if (!globalKieApiKey) return json({ error: "KIE API key belum dikonfigurasi." }, 400);
       if (!question_text) return json({ error: "question_text diperlukan" }, 400);
 
-      const illustrationPrompt = svg_prompt && svg_prompt !== "none"
-        ? `Illustration hint: ${svg_prompt}`
-        : `Create a helpful educational diagram or visual for this question.`;
+      const prompt = image_prompt && image_prompt.trim()
+        ? image_prompt.trim()
+        : `Educational illustration for Indonesian civil servant exam (ASN/CPNS). Question: "${question_text}". Options: ${options?.slice(0, 3).join(", ")}. Create a clean, clear diagram or visual that helps students understand the question context. Style: minimal, professional, white background.`;
 
-      const svgSysPrompt = `You are an SVG illustration generator for Indonesian CPNS exam questions.
-Generate a clean, educational SVG illustration that visually represents the context of the exam question.
-Output ONLY the raw SVG markup. Start your response with <svg and end with </svg>. No prose, no markdown, no code fences.
-
-Rules:
-- viewBox="0 0 520 300" width="520" height="300"  
-- Background: white rect (fill="#ffffff")
-- Colors: use #1E3A5F (dark navy), #3B82F6 (blue), #10B981 (green), #F59E0B (amber), #EF4444 (red), #F8FAFC (light gray)
-- Font: font-family="system-ui, sans-serif"
-- Include text labels, numbers, or data RELEVANT to the question
-- If it's a number sequence/pattern: display the elements in boxes with visual pattern highlighted
-- If it's a comparison/ratio problem: use bars or a table
-- If it's a logical diagram: use labeled boxes and arrows
-- If it's a geometry problem: draw the shape with dimensions labeled
-- If it's a situational/TKP scenario: draw a simple workplace scene or flow diagram
-- Make it self-explanatory — a student should understand what to look for
-- Do NOT just draw decorative elements`;
-
-      const userMsg = `Question: ${question_text}
-Options: ${options?.join(", ")}
-${illustrationPrompt}`;
-
-      const res = await fetch(KIE_API_URL, {
+      // Step 1: Create image generation task
+      const createRes = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
         method: "POST",
         headers: { "Authorization": `Bearer ${globalKieApiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 4000, system: svgSysPrompt, messages: [{ role: "user", content: userMsg }], stream: false }),
+        body: JSON.stringify({
+          model: "gpt-image-2-text-to-image",
+          input: { prompt, aspect_ratio: "4:3", resolution: "1K" },
+        }),
       });
-      if (!res.ok) {
-        const errBody = await res.text().catch(() => "");
-        return json({ error: `KIE API error ${res.status}: ${errBody.slice(0, 200)}` });
+      if (!createRes.ok) {
+        const errBody = await createRes.text().catch(() => "");
+        return json({ error: `KIE API error ${createRes.status}: ${errBody.slice(0, 200)}` });
       }
-      const resData = await res.json();
-      const rawText = (resData.content as Array<{ type: string; text?: string }>)?.find(b => b.type === "text")?.text ?? "";
-      const svgStart = rawText.indexOf("<svg");
-      const svgEnd = rawText.lastIndexOf("</svg>");
-      if (svgStart === -1 || svgEnd === -1) return json({ error: "AI tidak menghasilkan SVG yang valid" });
-      const svgContent = rawText.slice(svgStart, svgEnd + 6);
-      return json({ svg_content: svgContent });
+      const createData = await createRes.json();
+      if (createData.code !== 200 || !createData.data?.taskId) {
+        return json({ error: `Gagal buat task: ${createData.msg ?? "unknown error"}` });
+      }
+      const taskId: string = createData.data.taskId;
+
+      // Step 2: Poll for completion (max 45 seconds)
+      let outputUrl: string | null = null;
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/getTaskDetail?taskId=${taskId}`, {
+          headers: { "Authorization": `Bearer ${globalKieApiKey}` },
+        });
+        if (!pollRes.ok) continue;
+        const pollData = await pollRes.json();
+        const d = pollData.data ?? {};
+        const status: string = d.taskStatus ?? d.status ?? "";
+        if (status === "SUCCESS" || status === "COMPLETED") {
+          outputUrl = d.output?.imageUrl ?? d.output?.image_url ?? d.imageUrl ?? null;
+          if (!outputUrl && Array.isArray(d.output?.images)) outputUrl = d.output.images[0];
+          break;
+        }
+        if (status === "FAILED" || status === "ERROR") {
+          return json({ error: "Generate gambar gagal di server KIE" });
+        }
+      }
+      if (!outputUrl) return json({ error: "Timeout: gambar belum selesai dalam 45 detik. Coba lagi." });
+
+      // Step 3: Download image and upload to Supabase storage
+      const imgRes = await fetch(outputUrl);
+      if (!imgRes.ok) return json({ error: "Gagal download gambar dari KIE" });
+      const imgBuffer = await imgRes.arrayBuffer();
+      const contentType = imgRes.headers.get("content-type") ?? "image/png";
+      const ext = contentType.includes("webp") ? "webp" : contentType.includes("jpeg") ? "jpg" : "png";
+
+      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+      const fileName = `ai-gen-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from("question-images")
+        .upload(fileName, imgBuffer, { contentType, upsert: false });
+      if (uploadError) return json({ error: `Upload storage gagal: ${uploadError.message}` });
+
+      const { data: { publicUrl } } = supabaseAdmin.storage
+        .from("question-images")
+        .getPublicUrl(fileName);
+
+      return json({ image_url: publicUrl });
     }
     // ─────────────────────────────────────────────────────────────────────────
 
