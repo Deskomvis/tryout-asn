@@ -71,6 +71,7 @@ Aturan penting:
 - Gambar hanya boleh menjadi stimulus soal.
 - Jangan tampilkan jawaban benar, label "answer", tanda centang, pembahasan, atau panel solusi.
 - Jika ada item yang ditanyakan/hilang, tampilkan sebagai kotak kosong atau tanda tanya.
+- Untuk soal ketidaksamaan gambar, boleh tampilkan kandidat visual A-E secara netral, tanpa menandai mana yang berbeda.
 - Pilihan jawaban tetap berada di teks opsi, bukan di gambar.`;
   };
 

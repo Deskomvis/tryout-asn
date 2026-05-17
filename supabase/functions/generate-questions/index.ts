@@ -44,6 +44,9 @@ const IMAGE_QUESTION_VARIANTS = [
   "calendar/time grid",
   "logic seating or ordering chart",
   "geometric pattern with rotation/reflection",
+  "five-option odd-one-out figure set",
+  "nested-shape symmetry puzzle",
+  "dot-position and line-count pattern",
 ];
 
 const TIU_IMAGE_GUIDES: Record<string, string> = {
@@ -55,7 +58,7 @@ const TIU_IMAGE_GUIDES: Record<string, string> = {
   kuantitatif: `Use a mini table, bar comparison, proportion diagram, or two-column quantitative comparison. Include realistic numbers.`,
   cerita: `Use a compact situation diagram: distance route, work-rate timeline, container/volume sketch, price table, or schedule grid.`,
   figural_analogi: `Use varied figural analogy: arrows, rotations, shading changes, line counts, nested shapes, orientation, or fill patterns. Avoid repeating only circle/square size changes.`,
-  figural_ketidaksamaan: `Use varied odd-one-out figures: symmetry, rotation, number of elements, line intersections, shading, position, or mirror direction.`,
+  figural_ketidaksamaan: `Use varied odd-one-out figures like CPNS figural tests: five labeled visual options A-E, exactly one is different by a subtle rule. Vary nested shapes, dot counts, symmetry, rotation, line intersections, fill/shading, position, or mirror direction.`,
   figural_serial: `Use varied serial figures: rotation, element addition/removal, alternating shading, position shifts, line count changes, or nested shape progression.`,
 };
 
@@ -693,14 +696,28 @@ Deno.serve(async (req: Request) => {
         // The actual SVG illustration will be generated in the next step.
         const figuralGuide: Record<string, string> = {
           figural_analogi: `Generate a figural analogy question. Describe shapes/figures using text labels (e.g., "Gambar A: segitiga besar menghadap kanan", "Gambar B: segitiga kecil menghadap kiri"). The question asks: gambar A : gambar B = gambar C : ?`,
-          figural_ketidaksamaan: `Generate a figural odd-one-out question. Describe 5 figures using text (e.g., shapes, rotations, symmetry). One figure is different from the rest.`,
+          figural_ketidaksamaan: `Generate a hard figural odd-one-out question like CPNS TIU. There must be five visual options A, B, C, D, E. Four figures share the same hidden rule, and one figure violates it. Use a subtle but fair difference, not a trivial color-only difference.`,
           figural_serial: `Generate a figural series question. Describe a sequence of 4 figures that follow a visual pattern (e.g., rotation, addition/removal of elements, size change). The final item is missing and must be answered from the text options.`,
         };
+        const oddOneOutRules = topic === "figural_ketidaksamaan"
+          ? `
+Hard odd-one-out requirements:
+- question_text should ask: "Manakah gambar yang tidak sama dengan gambar lainnya?" or equivalent.
+- options must be exactly ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"].
+- correct_answer must be one of those labels.
+- explanation must name the hidden rule briefly, e.g. four figures have four dots symmetrically placed, one has only two; four figures use overlapping triangles, one uses a single triangle.
+- svg_prompt must describe all five visual options A-E in one row, each inside a small square frame.
+- The image may show labels A-E, but must NOT mark which one is correct or include the explanation.
+- Make the puzzle moderately difficult: combine at least two visual attributes such as inner shape, number of dots, symmetry, orientation, line count, fill/shading, or border shape.
+- Avoid the same simple circle/square pattern; use combinations like star-of-triangles, nested diamonds, rotated arrows, split bars, corner dots, or mirrored line segments.
+`
+          : "";
         sysPrompt = `You are a JSON generator for Indonesian CPNS TIU ${topicDesc} exam questions.
 This question will be paired with an SVG illustration generated afterward — so describe visual elements clearly in text.
 Output ONLY a single valid JSON object. No prose, no markdown, no code fences.
 
 ${figuralGuide[topic] ?? ""}
+${oddOneOutRules}
 Visual variation target for this request: ${imageVariant}.
 ${custom_instruction ? `\nCustom instruction: ${custom_instruction}` : ""}
 
@@ -825,6 +842,8 @@ Important exam-image rules:
 - Do not include answer choices, check marks, solution arrows to the final answer, or explanation panels.
 - Avoid repetitive plain circle/square-only images unless the question specifically requires them.
 - Prefer varied TIU visual stimuli: patterns, matrices, diagrams, tables, grids, arrows, rotations, shading, quantities, or realistic small datasets.
+- For odd-one-out figural questions, it is OK to show five labeled visual candidates A-E in the image. Keep labels neutral and never mark the correct/odd one.
+- Make figural candidate sets challenging but readable: use nested shapes, dot placement, symmetry, rotation, line count, shading, and border differences.
 - Use clean educational diagram style on a white background.`;
 
       const createRes = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
