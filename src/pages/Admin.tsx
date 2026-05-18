@@ -31,6 +31,118 @@ import { GlobalBankTable } from "@/components/admin/GlobalBankTable";
 import { MaterialRow } from "@/components/admin/MaterialRow";
 import { ExamCategoryManager, type ExamCategory } from "@/components/admin/ExamCategoryManager";
 
+const BonusLinksManager = ({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (newValue: string) => void;
+}) => {
+  const parseLinks = (val: string): { label: string; url: string }[] => {
+    if (!val) return [{ label: "", url: "" }];
+    const trimmed = val.trim();
+    if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.map((item: any) => {
+            if (typeof item === 'string') return { label: 'Akses Materi', url: item };
+            return { label: item.label || '', url: item.url || '' };
+          });
+        } else if (parsed && typeof parsed === 'object') {
+          return [{ label: parsed.label || '', url: parsed.url || '' }];
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return [{ label: "Buka Link Bonus", url: trimmed }];
+  };
+
+  const [links, setLinks] = useState<{ label: string; url: string }[]>(() => parseLinks(value));
+
+  const updateParent = (newLinks: { label: string; url: string }[]) => {
+    setLinks(newLinks);
+    const filtered = newLinks.filter(l => l.label.trim() !== "" || l.url.trim() !== "");
+    if (filtered.length === 0) {
+      onChange("");
+    } else {
+      onChange(JSON.stringify(filtered));
+    }
+  };
+
+  const handleAdd = () => {
+    updateParent([...links, { label: "", url: "" }]);
+  };
+
+  const handleRemove = (index: number) => {
+    const next = links.filter((_, i) => i !== index);
+    if (next.length === 0) {
+      updateParent([{ label: "", url: "" }]);
+    } else {
+      updateParent(next);
+    }
+  };
+
+  const handleChange = (index: number, field: 'label' | 'url', val: string) => {
+    const next = links.map((lnk, i) => {
+      if (i === index) {
+        return { ...lnk, [field]: val };
+      }
+      return lnk;
+    });
+    updateParent(next);
+  };
+
+  return (
+    <div className="space-y-3 pt-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-semibold text-amber-900">Daftar Link Google Drive / Bonus ({links.length})</Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleAdd}
+          className="h-6 text-[10px] gap-1 border-amber-300 text-amber-800 hover:bg-amber-100/50"
+        >
+          <Plus className="h-3 w-3" /> Tambah Link
+        </Button>
+      </div>
+      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+        {links.map((lnk, idx) => (
+          <div key={idx} className="flex gap-2 items-center bg-white/40 p-2 rounded-lg border border-amber-200/60 shadow-sm">
+            <div className="flex-1 space-y-1.5">
+              <Input
+                placeholder="Label (cth: Ebook SKD PDF, Video Pembelajaran)"
+                value={lnk.label}
+                onChange={(e) => handleChange(idx, 'label', e.target.value)}
+                className="h-7 text-xs bg-white/90 border-amber-200 focus-visible:ring-amber-500"
+              />
+              <Input
+                placeholder="Link Google Drive / URL (https://...)"
+                value={lnk.url}
+                onChange={(e) => handleChange(idx, 'url', e.target.value)}
+                className="h-7 text-xs bg-white/90 border-amber-200 focus-visible:ring-amber-500"
+              />
+            </div>
+            {links.length > 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleRemove(idx)}
+                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const Admin = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (VALID_TABS as readonly string[]).includes(searchParams.get("tab") ?? "")
@@ -2418,14 +2530,10 @@ const Admin = () => {
                         onChange={(e) => setNewExam({ ...newExam, bonus_description: e.target.value })}
                       />
                     </div>
-                    <div>
-                      <Label>Link Bonus / Google Drive <span className="text-muted-foreground text-xs">(opsional)</span></Label>
-                      <Input
-                        placeholder="https://drive.google.com/..."
-                        value={newExam.bonus_link}
-                        onChange={(e) => setNewExam({ ...newExam, bonus_link: e.target.value })}
-                      />
-                    </div>
+                    <BonusLinksManager
+                      value={newExam.bonus_link}
+                      onChange={(val) => setNewExam({ ...newExam, bonus_link: val })}
+                    />
                   </div>
                   <Button onClick={async () => { await addExam(); setShowNewExamForm(false); }}>Buat Tryout</Button>
                 </CardContent>
@@ -3417,14 +3525,10 @@ const Admin = () => {
                     placeholder="cth: Akses video pembelajaran lengkap via Google Drive"
                   />
                 </div>
-                <div>
-                  <Label>Link Bonus / Google Drive</Label>
-                  <Input
-                    value={editExam.bonus_link ?? ""}
-                    onChange={(e) => setEditExam({ ...editExam, bonus_link: e.target.value })}
-                    placeholder="https://drive.google.com/..."
-                  />
-                </div>
+                <BonusLinksManager
+                  value={editExam.bonus_link ?? ""}
+                  onChange={(val) => setEditExam({ ...editExam, bonus_link: val })}
+                />
               </div>
               <div>
                 <Label>Gambar Cover <span className="text-muted-foreground text-xs">(opsional — tampil di card Beli Paket)</span></Label>

@@ -1,7 +1,7 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home, LayoutGrid, FolderOpen, LogOut,
-  Database, Package, BarChart2, Receipt, Users, Settings, UserCircle, MessageCircle, Send
+  Database, Package, BarChart2, Receipt, Users, Settings, UserCircle, MessageCircle, Send, Gift
 } from "lucide-react";
 import logo from "@/assets/logo-ruangcasn.png";
 import favicon from "@/assets/faveicon-ruangcasn.png";
@@ -25,6 +25,7 @@ const items = [
   { title: "Home", url: "/dashboard", icon: Home },
   { title: "Beli Paket Tryout", url: "/beli-paket", icon: LayoutGrid },
   { title: "Paket Saya", url: "/paket-saya", icon: FolderOpen },
+  { title: "Bonus Saya", url: "/bonus-saya", icon: Gift },
 ];
 
 const adminItems = [
