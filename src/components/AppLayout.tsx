@@ -11,14 +11,14 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-secondary/40">
         <AppSidebar />
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col min-w-0 overflow-x-hidden">
           <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border/60 bg-background/90 px-4 backdrop-blur md:px-6">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="text-foreground" />
             </div>
             
             {/* Infinite Loop Running Text */}
-            <div className="flex-1 max-w-[140px] xs:max-w-[240px] sm:max-w-[360px] md:max-w-[480px] lg:max-w-[640px] xl:max-w-[800px] 2xl:max-w-[1000px] overflow-hidden mx-1 sm:mx-3 py-1.5 bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-full px-3.5 select-none cursor-default transition-colors">
+            <div className="hidden sm:block flex-1 min-w-0 max-w-[240px] md:max-w-[480px] lg:max-w-[640px] xl:max-w-[800px] overflow-hidden mx-2 py-1.5 bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-full px-3.5 select-none cursor-default transition-colors">
               <div className="flex whitespace-nowrap animate-marquee">
                 <span className="text-[10px] sm:text-xs font-semibold text-primary tracking-wide pr-4">
                   Platfom Tryout CASN Terbaik No #1 Di Indonesia - Tryout CASN - Tryout PPPK - Tryout Kedinasan - Tryout BUMN - Platfom Tryout CASN Terbaik No #1 Di Indonesia - Tryout CASN - Tryout PPPK - Tryout Kedinasan - Tryout BUMN - &nbsp;

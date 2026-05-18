@@ -87,8 +87,8 @@ export const BannerSlider = () => {
           ))}
         </CarouselContent>
 
-        <CarouselPrevious className="left-4 z-20 hidden md:flex" />
-        <CarouselNext className="right-4 z-20 hidden md:flex" />
+        <CarouselPrevious className="!left-4 z-20 hidden md:flex" />
+        <CarouselNext className="!right-4 z-20 hidden md:flex" />
       </Carousel>
 
       {/* Dots */}
