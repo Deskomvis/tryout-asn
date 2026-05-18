@@ -21,10 +21,10 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
             <div className="flex-1 max-w-[150px] xs:max-w-[220px] sm:max-w-[320px] md:max-w-[420px] lg:max-w-[550px] xl:max-w-[700px] overflow-hidden mx-1 sm:mx-3 py-1.5 bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-full px-3.5 select-none cursor-default transition-colors">
               <div className="flex whitespace-nowrap animate-marquee">
                 <span className="text-[10px] sm:text-xs font-semibold text-primary tracking-wide pr-4">
-                  "Platfom Tryout CASN Terbaik No #1 Di Indonesia" - "Ruang CASN" - "Tryout CASN" - "Tryout PPPK" - "Platfom Tryout CASN Terbaik No #1 Di Indonesia" - "Ruang CASN" - "Tryout CASN" - "Tryout PPPK" - &nbsp;
+                  Platfom Tryout CASN Terbaik No #1 Di Indonesia - Ruang CASN - Tryout CASN - Tryout PPPK - Platfom Tryout CASN Terbaik No #1 Di Indonesia - Ruang CASN - Tryout CASN - Tryout PPPK - &nbsp;
                 </span>
                 <span className="text-[10px] sm:text-xs font-semibold text-primary tracking-wide pr-4">
-                  "Platfom Tryout CASN Terbaik No #1 Di Indonesia" - "Ruang CASN" - "Tryout CASN" - "Tryout PPPK" - "Platfom Tryout CASN Terbaik No #1 Di Indonesia" - "Ruang CASN" - "Tryout CASN" - "Tryout PPPK" - &nbsp;
+                  Platfom Tryout CASN Terbaik No #1 Di Indonesia - Ruang CASN - Tryout CASN - Tryout PPPK - Platfom Tryout CASN Terbaik No #1 Di Indonesia - Ruang CASN - Tryout CASN - Tryout PPPK - &nbsp;
                 </span>
               </div>
             </div>
