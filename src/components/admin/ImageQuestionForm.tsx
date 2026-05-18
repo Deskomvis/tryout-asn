@@ -72,7 +72,8 @@ Aturan penting:
 - Jangan tampilkan jawaban benar, label "answer", tanda centang, pembahasan, atau panel solusi.
 - Jika ada item yang ditanyakan/hilang, tampilkan sebagai kotak kosong atau tanda tanya.
 - Untuk soal ketidaksamaan gambar, boleh tampilkan kandidat visual A-E secara netral, tanpa menandai mana yang berbeda.
-- Pilihan jawaban tetap berada di teks opsi, bukan di gambar.`;
+- Pilihan jawaban tetap berada di teks opsi, bukan di gambar.
+- Gunakan standar tingkat kesulitan tinggi (HOTS setara Kelas 3 SMA/seleksi ASN profesional). Hindari pola gambar sederhana selevel anak SD. Buat pola visual yang kompleks, terstruktur, rapi, dan profesional (misalnya menggunakan nested geometric shapes, multi-layered rules, rotasi kompleks, pola titik/garis yang rumit).`;
   };
 
   // ── Step 1: Generate question via AI ────────────────────────────────────────

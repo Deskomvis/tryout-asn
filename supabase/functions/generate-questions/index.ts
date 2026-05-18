@@ -57,9 +57,9 @@ const TIU_IMAGE_GUIDES: Record<string, string> = {
   deret: `Use number/symbol sequences, tile patterns, alternating arithmetic/geometric patterns, or a 3x3 matrix with one missing cell.`,
   kuantitatif: `Use a mini table, bar comparison, proportion diagram, or two-column quantitative comparison. Include realistic numbers.`,
   cerita: `Use a compact situation diagram: distance route, work-rate timeline, container/volume sketch, price table, or schedule grid.`,
-  figural_analogi: `Use varied figural analogy: arrows, rotations, shading changes, line counts, nested shapes, orientation, or fill patterns. Avoid repeating only circle/square size changes.`,
-  figural_ketidaksamaan: `Use varied odd-one-out figures like CPNS figural tests: five labeled visual options A-E, exactly one is different by a subtle rule. Vary nested shapes, dot counts, symmetry, rotation, line intersections, fill/shading, position, or mirror direction.`,
-  figural_serial: `Use varied serial figures: rotation, element addition/removal, alternating shading, position shifts, line count changes, or nested shape progression.`,
+  figural_analogi: `Use varied and highly challenging HOTS-level figural analogy: multi-layered rules combining rotations, size/scale, line counts, nested geometric shapes, spatial orientation, fill/shading, mirror direction, and dot/symbol displacements. Make it suitable for 12th-grade high school (Kelas 3 SMA) high-intelligence reasoning. Avoid basic or simple changes.`,
+  figural_ketidaksamaan: `Use varied and highly challenging HOTS-level odd-one-out figures: five labeled visual options A-E, where exactly one is different by a subtle, multi-layered visual rule. Combine complex nested shapes, dot placements relative to vertices or symmetry axes, line counts, intersection rules, fill/shading, rotations, and spatial orientation/mirroring. Ensure it requires senior high school (Kelas 3 SMA) reasoning to solve.`,
+  figural_serial: `Use varied and highly challenging HOTS-level serial progression: complex multi-layered series showing progression of elements through systematic rotation, element addition/removal, shading transitions, shifting positions, changing side counts of nested shapes, or alternating rules. Make it appropriate for 12th-grade high school (Kelas 3 SMA) analytical standards.`,
 };
 
 function pickImageVariant(topic: string) {
@@ -702,33 +702,37 @@ Deno.serve(async (req: Request) => {
         // For all figural topics: the entire question + five options (A-E) visual cards are drawn entirely in the generated image.
         // The option list must be exactly ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"] and the correct answer must be one of those.
         const figuralGuide: Record<string, string> = {
-          figural_analogi: `Generate a Figural Analogy (Analogi Gambar) CPNS/PPPK TIU question.
+          figural_analogi: `Generate an advanced and highly challenging Figural Analogy (Analogi Gambar) CPNS/PPPK TIU question (HOTS level, equivalent to high intelligence/12th grade high school/Kelas 3 SMA senior standard).
 Requirements:
 - question_text must be exactly: "Perhatikan hubungan gambar pada pasangan pertama. Terapkan pola yang sama pada pasangan kedua sehingga ditemukan gambar yang tepat sebagai jawaban."
 - options must be exactly: ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"]
 - correct_answer must be exactly one of those options: "Gambar A", "Gambar B", "Gambar C", "Gambar D", or "Gambar E".
-- explanation must briefly explain the visual rule (2-3 sentences in Indonesian) explaining the shape transformations (rotation, size, line counts, shading) and which option represents the correct answer.
-- svg_prompt must describe the complete horizontal educational diagram layout. It must have two parts side-by-side:
-  1. The stimulus/problem on the left: draw the first pair transitioning (e.g. circle with black dot -> rotated square with two dots, separated by an arrow), then a colon (:), then the third figure and an arrow pointing to a box containing a question mark "[?]".
-  2. The options on the right: draw five option boxes labeled 'A', 'B', 'C', 'D', 'E' side-by-side, where option [correct answer letter, e.g. B] shows the correct answer figure. The other four options show subtle variations, rotations, or incorrect counts. Keep the labels neutral and do not mark which one is correct in the image itself.`,
+- explanation must explain the complex visual rule in detail (3-4 sentences in Indonesian) explaining the shape transformations (such as simultaneous rotation, scale, line counts, shading, mirror reflections, and dot/symbol displacements) and which option represents the correct answer.
+- svg_prompt must describe the complete horizontal educational diagram layout on a white background. It must have two parts side-by-side:
+  1. The stimulus/problem on the left: draw the first pair transitioning with a complex, multi-layered visual rule (e.g., a nested pentagon with 3 shaded regions and a black dot at a vertex -> transforms into a mirrored pentagon with 2 shaded regions and the black dot shifted to the opposite vertex, separated by a clean arrow), then a colon (:), then the third complex figure and an arrow pointing to a box containing a question mark "[?]".
+  2. The options on the right: draw five option boxes labeled 'A', 'B', 'C', 'D', 'E' side-by-side, where option [correct answer letter] shows the correct transformed figure. The other four options show subtle variations, incorrect rotations, wrong shading counts, or incorrect spatial positions. Keep the labels neutral and do not mark which one is correct in the image itself.
+- Describe the figures in the svg_prompt with high detail, ensuring the pattern uses complex geometric structures, line intersections, or sophisticated dot/symbol positions to maintain a high level of difficulty.`,
 
-          figural_ketidaksamaan: `Generate a Figural Odd-One-Out (Ketidaksamaan Gambar) CPNS/PPPK TIU question.
+          figural_ketidaksamaan: `Generate an advanced and highly challenging Figural Odd-One-Out (Ketidaksamaan Gambar) CPNS/PPPK TIU question (HOTS level, equivalent to high intelligence/12th grade high school/Kelas 3 SMA senior standard).
 Requirements:
 - question_text must be exactly: "Manakah gambar yang tidak memiliki kesamaan pola atau berbeda dengan gambar lainnya?"
 - options must be exactly: ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"]
 - correct_answer must be exactly one of those options: "Gambar A", "Gambar B", "Gambar C", "Gambar D", or "Gambar E".
-- explanation must briefly explain the visual rule (2-3 sentences in Indonesian) why one figure is the odd-one-out.
-- svg_prompt must describe all five visual option boxes labeled 'A', 'B', 'C', 'D', 'E' side-by-side in one clean horizontal row. Four figures follow a specific visual rule (e.g. number of lines, nested dots, reflection, symmetry) and option [correct answer letter] violates this rule. Keep the labels neutral and do not mark which one is correct in the image itself.`,
+- explanation must explain the complex visual rule in detail (3-4 sentences in Indonesian) why one figure is the odd-one-out.
+- svg_prompt must describe all five visual option boxes labeled 'A', 'B', 'C', 'D', 'E' side-by-side in one clean, professional educational diagram on a white background.
+- Crucially, the pattern must NOT be simple or obvious (like just one shape having a different number of sides or simple counting). It must use multiple combined rules (e.g., a combination of: a specific clockwise rotation of an inner element, number of intersecting lines, position of a dot relative to vertices or symmetry axes, or mirror reflection logic where only one option violates the spatial orientation).
+- Describe the figures in the svg_prompt with rich details so the image generator can draw intricate and sophisticated visual puzzles. For example: "A horizontal row of five boxes labeled A to E. Each box contains a complex geometric construct consisting of a nested hexagon inside an octagon, with a black dot moving along the vertices. In boxes A, B, C, D, the dot moves clockwise by 2 vertices and the inner hexagon rotates 45 degrees counter-clockwise. In box [correct letter], the dot moves counter-clockwise OR the inner shape is mirrored, violating the multi-layered rules."`,
 
-          figural_serial: `Generate a Figural Series (Serial Gambar) CPNS/PPPK TIU question.
+          figural_serial: `Generate an advanced and highly challenging Figural Series (Serial Gambar) CPNS/PPPK TIU question (HOTS level, equivalent to high intelligence/12th grade high school/Kelas 3 SMA senior standard).
 Requirements:
 - question_text must be exactly: "Pilihlah gambar yang paling tepat untuk melanjutkan deretan gambar (seri) yang diberikan."
 - options must be exactly: ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"]
 - correct_answer must be exactly one of those options: "Gambar A", "Gambar B", "Gambar C", "Gambar D", or "Gambar E".
-- explanation must briefly explain the visual progression rule (2-3 sentences in Indonesian) and which option represents the correct continuation.
-- svg_prompt must describe the complete horizontal educational diagram layout. It must have two parts side-by-side:
-  1. The progression on the left: draw a sequence of three or four boxes showing a moving pattern (e.g. black circle rotating, star growing, dots accumulating), followed by an arrow pointing to a box containing a question mark "[?]".
-  2. The options on the right: draw five option boxes labeled 'A', 'B', 'C', 'D', 'E' side-by-side, where option [correct answer letter] shows the correct next step. The other options show incorrect progression steps. Keep the labels neutral and do not mark which one is correct in the image itself.`
+- explanation must explain the complex visual progression rule in detail (3-4 sentences in Indonesian) and which option represents the correct continuation.
+- svg_prompt must describe the complete horizontal educational diagram layout on a white background. It must have two parts side-by-side:
+  1. The progression on the left: draw a sequence of three or four boxes showing a complex, multi-layered moving pattern (e.g., an outer square rotating by 45 degrees each step, an inner circle with sectors shading in a clockwise progression, and a tiny cross moving along the outer square's vertices), followed by an arrow pointing to a box containing a question mark "[?]".
+  2. The options on the right: draw five option boxes labeled 'A', 'B', 'C', 'D', 'E' side-by-side, where option [correct answer letter] shows the correct next step in the progression. The other options show incorrect progression steps. Keep the labels neutral and do not mark which one is correct in the image itself.
+- Describe the progression and options in the svg_prompt with high detail, ensuring the logic is sophisticated and requires careful analytical thinking.`
         };
 
         sysPrompt = `You are a JSON generator for Indonesian CPNS TIU ${topicDesc} exam questions.
@@ -859,7 +863,7 @@ Important exam-image rules:
 - Avoid repetitive plain circle/square-only images unless the question specifically requires them.
 - Prefer varied TIU visual stimuli: patterns, matrices, diagrams, tables, grids, arrows, rotations, shading, quantities, or realistic small datasets.
 - For odd-one-out figural questions, it is OK to show five labeled visual candidates A-E in the image. Keep labels neutral and never mark the correct/odd one.
-- Make figural candidate sets challenging but readable: use nested shapes, dot placement, symmetry, rotation, line count, shading, and border differences.
+- Make figural candidate sets extremely challenging, high-difficulty (HOTS level suitable for 12th-grade/Kelas 3 SMA intelligence standards), and professional: use complex nested shapes, intricate interlocking polygons, dot placement relative to symmetry axes, multi-axis rotations, line intersection differences, sophisticated shading transitions, and subtle spatial mirror variations. Avoid childish or overly simplistic designs.
 - Use clean educational diagram style on a white background.`;
 
       const createRes = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
