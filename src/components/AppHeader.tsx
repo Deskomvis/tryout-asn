@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
-import { GraduationCap, LogOut, Shield, Menu } from "lucide-react";
+import { LogOut, Shield, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import logo from "@/assets/logo-ruangcasn.png";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
@@ -26,10 +27,7 @@ export const AppHeader = () => {
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-lg">
       <div className="container flex h-16 items-center justify-between gap-4">
         <Link to="/dashboard" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <GraduationCap className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <span className="text-lg font-bold">Ruang CASN</span>
+          <img src={logo} alt="Ruang CASN" className="h-10 w-auto" />
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex" aria-label="Navigasi utama">

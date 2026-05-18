@@ -1,8 +1,10 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  Home, LayoutGrid, FolderOpen, LogOut, GraduationCap,
+  Home, LayoutGrid, FolderOpen, LogOut,
   Database, Package, BarChart2, Receipt, Users, Settings, UserCircle, MessageCircle, Send
 } from "lucide-react";
+import logo from "@/assets/logo-ruangcasn.png";
+import favicon from "@/assets/faveicon-ruangcasn.png";
 import {
   Sidebar,
   SidebarContent,
@@ -74,10 +76,8 @@ export const AppSidebar = () => {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <NavLink to="/dashboard" className="flex items-center gap-2 px-2 py-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <GraduationCap className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <span className="text-base font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">Ruang CASN</span>
+          <img src={logo} alt="Ruang CASN" className="h-8 w-auto shrink-0 group-data-[collapsible=icon]:hidden" />
+          <img src={favicon} alt="Ruang CASN" className="h-8 w-8 shrink-0 hidden group-data-[collapsible=icon]:block rounded-lg shadow-sm" />
         </NavLink>
       </SidebarHeader>
 

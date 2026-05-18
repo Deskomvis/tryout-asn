@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { GraduationCap } from "lucide-react";
 import { fbq } from "@/lib/metaPixel";
+import logo from "@/assets/logo-ruangcasn.png";
 
 const usernameSchema = z
   .string()
@@ -95,10 +95,7 @@ const Auth = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <Link to="/" className="mx-auto flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </div>
-            <span className="text-lg font-bold">Ruang CASN</span>
+            <img src={logo} alt="Ruang CASN" className="h-10 w-auto" />
           </Link>
           <h1 className="mt-2 text-xl font-semibold">Selamat datang</h1>
           <p className="text-sm text-muted-foreground">Masuk atau daftar untuk mulai tryout</p>

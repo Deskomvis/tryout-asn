@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { GraduationCap, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
+import logo from "@/assets/logo-ruangcasn.png";
 
 const links = [
   { href: "#beranda", label: "Beranda" },
@@ -16,10 +17,7 @@ export const Navbar = () => {
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-lg">
       <nav className="container flex h-16 items-center justify-between" aria-label="Menu utama Ruang CASN">
         <a href="/" className="flex items-center gap-2" aria-label="Ruang CASN - Halaman Utama">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <GraduationCap className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <span className="text-lg font-bold tracking-tight">Ruang CASN</span>
+          <img src={logo} alt="Ruang CASN" className="h-10 w-auto" />
         </a>
 
         <div className="hidden items-center gap-8 md:flex" role="menubar">

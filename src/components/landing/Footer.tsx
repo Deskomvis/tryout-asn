@@ -1,4 +1,5 @@
-import { GraduationCap, Instagram, Twitter, Youtube } from "lucide-react";
+import { Instagram, Twitter, Youtube } from "lucide-react";
+import logo from "@/assets/logo-ruangcasn.png";
 
 export const Footer = () => {
   return (
@@ -7,10 +8,7 @@ export const Footer = () => {
         <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
           <div className="sm:col-span-2 md:col-span-1">
             <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <GraduationCap className="h-5 w-5" aria-hidden="true" />
-              </div>
-              <span className="text-lg font-bold">Ruang CASN</span>
+              <img src={logo} alt="Ruang CASN" className="h-10 w-auto" />
             </div>
             <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
               Platform tryout online terlengkap untuk persiapan ujian CPNS &amp; PPPK 2026.
