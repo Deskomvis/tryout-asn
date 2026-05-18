@@ -18,7 +18,7 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
             </div>
             
             {/* Infinite Loop Running Text */}
-            <div className="flex-1 overflow-hidden mx-2 sm:mx-4 py-1.5 bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-full px-3.5 select-none cursor-default transition-colors">
+            <div className="flex-1 max-w-[140px] xs:max-w-[240px] sm:max-w-[360px] md:max-w-[480px] lg:max-w-[640px] xl:max-w-[800px] 2xl:max-w-[1000px] overflow-hidden mx-1 sm:mx-3 py-1.5 bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-full px-3.5 select-none cursor-default transition-colors">
               <div className="flex whitespace-nowrap animate-marquee">
                 <span className="text-[10px] sm:text-xs font-semibold text-primary tracking-wide pr-4">
                   Platfom Tryout CASN Terbaik No #1 Di Indonesia - Ruang CASN - Tryout CASN - Tryout PPPK - Platfom Tryout CASN Terbaik No #1 Di Indonesia - Ruang CASN - Tryout CASN - Tryout PPPK - &nbsp;
