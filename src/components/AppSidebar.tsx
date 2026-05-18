@@ -76,7 +76,7 @@ export const AppSidebar = () => {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <NavLink to="/dashboard" className="flex items-center gap-2 px-2 py-3">
-          <img src={logo} alt="Ruang CASN" className="h-8 w-auto shrink-0 group-data-[collapsible=icon]:hidden" />
+          <img src={logo} alt="Ruang CASN" className="h-10 w-auto shrink-0 group-data-[collapsible=icon]:hidden" />
           <img src={favicon} alt="Ruang CASN" className="h-8 w-8 shrink-0 hidden group-data-[collapsible=icon]:block rounded-lg shadow-sm" />
         </NavLink>
       </SidebarHeader>

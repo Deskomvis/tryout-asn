@@ -95,7 +95,7 @@ const Auth = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <Link to="/" className="mx-auto flex items-center gap-2">
-            <img src={logo} alt="Ruang CASN" className="h-10 w-auto" />
+            <img src={logo} alt="Ruang CASN" className="h-16 w-auto" />
           </Link>
           <h1 className="mt-2 text-xl font-semibold">Selamat datang</h1>
           <p className="text-sm text-muted-foreground">Masuk atau daftar untuk mulai tryout</p>

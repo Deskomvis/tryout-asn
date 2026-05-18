@@ -27,7 +27,7 @@ export const AppHeader = () => {
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-lg">
       <div className="container flex h-16 items-center justify-between gap-4">
         <Link to="/dashboard" className="flex items-center gap-2">
-          <img src={logo} alt="Ruang CASN" className="h-10 w-auto" />
+          <img src={logo} alt="Ruang CASN" className="h-12 w-auto" />
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex" aria-label="Navigasi utama">

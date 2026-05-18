@@ -17,7 +17,7 @@ export const Navbar = () => {
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-lg">
       <nav className="container flex h-16 items-center justify-between" aria-label="Menu utama Ruang CASN">
         <a href="/" className="flex items-center gap-2" aria-label="Ruang CASN - Halaman Utama">
-          <img src={logo} alt="Ruang CASN" className="h-10 w-auto" />
+          <img src={logo} alt="Ruang CASN" className="h-12 w-auto" />
         </a>
 
         <div className="hidden items-center gap-8 md:flex" role="menubar">

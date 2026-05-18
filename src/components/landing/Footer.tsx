@@ -8,7 +8,7 @@ export const Footer = () => {
         <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
           <div className="sm:col-span-2 md:col-span-1">
             <div className="flex items-center gap-2">
-              <img src={logo} alt="Ruang CASN" className="h-10 w-auto" />
+              <img src={logo} alt="Ruang CASN" className="h-12 w-auto" />
             </div>
             <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
               Platform tryout online terlengkap untuk persiapan ujian CPNS &amp; PPPK 2026.
