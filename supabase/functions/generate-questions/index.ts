@@ -568,6 +568,13 @@ function rebalanceCorrectAnswerPositions(questions: PreparedQuestion[]): Prepare
   for (const [, group] of grouped) {
     const positions = buildDistributedPositions(group.length, group[0].options.length);
     group.forEach((question, index) => {
+      // Skip rebalancing/shuffling for figural questions with fixed "Gambar A" options
+      const isFiguralOptions = question.options.some(opt => opt.toLowerCase().includes("gambar a"));
+      if (isFiguralOptions) {
+        rebalanced.push(question);
+        return;
+      }
+
       const wrongOptions = shuffleArray(
         question.options.filter((option) => option !== question.correct_answer),
       );
@@ -692,48 +699,57 @@ Deno.serve(async (req: Request) => {
 
       let sysPrompt: string;
       if (isFigural) {
-        // For figural/visual topics: Claude generates text describing the visual pattern.
-        // The actual SVG illustration will be generated in the next step.
+        // For all figural topics: the entire question + five options (A-E) visual cards are drawn entirely in the generated image.
+        // The option list must be exactly ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"] and the correct answer must be one of those.
         const figuralGuide: Record<string, string> = {
-          figural_analogi: `Generate a figural analogy question. Describe shapes/figures using text labels (e.g., "Gambar A: segitiga besar menghadap kanan", "Gambar B: segitiga kecil menghadap kiri"). The question asks: gambar A : gambar B = gambar C : ?`,
-          figural_ketidaksamaan: `Generate a hard figural odd-one-out question like CPNS TIU. There must be five visual options A, B, C, D, E. Four figures share the same hidden rule, and one figure violates it. Use a subtle but fair difference, not a trivial color-only difference.`,
-          figural_serial: `Generate a figural series question. Describe a sequence of 4 figures that follow a visual pattern (e.g., rotation, addition/removal of elements, size change). The final item is missing and must be answered from the text options.`,
+          figural_analogi: `Generate a Figural Analogy (Analogi Gambar) CPNS/PPPK TIU question.
+Requirements:
+- question_text must be exactly: "Perhatikan hubungan gambar pada pasangan pertama. Terapkan pola yang sama pada pasangan kedua sehingga ditemukan gambar yang tepat sebagai jawaban."
+- options must be exactly: ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"]
+- correct_answer must be exactly one of those options: "Gambar A", "Gambar B", "Gambar C", "Gambar D", or "Gambar E".
+- explanation must briefly explain the visual rule (2-3 sentences in Indonesian) explaining the shape transformations (rotation, size, line counts, shading) and which option represents the correct answer.
+- svg_prompt must describe the complete horizontal educational diagram layout. It must have two parts side-by-side:
+  1. The stimulus/problem on the left: draw the first pair transitioning (e.g. circle with black dot -> rotated square with two dots, separated by an arrow), then a colon (:), then the third figure and an arrow pointing to a box containing a question mark "[?]".
+  2. The options on the right: draw five option boxes labeled 'A', 'B', 'C', 'D', 'E' side-by-side, where option [correct answer letter, e.g. B] shows the correct answer figure. The other four options show subtle variations, rotations, or incorrect counts. Keep the labels neutral and do not mark which one is correct in the image itself.`,
+
+          figural_ketidaksamaan: `Generate a Figural Odd-One-Out (Ketidaksamaan Gambar) CPNS/PPPK TIU question.
+Requirements:
+- question_text must be exactly: "Manakah gambar yang tidak memiliki kesamaan pola atau berbeda dengan gambar lainnya?"
+- options must be exactly: ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"]
+- correct_answer must be exactly one of those options: "Gambar A", "Gambar B", "Gambar C", "Gambar D", or "Gambar E".
+- explanation must briefly explain the visual rule (2-3 sentences in Indonesian) why one figure is the odd-one-out.
+- svg_prompt must describe all five visual option boxes labeled 'A', 'B', 'C', 'D', 'E' side-by-side in one clean horizontal row. Four figures follow a specific visual rule (e.g. number of lines, nested dots, reflection, symmetry) and option [correct answer letter] violates this rule. Keep the labels neutral and do not mark which one is correct in the image itself.`,
+
+          figural_serial: `Generate a Figural Series (Serial Gambar) CPNS/PPPK TIU question.
+Requirements:
+- question_text must be exactly: "Pilihlah gambar yang paling tepat untuk melanjutkan deretan gambar (seri) yang diberikan."
+- options must be exactly: ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"]
+- correct_answer must be exactly one of those options: "Gambar A", "Gambar B", "Gambar C", "Gambar D", or "Gambar E".
+- explanation must briefly explain the visual progression rule (2-3 sentences in Indonesian) and which option represents the correct continuation.
+- svg_prompt must describe the complete horizontal educational diagram layout. It must have two parts side-by-side:
+  1. The progression on the left: draw a sequence of three or four boxes showing a moving pattern (e.g. black circle rotating, star growing, dots accumulating), followed by an arrow pointing to a box containing a question mark "[?]".
+  2. The options on the right: draw five option boxes labeled 'A', 'B', 'C', 'D', 'E' side-by-side, where option [correct answer letter] shows the correct next step. The other options show incorrect progression steps. Keep the labels neutral and do not mark which one is correct in the image itself.`
         };
-        const oddOneOutRules = topic === "figural_ketidaksamaan"
-          ? `
-Hard odd-one-out requirements:
-- question_text should ask: "Manakah gambar yang tidak sama dengan gambar lainnya?" or equivalent.
-- options must be exactly ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"].
-- correct_answer must be one of those labels.
-- explanation must name the hidden rule briefly, e.g. four figures have four dots symmetrically placed, one has only two; four figures use overlapping triangles, one uses a single triangle.
-- svg_prompt must describe all five visual options A-E in one row, each inside a small square frame.
-- The image may show labels A-E, but must NOT mark which one is correct or include the explanation.
-- Make the puzzle moderately difficult: combine at least two visual attributes such as inner shape, number of dots, symmetry, orientation, line count, fill/shading, or border shape.
-- Avoid the same simple circle/square pattern; use combinations like star-of-triangles, nested diamonds, rotated arrows, split bars, corner dots, or mirrored line segments.
-`
-          : "";
+
         sysPrompt = `You are a JSON generator for Indonesian CPNS TIU ${topicDesc} exam questions.
-This question will be paired with an SVG illustration generated afterward — so describe visual elements clearly in text.
 Output ONLY a single valid JSON object. No prose, no markdown, no code fences.
 
 ${figuralGuide[topic] ?? ""}
-${oddOneOutRules}
+
 Visual variation target for this request: ${imageVariant}.
 ${custom_instruction ? `\nCustom instruction: ${custom_instruction}` : ""}
 
 Output a JSON object with exactly:
-- "question_text": question string in Indonesian (describe figures/shapes textually, e.g. "Perhatikan pola gambar berikut: ...")
-- "options": array of exactly 5 strings — describe each answer choice as a shape/figure description (e.g. "Segitiga besar menghadap kiri")
+- "question_text": question string as specified above
+- "options": array of exactly ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"]
 - "correct_answer": string EXACTLY matching one of the options
 - "explanation": 2-3 sentences in Indonesian explaining the visual pattern and why the answer is correct
-- "svg_prompt": precise description for image generator that contains ONLY the stimulus image, never the answer. Use a blank box, question mark, or missing slot where the answer should be.
+- "svg_prompt": precise description for image generator containing the complete layout of problem + A-E options side-by-side as instructed above.
 
-CRITICAL FOR svg_prompt:
-- Do NOT include the correct answer or final solved item.
-- Do NOT write "answer", "solution", "Box D (answer)", or any wording that reveals which option is correct.
-- The image must behave like the exam stimulus. It may show given figures A, B, C and a blank/question-mark area, but the answer must remain only in the text options.
-
-IMPORTANT: Randomize the order of the options.
+CRITICAL:
+- The generated image itself will contain the drawings of both the problem pattern AND the A-E visual options side-by-side in a clean row.
+- In options list, do NOT write visual text descriptions. It must be exactly ["Gambar A", "Gambar B", "Gambar C", "Gambar D", "Gambar E"].
+- In the svg_prompt, describe exactly what each card A, B, C, D, E should depict so the image generator can paint them clearly in a neat horizontal card.
 
 Output ONLY the JSON object.`;
       } else if (isTkp) {
