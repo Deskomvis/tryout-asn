@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const KIE_API_URL = "https://api.kie.ai/claude/v1/messages";
-const MODEL = "claude-haiku-4-5";
+const MODEL = "claude-sonnet-4-6";
 
 const TWK_TOPICS: Record<string, string> = {
   nasionalisme: "Nasionalisme (mewujudkan kepentingan nasional melalui cita-cita dan tujuan yang sama dengan tetap mempertahankan identitas nasional)",
@@ -868,9 +868,9 @@ Output ONLY the JSON object.`;
 
     // ── Create GPT Image-2 Task (returns taskId immediately) ────────────────
     if (body.action === "create_image_task") {
-      const { question_text, options, image_prompt } = body as {
+      const { question_text, image_prompt } = body as {
         question_text: string;
-        options: string[];
+        options?: string[];
         image_prompt?: string;
       };
       if (!globalKieApiKey) return json({ error: "KIE API key belum dikonfigurasi." });
