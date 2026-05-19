@@ -72,7 +72,24 @@ function pickImageVariant(topic: string) {
 // Chart types supported for programmatic SVG generation
 type ChartType = "bar" | "line" | "pie" | "table" | "none";
 
-function buildSystemPrompt(subtest: string, topicDesc: string, chartType: ChartType, customInstruction?: string, materialText?: string, materialTitle?: string): string {
+function makeAnswerPositionConstraints(count: number): { letter: string; index: number }[] {
+  const letters = ["A", "B", "C", "D", "E"];
+  const result: { letter: string; index: number }[] = [];
+  while (result.length < count) {
+    const cycle = [...letters];
+    for (let i = cycle.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cycle[i], cycle[j]] = [cycle[j], cycle[i]];
+    }
+    for (const l of cycle) {
+      if (result.length >= count) break;
+      result.push({ letter: l, index: l.charCodeAt(0) - 65 });
+    }
+  }
+  return result;
+}
+
+function buildSystemPrompt(subtest: string, topicDesc: string, chartType: ChartType, customInstruction?: string, materialText?: string, materialTitle?: string, questionCount = 10): string {
   const hasChart = chartType !== "none";
 
   const chartInstructions = hasChart ? `
@@ -144,6 +161,11 @@ CRITICAL: Keys in option_points must be identical to strings in options. Output 
   }
 
   const label = subtest === "twk" ? "TWK (Tes Wawasan Kebangsaan)" : "TIU (Tes Intelegensia Umum)";
+  const posConstraints = makeAnswerPositionConstraints(questionCount);
+  const positionSchedule = posConstraints
+    .map((p, i) => `  Question ${i + 1}: correct answer MUST be placed at option ${p.letter} (index ${p.index}, 0-based)`)
+    .join("\n");
+
   return `You are a JSON generator. Output ONLY a raw JSON array. No prose, no explanation, no markdown, no code fences. Start your response with [ and end with ].
 
 Generate Indonesian ASN ${label} exam questions. Difficulty: appropriate for CPNS and PPPK standards.
@@ -155,7 +177,10 @@ Each object in the array MUST have exactly these fields:
 - "correct_answer": string that is EXACTLY one of the options strings
 - "explanation": 2-3 sentence string in Indonesian explaining why the answer is correct${hasChart ? '\n- "chart_data": chart data object as specified above' : ""}
 
-IMPORTANT: Randomly distribute the correct answer among the 5 options.
+CRITICAL — correct answer position schedule (follow exactly, do NOT deviate):
+${positionSchedule}
+
+For each question, construct the options array so the correct answer string appears at the specified index. The other 4 positions can be any order.
 
 Output ONLY the JSON array starting with [.`;
 }
@@ -773,6 +798,7 @@ IMPORTANT: Randomize the order of the options and their corresponding point mapp
 
 Output ONLY the JSON object.`;
       } else {
+        const targetPos = makeAnswerPositionConstraints(1)[0];
         sysPrompt = `You are a JSON generator for Indonesian CPNS exam questions. Output ONLY a single valid JSON object. No prose, no markdown, no code fences.
 
 Generate ONE ${subtest.toUpperCase()} question about: ${topicDesc}
@@ -797,7 +823,7 @@ CRITICAL FOR svg_prompt:
 - If an item is missing, show it as a blank cell, empty box, or question mark.
 - Do not include answer choices, check marks, solution arrows, or explanation text in the image.
 
-IMPORTANT: Randomize the order of the options.
+CRITICAL — correct answer position: place the correct answer at option ${targetPos.letter} (index ${targetPos.index}, 0-based). Construct the options array so the correct answer string is at that exact index.
 
 Output ONLY the JSON object.`;
       }
@@ -998,7 +1024,7 @@ Important exam-image rules:
     const topicDesc = topicMap[topic] ?? topic;
     const chartType: ChartType = ["bar", "line", "pie", "table"].includes(chart_type) ? chart_type as ChartType : "none";
 
-    const systemPrompt = buildSystemPrompt(subtest, topicDesc, chartType, custom_instruction ?? undefined, material_text ?? undefined, material_title ?? undefined);
+    const systemPrompt = buildSystemPrompt(subtest, topicDesc, chartType, custom_instruction ?? undefined, material_text ?? undefined, material_title ?? undefined, safeCount);
     const userMsg = `Generate exactly ${safeCount} question${safeCount > 1 ? "s" : ""}${chartType !== "none" ? ` with ${chartType} chart data` : ""} about: ${topicDesc}`;
 
     const userContent: unknown = (image_url && chartType === "none")
