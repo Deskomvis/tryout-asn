@@ -27,6 +27,7 @@ type AkbarEvent = {
   exam_end: string | null;
   exam_id: string | null;
   status: string;
+  banner_url: string | null;
 };
 
 type Registration = {
@@ -83,37 +84,61 @@ const EventCard = ({
   const examEnded = event.exam_end ? now >= new Date(event.exam_end).getTime() : false;
   const quotaFull = registrationCount >= event.max_quota;
 
+  const statusLabel =
+    event.status === "registration_open" ? "Pendaftaran Dibuka"
+    : event.status === "ongoing" ? "Simulasi Berlangsung"
+    : event.status === "completed" ? "Selesai"
+    : "Segera Hadir";
+
+  const statusClass =
+    event.status === "registration_open"
+      ? "bg-green-500 text-white"
+      : event.status === "ongoing"
+      ? "bg-blue-500 text-white"
+      : event.status === "completed"
+      ? "bg-gray-500 text-white"
+      : "bg-yellow-400 text-yellow-900";
+
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
       <Card className="overflow-hidden border-primary/20">
-        <CardContent className="space-y-5 p-6 md:p-8">
-          {/* Header */}
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        {/* Banner with status badge overlay */}
+        {event.banner_url ? (
+          <div className="relative w-full overflow-hidden">
+            <img
+              src={event.banner_url}
+              alt={event.title}
+              className="w-full object-cover max-h-56 md:max-h-72"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            {/* Status badge — top-right */}
+            <span className={`absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-bold shadow ${statusClass}`}>
+              {statusLabel}
+            </span>
+            {/* Title overlay at bottom of banner */}
+            <div className="absolute bottom-0 left-0 right-0 px-6 pb-4 pt-8">
+              <h2 className="text-xl font-bold text-white drop-shadow md:text-2xl">{event.title}</h2>
+              {event.description && (
+                <p className="mt-0.5 text-sm text-white/80">{event.description}</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* No banner: show title + badge in card header */
+          <div className="flex flex-wrap items-start justify-between gap-3 px-6 pt-6 pb-0 md:px-8">
             <div>
               <h2 className="text-xl font-bold text-foreground">{event.title}</h2>
               {event.description && (
                 <p className="mt-1 text-sm text-muted-foreground">{event.description}</p>
               )}
             </div>
-            <Badge
-              className={
-                event.status === "registration_open"
-                  ? "bg-green-100 text-green-800 border-green-300"
-                  : event.status === "ongoing"
-                  ? "bg-blue-100 text-blue-800 border-blue-300"
-                  : event.status === "completed"
-                  ? "bg-gray-100 text-gray-600"
-                  : "bg-yellow-100 text-yellow-800"
-              }
-              variant="outline"
-            >
-              {event.status === "registration_open" ? "Pendaftaran Dibuka"
-               : event.status === "ongoing" ? "Simulasi Berlangsung"
-               : event.status === "completed" ? "Selesai"
-               : "Segera Hadir"}
-            </Badge>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass}`}>
+              {statusLabel}
+            </span>
           </div>
+        )}
 
+        <CardContent className="space-y-5 p-6 md:p-8">
           <hr className="border-border" />
 
           {/* Info grid */}

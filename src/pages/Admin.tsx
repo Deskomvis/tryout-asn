@@ -331,7 +331,7 @@ const Admin = () => {
     max_quota: number; price: number; cta_link: string | null;
     registration_start: string | null; registration_end: string | null;
     exam_start: string | null; exam_end: string | null; exam_id: string | null;
-    status: string; created_at: string;
+    status: string; created_at: string; banner_url: string | null;
   };
   type AkbarReg = {
     id: string; event_id: string; user_id: string;
@@ -346,6 +346,8 @@ const Admin = () => {
   const [akbarEvents, setAkbarEvents] = useState<AkbarEvent[]>([]);
   const [akbarRegs, setAkbarRegs] = useState<Record<string, AkbarReg[]>>({});
   const [newAkbar, setNewAkbar] = useState(emptyAkbar());
+  const [akbarBannerFile, setAkbarBannerFile] = useState<File | null>(null);
+  const [akbarBannerPreview, setAkbarBannerPreview] = useState<string | null>(null);
   const [showNewAkbarForm, setShowNewAkbarForm] = useState(false);
   const [savingAkbar, setSavingAkbar] = useState(false);
   const [selectedAkbarEventId, setSelectedAkbarEventId] = useState<string | null>(null);
@@ -366,6 +368,15 @@ const Admin = () => {
 
   const saveAkbarEvent = async () => {
     setSavingAkbar(true);
+    let banner_url: string | null = null;
+    if (akbarBannerFile) {
+      const ext = akbarBannerFile.name.split(".").pop();
+      const path = `banner-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("akbar-banners").upload(path, akbarBannerFile);
+      if (upErr) { toast.error("Gagal upload banner: " + upErr.message); setSavingAkbar(false); return; }
+      const { data: urlData } = supabase.storage.from("akbar-banners").getPublicUrl(path);
+      banner_url = urlData.publicUrl;
+    }
     const payload = {
       title: newAkbar.title,
       description: newAkbar.description || null,
@@ -378,12 +389,15 @@ const Admin = () => {
       exam_end: newAkbar.exam_end || null,
       exam_id: newAkbar.exam_id || null,
       status: newAkbar.status,
+      banner_url,
     };
     const { error } = await (supabase as any).from("tryout_akbar_events").insert([payload]);
     setSavingAkbar(false);
     if (error) { toast.error("Gagal simpan event: " + error.message); return; }
     toast.success("Event Tryout Akbar berhasil dibuat.");
     setNewAkbar(emptyAkbar());
+    setAkbarBannerFile(null);
+    setAkbarBannerPreview(null);
     setShowNewAkbarForm(false);
     loadAkbar();
   };
@@ -3587,6 +3601,37 @@ const Admin = () => {
                       <Label>Deskripsi</Label>
                       <Textarea value={newAkbar.description} onChange={(e) => setNewAkbar((p) => ({ ...p, description: e.target.value }))} placeholder="Deskripsi singkat event..." rows={2} />
                     </div>
+                    <div className="sm:col-span-2">
+                      <Label>Banner Event</Label>
+                      <div className="mt-1 space-y-2">
+                        {akbarBannerPreview && (
+                          <div className="relative w-full overflow-hidden rounded-lg border">
+                            <img src={akbarBannerPreview} alt="Preview banner" className="w-full object-cover max-h-48" />
+                            <button
+                              type="button"
+                              onClick={() => { setAkbarBannerFile(null); setAkbarBannerPreview(null); }}
+                              className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors">
+                          <Upload className="h-4 w-4 shrink-0" />
+                          {akbarBannerFile ? akbarBannerFile.name : "Pilih gambar banner (JPG/PNG/WebP, maks 5MB)"}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] ?? null;
+                              setAkbarBannerFile(file);
+                              setAkbarBannerPreview(file ? URL.createObjectURL(file) : null);
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
                     <div>
                       <Label>Kuota Maksimal</Label>
                       <Input type="number" value={newAkbar.max_quota} onChange={(e) => setNewAkbar((p) => ({ ...p, max_quota: Number(e.target.value) }))} />
@@ -3657,7 +3702,13 @@ const Admin = () => {
             ) : (
               <div className="space-y-4">
                 {akbarEvents.map((ev) => (
-                  <Card key={ev.id}>
+                  <Card key={ev.id} className="overflow-hidden">
+                    {ev.banner_url && (
+                      <div className="relative h-32 w-full overflow-hidden">
+                        <img src={ev.banner_url} alt={ev.title} className="h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                      </div>
+                    )}
                     <CardContent className="p-5 space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
