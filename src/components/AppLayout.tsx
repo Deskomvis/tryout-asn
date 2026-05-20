@@ -18,7 +18,7 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
             </div>
             
             {/* Infinite Loop Running Text */}
-            <div className="hidden sm:block relative flex-1 min-w-0 max-w-[240px] md:max-w-[480px] lg:max-w-[640px] xl:max-w-[800px] overflow-hidden mx-2 py-1.5 select-none cursor-default">
+            <div className="hidden sm:block relative flex-1 min-w-0 overflow-hidden mx-4 py-1.5 select-none cursor-default">
               {/* Left fade */}
               <div className="pointer-events-none absolute left-0 top-0 h-full w-10 z-10 rounded-l-full bg-gradient-to-r from-[hsl(var(--background))] to-transparent" />
               {/* Right fade */}
