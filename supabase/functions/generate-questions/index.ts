@@ -32,6 +32,45 @@ const TKP_TOPICS: Record<string, string> = {
   antiradikalisme: "Anti Radikalisme (menjaring informasi tentang pemahaman radikalisme dan sikap terhadapnya)",
   tik: "Teknologi Informasi dan Komunikasi (pemanfaatan teknologi informasi untuk meningkatkan kinerja)",
 };
+const EKONOMI_TOPICS: Record<string, string> = {
+  prinsip_koperasi: "Prinsip & Nilai Koperasi (asas, nilai, dan prinsip dasar pendirian dan operasional koperasi)",
+  akuntansi_koperasi: "Akuntansi Koperasi (pencatatan keuangan, laporan laba-rugi, neraca, dan SHU koperasi)",
+  keuangan_koperasi: "Keuangan & Permodalan Koperasi (sumber modal, simpanan anggota, pinjaman, dan pengelolaan aset)",
+  usaha_koperasi: "Pengembangan Usaha Koperasi (diversifikasi usaha, kemitraan, dan ekspansi bisnis koperasi)",
+  ekonomi_mikro: "Ekonomi Mikro & Makro (permintaan, penawaran, pasar, inflasi, pertumbuhan ekonomi nasional)",
+};
+const MANAJEMEN_TOPICS: Record<string, string> = {
+  organisasi_koperasi: "Struktur Organisasi Koperasi (RAT, pengurus, pengawas, dan mekanisme pengambilan keputusan)",
+  sdm_koperasi: "Manajemen SDM Koperasi (rekrutmen, pelatihan, motivasi, dan pengelolaan tenaga kerja koperasi)",
+  kepemimpinan: "Kepemimpinan & Tata Kelola (gaya kepemimpinan, GCG, transparansi, dan akuntabilitas)",
+  perencanaan: "Perencanaan Strategis (analisis SWOT, visi-misi, sasaran strategis, dan rencana bisnis)",
+  operasional: "Manajemen Operasional (efisiensi proses, pengendalian kualitas, dan manajemen rantai pasok)",
+};
+const HUKUM_TOPICS: Record<string, string> = {
+  uu_koperasi: "UU No. 25/1992 tentang Koperasi (ketentuan umum, pembentukan, keanggotaan, dan pembubaran)",
+  regulasi_kopdes: "Regulasi Kopdes Merah Putih 2025 (Perpres, Permenkop, dan ketentuan teknis koperasi desa)",
+  hukum_perdata: "Hukum Perdata & Kontrak (perikatan, perjanjian, wanprestasi, dan tanggung jawab hukum)",
+  hukum_administrasi: "Hukum Administrasi Negara (kewenangan pemerintah, perizinan, dan pengawasan administrasi)",
+};
+const SKB_TOPICS: Record<string, string> = {
+  keuangan_negara: "Keuangan Negara (APBN, APBD, pengelolaan keuangan negara, dan pemeriksaan keuangan — STAN/PKN)",
+  pemerintahan_daerah: "Pemerintahan Daerah (otonomi daerah, desentralisasi, tugas pembantuan, dan pemda — IPDN)",
+  statistik: "Statistik & Metodologi (pengumpulan data, sampling, analisis statistik, dan sensus — STIS)",
+  intelijen: "Intelijen Negara (fungsi intelijen, ancaman nasional, dan keamanan negara — STIN)",
+  pemasyarakatan: "Pemasyarakatan (sistem pemasyarakatan, hak WBP, dan pembinaan narapidana — POLTEKIP)",
+};
+
+const ALL_TOPIC_MAPS: Record<string, Record<string, string>> = {
+  twk: TWK_TOPICS,
+  tiu: TIU_TOPICS,
+  tkp: TKP_TOPICS,
+  ekonomi: EKONOMI_TOPICS,
+  manajemen: MANAJEMEN_TOPICS,
+  hukum: HUKUM_TOPICS,
+  skb: SKB_TOPICS,
+};
+
+const VALID_SUBTESTS = ["twk", "tiu", "tkp", "ekonomi", "manajemen", "hukum", "skb"];
 
 const IMAGE_QUESTION_VARIANTS = [
   "matrix 3x3 with one missing cell",
@@ -160,7 +199,15 @@ IMPORTANT: Randomize the position of the high-scoring options. Do not always pla
 CRITICAL: Keys in option_points must be identical to strings in options. Output ONLY the JSON array.`;
   }
 
-  const label = subtest === "twk" ? "TWK (Tes Wawasan Kebangsaan)" : "TIU (Tes Intelegensia Umum)";
+  const SUBTEST_LABELS: Record<string, string> = {
+    twk: "TWK (Tes Wawasan Kebangsaan)",
+    tiu: "TIU (Tes Intelegensia Umum)",
+    ekonomi: "Ekonomi Koperasi",
+    manajemen: "Manajemen Koperasi",
+    hukum: "Hukum Koperasi",
+    skb: "SKB (Seleksi Kompetensi Bidang)",
+  };
+  const label = SUBTEST_LABELS[subtest] ?? subtest.toUpperCase();
   const posConstraints = makeAnswerPositionConstraints(questionCount);
   const positionSchedule = posConstraints
     .map((p, i) => `  Question ${i + 1}: correct answer MUST be placed at option ${p.letter} (index ${p.index}, 0-based)`)
@@ -440,7 +487,7 @@ function buildDistributedPositions(questionCount: number, optionCount: number): 
 type PreparedQuestion = {
   question_text: string;
   options: string[];
-  subtest: "twk" | "tiu" | "tkp";
+  subtest: string;
   explanation: string;
   image_url: string | null;
   svg_content: string | null;
@@ -457,7 +504,7 @@ function prepareGeneratedQuestion({
   image_url,
 }: {
   item: unknown;
-  subtest: "twk" | "tiu" | "tkp";
+  subtest: string;
   exam_id?: string;
   image_url?: string | null;
 }): PreparedQuestion | null {
@@ -708,14 +755,14 @@ Deno.serve(async (req: Request) => {
     // ── Generate Single Question (for image question flow) ───────────────────
     if (body.action === "generate_single_question") {
       const { subtest, topic, custom_instruction } = body as {
-        subtest: "twk" | "tiu" | "tkp";
+        subtest: string;
         topic: string;
         custom_instruction?: string;
       };
       if (!globalKieApiKey) return json({ error: "KIE API key belum dikonfigurasi." }, 400);
       if (!subtest || !topic) return json({ error: "subtest dan topic diperlukan" }, 400);
 
-      const topicMap = subtest === "twk" ? TWK_TOPICS : subtest === "tiu" ? TIU_TOPICS : TKP_TOPICS;
+      const topicMap = ALL_TOPIC_MAPS[subtest] ?? {};
       const topicDesc = topicMap[topic] ?? topic;
       const isTkp = subtest === "tkp";
       const isFigural = ["figural_analogi", "figural_ketidaksamaan", "figural_serial"].includes(topic);
@@ -997,7 +1044,7 @@ Important exam-image rules:
       material_text = null,
       material_title = null,
     } = body as {
-      exam_id?: string; subtest: "twk" | "tiu" | "tkp";
+      exam_id?: string; subtest: string;
       topic: string; count: number;
       chart_type?: ChartType; image_url?: string | null;
       custom_instruction?: string | null;
@@ -1008,8 +1055,8 @@ Important exam-image rules:
     if (!subtest || !topic || !count) {
       return json({ error: "subtest, topic, count diperlukan" }, 400);
     }
-    if (!["twk", "tiu", "tkp"].includes(subtest)) {
-      return json({ error: "subtest harus twk, tiu, atau tkp" }, 400);
+    if (!VALID_SUBTESTS.includes(subtest)) {
+      return json({ error: `subtest tidak valid: ${subtest}` }, 400);
     }
     const safeCount = Math.max(1, Math.min(30, Number(count)));
 
@@ -1019,8 +1066,7 @@ Important exam-image rules:
       return json({ error: "KIE API key belum dikonfigurasi. Masukkan di tab Pengaturan admin." });
     }
 
-
-    const topicMap = subtest === "twk" ? TWK_TOPICS : subtest === "tiu" ? TIU_TOPICS : TKP_TOPICS;
+    const topicMap = ALL_TOPIC_MAPS[subtest] ?? {};
     const topicDesc = topicMap[topic] ?? topic;
     const chartType: ChartType = ["bar", "line", "pie", "table"].includes(chart_type) ? chart_type as ChartType : "none";
 

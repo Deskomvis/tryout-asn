@@ -41,6 +41,58 @@ export const TOPIC_OPTIONS: Record<string, { value: string; label: string; count
     { value: "antiradikalisme", label: "Anti Radikalisme", count: 7 },
     { value: "custom", label: "Lainnya (Input Manual)..." },
   ],
+  // Koperasi Desa Merah Putih
+  ekonomi: [
+    { value: "prinsip_koperasi", label: "Prinsip & Nilai Koperasi" },
+    { value: "akuntansi_koperasi", label: "Akuntansi Koperasi" },
+    { value: "keuangan_koperasi", label: "Keuangan & Permodalan Koperasi" },
+    { value: "usaha_koperasi", label: "Pengembangan Usaha Koperasi" },
+    { value: "ekonomi_mikro", label: "Ekonomi Mikro & Makro" },
+    { value: "custom", label: "Lainnya (Input Manual)..." },
+  ],
+  manajemen: [
+    { value: "organisasi_koperasi", label: "Struktur Organisasi Koperasi" },
+    { value: "sdm_koperasi", label: "Manajemen SDM Koperasi" },
+    { value: "kepemimpinan", label: "Kepemimpinan & Tata Kelola" },
+    { value: "perencanaan", label: "Perencanaan Strategis" },
+    { value: "operasional", label: "Manajemen Operasional" },
+    { value: "custom", label: "Lainnya (Input Manual)..." },
+  ],
+  hukum: [
+    { value: "uu_koperasi", label: "UU No. 25/1992 tentang Koperasi" },
+    { value: "regulasi_kopdes", label: "Regulasi Kopdes Merah Putih 2025" },
+    { value: "hukum_perdata", label: "Hukum Perdata & Kontrak" },
+    { value: "hukum_administrasi", label: "Hukum Administrasi Negara" },
+    { value: "custom", label: "Lainnya (Input Manual)..." },
+  ],
+  // Sekolah Kedinasan (SKB)
+  skb: [
+    { value: "keuangan_negara", label: "Keuangan Negara (STAN/PKN)" },
+    { value: "pemerintahan_daerah", label: "Pemerintahan Daerah (IPDN)" },
+    { value: "statistik", label: "Statistik & Metodologi (STIS)" },
+    { value: "intelijen", label: "Intelijen Negara (STIN)" },
+    { value: "pemasyarakatan", label: "Pemasyarakatan (POLTEKIP)" },
+    { value: "custom", label: "Lainnya (Input Manual)..." },
+  ],
+};
+
+/** Subtest options per exam category */
+export const SUBTEST_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  default: [
+    { value: "twk", label: "TWK — Wawasan Kebangsaan" },
+    { value: "tiu", label: "TIU — Intelegensia Umum" },
+    { value: "tkp", label: "TKP — Karakteristik Pribadi" },
+  ],
+  koperasi: [
+    { value: "ekonomi", label: "Ekonomi Koperasi" },
+    { value: "manajemen", label: "Manajemen Koperasi" },
+    { value: "hukum", label: "Hukum Koperasi" },
+  ],
+  kedinasan: [
+    { value: "twk", label: "TWK — Wawasan Kebangsaan" },
+    { value: "tiu", label: "TIU — Intelegensia Umum" },
+    { value: "skb", label: "SKB — Seleksi Kompetensi Bidang" },
+  ],
 };
 
 export type Exam = {

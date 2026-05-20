@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { extractTextFromFile } from "@/lib/extractPdfText";
 import {
-  ChartType, CHART_OPTIONS, TOPIC_OPTIONS,
+  ChartType, CHART_OPTIONS, TOPIC_OPTIONS, SUBTEST_OPTIONS,
   Exam, Question, BankQuestion, Score, Topup, UserBalance, Purchase,
   Material, MatQueueItem, ChunkStatus, LynkPackage, EditQ, GlobalBankQ,
   emptyNewQ, VALID_TABS, BANK_VIEWS,
@@ -255,7 +255,7 @@ const Admin = () => {
 
   // AI Generate
   const [aiGen, setAiGen] = useState({
-    subtest: "twk" as "twk" | "tiu" | "tkp", topic: "nasionalisme", count: 10,
+    subtest: "twk" as string, topic: "nasionalisme", count: 10,
     customTopic: "",
     chartType: "none" as ChartType,
     imageFile: null as File | null, imageUrl: "",
@@ -1860,15 +1860,24 @@ const Admin = () => {
                     </p>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {(() => {
+                      const examCategory = (exams.find((e) => e.id === selectedExam)?.category ?? "").toLowerCase();
+                      const subtestKey = examCategory === "koperasi" ? "koperasi" : examCategory === "kedinasan" ? "kedinasan" : "default";
+                      const availableSubtests = SUBTEST_OPTIONS[subtestKey] ?? SUBTEST_OPTIONS.default;
+                      const availableTopics = TOPIC_OPTIONS[aiGen.subtest as keyof typeof TOPIC_OPTIONS] ?? TOPIC_OPTIONS.twk;
+                      return (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <div>
                         <Label>Subtes</Label>
-                        <Select value={aiGen.subtest} onValueChange={(v: any) => setAiGen({ ...aiGen, subtest: v, topic: TOPIC_OPTIONS[v as keyof typeof TOPIC_OPTIONS][0].value })}>
+                        <Select value={aiGen.subtest} onValueChange={(v) => {
+                          const firstTopic = (TOPIC_OPTIONS[v as keyof typeof TOPIC_OPTIONS] ?? TOPIC_OPTIONS.twk)[0].value;
+                          setAiGen({ ...aiGen, subtest: v, topic: firstTopic });
+                        }}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="twk">TWK — Wawasan Kebangsaan</SelectItem>
-                            <SelectItem value="tiu">TIU — Intelegensia Umum</SelectItem>
-                            <SelectItem value="tkp">TKP — Karakteristik Pribadi</SelectItem>
+                            {availableSubtests.map((s) => (
+                              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1878,7 +1887,7 @@ const Admin = () => {
                           <Select value={aiGen.topic} onValueChange={(v) => setAiGen({ ...aiGen, topic: v })}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              {TOPIC_OPTIONS[aiGen.subtest].map((t) => (
+                              {availableTopics.map((t) => (
                                 <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                               ))}
                             </SelectContent>
@@ -1904,6 +1913,8 @@ const Admin = () => {
                         />
                       </div>
                     </div>
+                      );
+                    })()}
 
                     {/* Materi Referensi */}
                     <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
