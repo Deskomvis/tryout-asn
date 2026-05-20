@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowUpRight, Layers } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
@@ -43,6 +44,9 @@ const BeliPaket = () => {
   const [search, setSearch] = useState("");
   const [dynamicCategories, setDynamicCategories] = useState<ExamCategory[]>([]);
   const [loadingCats, setLoadingCats] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const categoryParam = searchParams.get("category") || searchParams.get("cat");
 
   useEffect(() => {
     const fetchCats = async () => {
@@ -58,6 +62,25 @@ const BeliPaket = () => {
     };
     fetchCats();
   }, []);
+
+  useEffect(() => {
+    if (categoryParam && dynamicCategories.length > 0) {
+      const target = categoryParam.toLowerCase();
+      const found = dynamicCategories.find(
+        (c) =>
+          c.name.toLowerCase() === target ||
+          c.id.toLowerCase() === target ||
+          c.name.toLowerCase().replace("/", "") === target.replace("/", "")
+      );
+      if (found) {
+        setStep({ categoryId: found.id });
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete("category");
+        newParams.delete("cat");
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+  }, [categoryParam, dynamicCategories, searchParams, setSearchParams]);
 
   const activeCategory = dynamicCategories.find((c) => c.id === step.categoryId);
 

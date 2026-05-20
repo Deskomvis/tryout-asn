@@ -22,10 +22,28 @@ const DEFAULT_CATEGORIES: ExamCategory[] = [
     description: "Calon Pegawai Negeri Sipil",
   },
   {
+    id: "tni-polri",
+    name: "TNI/POLRI",
+    image_url: "/TNI_POLRI.png",
+    description: "Taruna, Bintara & Tamtama",
+  },
+  {
     id: "pppk",
     name: "PPPK",
     image_url: "/PPPK.png",
     description: "Pegawai Pemerintah dengan Perjanjian Kerja",
+  },
+  {
+    id: "kedinasan",
+    name: "KEDINASAN",
+    image_url: "/KEDINASAN.png",
+    description: "Sekolah Kedinasan (STAN, IPDN, STIS, dll)",
+  },
+  {
+    id: "bumn",
+    name: "BUMN",
+    image_url: "/BUMN.png",
+    description: "Rekrutmen Bersama BUMN",
   },
 ];
 
