@@ -84,10 +84,15 @@ const BeliPaket = () => {
 
   const activeCategory = dynamicCategories.find((c) => c.id === step.categoryId);
 
+  const matchCategory = (examCategory: string | undefined) => {
+    if (!activeCategory || !examCategory) return false;
+    const cat = examCategory.toLowerCase();
+    return cat === activeCategory.name.toLowerCase() || cat === activeCategory.id.toLowerCase();
+  };
+
   const subcategories = useMemo(() => {
     if (!step.categoryId || !activeCategory) return [];
-    // Match by name or ID to be safe
-    const list = exams.filter((e) => e.category?.toLowerCase() === activeCategory.name.toLowerCase());
+    const list = exams.filter((e) => matchCategory(e.category));
     const set = new Set<string>();
     list.forEach((e) => { if (e.subcategory) set.add(e.subcategory); });
     return Array.from(set).sort();
@@ -95,7 +100,7 @@ const BeliPaket = () => {
 
   const filteredExams = useMemo(() => {
     if (!step.categoryId || !activeCategory) return [];
-    let list = exams.filter((e) => e.category?.toLowerCase() === activeCategory.name.toLowerCase());
+    let list = exams.filter((e) => matchCategory(e.category));
     if (step.subcategory) list = list.filter((e) => e.subcategory === step.subcategory);
     if (search.trim()) {
       const q = search.toLowerCase();
