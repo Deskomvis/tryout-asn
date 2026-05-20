@@ -1,15 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  CheckCircle2,
-  Clock,
-  Trophy,
-  Gift,
-  ExternalLink,
-  ChevronDown,
-  ChevronUp,
-  Package2,
+  ChevronRight, Eye, Gift, ExternalLink,
+  FileText, Timer, Brain, Users, Landmark,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,412 +13,359 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { isSKDExam, isSKDPassed, SKD_QUESTIONS } from "@/lib/skdScoring";
 
-type PurchaseExam = {
-  id: string;
+type PurchasedExam = {
+  examId: string;
   title: string;
-  total_questions: number;
-  duration: number;
-  parent_exam_id?: string | null;
-  bonus_title?: string | null;
-  bonus_description?: string | null;
-  bonus_link?: string | null;
+  totalQuestions: number;
+  durationMinutes: number;
+  price: number;
+  subcategory: string | null;
+  passingScore: number | null;
+  bonusLink?: string | null;
+  bonusTitle?: string | null;
+  bonusDescription?: string | null;
+  hasActivePurchase: boolean;
 };
 
-type Purchase = {
+type Attempt = {
   id: string;
-  used: boolean;
-  used_at: string | null;
-  purchased_at: string;
-  price_paid: number;
-  exams: PurchaseExam | null;
+  examId: string;
+  twkScore: number;
+  tiuScore: number;
+  tkpScore: number;
+  totalScore: number;
+  createdAt: string;
 };
 
-type ActiveStandalone = {
-  type: "standalone";
-  purchase: Purchase;
-};
-
-type ActiveBundle = {
-  type: "bundle";
-  parent: Purchase;
-  children: Purchase[];
-};
-
-type ActiveGroup = ActiveStandalone | ActiveBundle;
-
-const getBundleKey = (purchase: Purchase) => purchase.exams?.parent_exam_id ?? purchase.exams?.id ?? purchase.id;
-
-const getBundleLabel = (purchase: Purchase) => {
-  const title = purchase.exams?.title ?? "";
-  return title.replace(/\s*-\s*Paket\s+[A-Z]$/i, "").trim() || title;
-};
-
-const getChildLetter = (title?: string | null) => {
-  const match = title?.match(/-\s*Paket\s+([A-Z])$/i);
-  return match?.[1]?.toUpperCase() ?? "";
-};
+const StatCard = ({
+  icon: Icon, label, value, unit, bg, iconColor,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: number | string;
+  unit?: string;
+  bg: string;
+  iconColor: string;
+}) => (
+  <div className={cn("flex flex-col items-center gap-2 rounded-2xl p-4 text-center", bg)}>
+    <Icon className={cn("h-5 w-5", iconColor)} />
+    <p className="text-[11px] font-medium leading-tight text-muted-foreground">{label}</p>
+    <p className="text-2xl font-extrabold text-foreground leading-none">
+      {value}
+      {unit && <span className="ml-1 text-sm font-semibold text-muted-foreground">{unit}</span>}
+    </p>
+  </div>
+);
 
 const PaketSaya = () => {
   const { user } = useAuth();
-  const [rows, setRows] = useState<Purchase[]>([]);
-  const [scoreMap, setScoreMap] = useState<Record<string, number>>({});
-  const [rankMap, setRankMap] = useState<Record<string, number>>({});
-  const [expandedBundleIds, setExpandedBundleIds] = useState<Set<string>>(new Set());
+  const [exams, setExams] = useState<PurchasedExam[]>([]);
+  const [attemptsMap, setAttemptsMap] = useState<Record<string, Attempt[]>>({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase
+      const { data: purchases } = await supabase
         .from("exam_purchases")
-        .select("id,used,used_at,purchased_at,price_paid,exams(id,title,total_questions,duration,parent_exam_id,bonus_title,bonus_description,bonus_link)")
-        .eq("user_id", user.id)
-        .order("purchased_at", { ascending: false });
+        .select("id,used,exams(id,title,total_questions,duration,price,subcategory,passing_score,bonus_link,bonus_title,bonus_description)")
+        .eq("user_id", user.id);
 
-      const purchases: Purchase[] = (data as any) ?? [];
-      setRows(purchases);
+      if (!purchases?.length) { setLoading(false); return; }
 
-      const usedExamIds = [
-        ...new Set(purchases.filter((p) => p.used && p.exams?.id).map((p) => p.exams!.id)),
-      ];
-      if (usedExamIds.length === 0) return;
-
-      const { data: results } = await supabase
-        .from("exam_results")
-        .select("exam_id, total_score")
-        .eq("user_id", user.id)
-        .in("exam_id", usedExamIds);
-
-      const scores: Record<string, number> = {};
-      for (const r of (results ?? []) as any[]) {
-        if (scores[r.exam_id] == null || r.total_score > scores[r.exam_id]) {
-          scores[r.exam_id] = r.total_score;
+      const examMap = new Map<string, PurchasedExam>();
+      for (const p of purchases as any[]) {
+        const e = p.exams;
+        if (!e) continue;
+        if (!examMap.has(e.id)) {
+          examMap.set(e.id, {
+            examId: e.id,
+            title: e.title ?? "",
+            totalQuestions: e.total_questions ?? 0,
+            durationMinutes: Math.round((e.duration ?? 0) / 60),
+            price: e.price ?? 0,
+            subcategory: e.subcategory ?? null,
+            passingScore: e.passing_score ?? null,
+            bonusLink: e.bonus_link,
+            bonusTitle: e.bonus_title,
+            bonusDescription: e.bonus_description,
+            hasActivePurchase: !p.used,
+          });
+        } else if (!p.used) {
+          examMap.get(e.id)!.hasActivePurchase = true;
         }
       }
-      setScoreMap(scores);
 
-      const { data: myBest } = await supabase
-        .from("user_scores")
-        .select("exam_id, score")
+      const examList = Array.from(examMap.values());
+      setExams(examList);
+
+      const examIds = examList.map((x) => x.examId);
+      const { data: results } = await supabase
+        .from("exam_results")
+        .select("id,exam_id,twk_score,tiu_score,tkp_score,total_score,created_at")
         .eq("user_id", user.id)
-        .in("exam_id", usedExamIds);
+        .in("exam_id", examIds)
+        .order("created_at", { ascending: true });
 
-      const myBestMap: Record<string, number> = {};
-      (myBest ?? []).forEach((r: any) => { myBestMap[r.exam_id] = r.score; });
-
-      const ranks: Record<string, number> = {};
-      await Promise.all(
-        Object.keys(myBestMap).map(async (eid) => {
-          const { count } = await supabase
-            .from("user_scores")
-            .select("*", { count: "exact", head: true })
-            .eq("exam_id", eid)
-            .gt("score", myBestMap[eid]);
-          ranks[eid] = (count ?? 0) + 1;
-        }),
-      );
-      setRankMap(ranks);
+      const map: Record<string, Attempt[]> = {};
+      for (const r of (results ?? []) as any[]) {
+        if (!map[r.exam_id]) map[r.exam_id] = [];
+        map[r.exam_id].push({
+          id: r.id,
+          examId: r.exam_id,
+          twkScore: r.twk_score ?? 0,
+          tiuScore: r.tiu_score ?? 0,
+          tkpScore: r.tkp_score ?? 0,
+          totalScore: r.total_score ?? 0,
+          createdAt: r.created_at,
+        });
+      }
+      setAttemptsMap(map);
+      setLoading(false);
     })();
   }, [user]);
 
-  const activeGroups = useMemo<ActiveGroup[]>(() => {
-    const activeRows = rows.filter((r) => !r.used && r.exams);
-    const parentMap = new Map<string, Purchase>();
-    const childMap = new Map<string, Purchase[]>();
-    const standalone: Purchase[] = [];
-
-    for (const purchase of activeRows) {
-      const exam = purchase.exams;
-      if (!exam) continue;
-      if (exam.parent_exam_id) {
-        const bucket = childMap.get(exam.parent_exam_id) ?? [];
-        bucket.push(purchase);
-        childMap.set(exam.parent_exam_id, bucket);
-      } else if ((rows.some((row) => row.exams?.parent_exam_id === exam.id))) {
-        parentMap.set(exam.id, purchase);
-      } else {
-        standalone.push(purchase);
-      }
-    }
-
-    const bundles: ActiveBundle[] = Array.from(parentMap.entries())
-      .map(([parentId, parent]) => ({
-        type: "bundle" as const,
-        parent,
-        children: (childMap.get(parentId) ?? []).sort((a, b) => {
-          const letterA = getChildLetter(a.exams?.title);
-          const letterB = getChildLetter(b.exams?.title);
-          return letterA.localeCompare(letterB);
-        }),
-      }))
-      .filter((group) => group.children.length > 0);
-
-    const childOnlyBundles: ActiveBundle[] = Array.from(childMap.entries())
-      .filter(([parentId]) => !parentMap.has(parentId))
-      .map(([, children]) => ({
-        type: "bundle" as const,
-        parent: children[0],
-        children: [...children].sort((a, b) => {
-          const letterA = getChildLetter(a.exams?.title);
-          const letterB = getChildLetter(b.exams?.title);
-          return letterA.localeCompare(letterB);
-        }),
-      }));
-
-    const standaloneGroups: ActiveStandalone[] = standalone.map((purchase) => ({
-      type: "standalone" as const,
-      purchase,
-    }));
-
-    return [...bundles, ...childOnlyBundles, ...standaloneGroups].sort((a, b) => {
-      const dateA = a.type === "bundle" ? a.parent.purchased_at : a.purchase.purchased_at;
-      const dateB = b.type === "bundle" ? b.parent.purchased_at : b.purchase.purchased_at;
-      return new Date(dateB).getTime() - new Date(dateA).getTime();
-    });
-  }, [rows]);
-
-  const historyRows = useMemo(() => {
-    const bundleHistoryMap = new Map<string, Purchase>();
-    const standaloneHistory: Purchase[] = [];
-
-    for (const purchase of rows) {
-      const exam = purchase.exams;
-      if (!exam) continue;
-
-      if (exam.parent_exam_id) continue;
-
-      if (rows.some((row) => row.exams?.parent_exam_id === exam.id)) {
-        if (!bundleHistoryMap.has(exam.id)) bundleHistoryMap.set(exam.id, purchase);
-      } else {
-        standaloneHistory.push(purchase);
-      }
-    }
-
-    return [...bundleHistoryMap.values(), ...standaloneHistory].sort(
-      (a, b) => new Date(b.purchased_at).getTime() - new Date(a.purchased_at).getTime(),
+  if (loading) {
+    return (
+      <AppLayout>
+        <PageHeader title="Paket Saya" breadcrumbs={[{ label: "Paket Saya" }]} />
+        <div className="py-16 text-center text-sm text-muted-foreground">Memuat paket…</div>
+      </AppLayout>
     );
-  }, [rows]);
-
-  const toggleBundle = (bundleId: string) => {
-    setExpandedBundleIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(bundleId)) next.delete(bundleId);
-      else next.add(bundleId);
-      return next;
-    });
-  };
+  }
 
   return (
     <AppLayout>
       <PageHeader title="Paket Saya" breadcrumbs={[{ label: "Paket Saya" }]} />
 
-      <section>
-        <h2 className="mb-3 text-base font-semibold text-foreground">Aktif (Akses 1x)</h2>
-        {activeGroups.length === 0 ? (
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">
-            Belum ada paket aktif. <Link to="/beli-paket" className="font-medium text-primary hover:underline">Beli paket sekarang</Link>.
-          </CardContent></Card>
-        ) : (
-          <div className="space-y-4">
-            {activeGroups.map((group, i) => {
-              if (group.type === "standalone") {
-                const p = group.purchase;
-                return (
-                  <motion.div key={p.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: i * 0.04 }}>
-                    <Card className="border-primary/30">
-                      <CardContent className="flex flex-col gap-4 p-5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <h4 className="font-semibold text-foreground">{p.exams?.title}</h4>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {p.exams ? `${Math.round(p.exams.duration / 60)} menit · ${p.exams.total_questions} soal` : ""}
-                            </p>
-                          </div>
-                          <Badge className="gap-1"><Clock className="h-3 w-3" />Siap</Badge>
-                        </div>
-                        {p.exams?.bonus_link && (
-                          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                            <div className="flex items-start gap-2">
-                              <Gift className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-amber-900">
-                                  {p.exams.bonus_title?.trim() || "Bonus pembelian"}
-                                </p>
-                                {p.exams.bonus_description && (
-                                  <p className="mt-1 text-[11px] leading-relaxed text-amber-800">{p.exams.bonus_description}</p>
-                                )}
-                                <a
-                                  href={p.exams.bonus_link}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:underline"
-                                >
-                                  Buka bonus <ExternalLink className="h-3 w-3" />
-                                </a>
-                              </div>
-                            </div>
-                          </div>
+      {exams.length === 0 ? (
+        <Card>
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            Belum ada paket.{" "}
+            <Link to="/beli-paket" className="font-medium text-primary hover:underline">
+              Beli paket sekarang
+            </Link>
+            .
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {exams.map((exam, i) => {
+            const isSkd = isSKDExam(exam.subcategory);
+            const attempts = attemptsMap[exam.examId] ?? [];
+
+            return (
+              <motion.div
+                key={exam.examId}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: i * 0.06 }}
+              >
+                <Card className="overflow-hidden border-border shadow-sm">
+                  <CardContent className="p-6">
+                    {/* ── Header ── */}
+                    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                      <h3 className="text-lg font-bold text-foreground leading-tight">{exam.title}</h3>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "shrink-0 font-semibold",
+                          exam.price === 0
+                            ? "border-green-300 bg-green-50 text-green-700"
+                            : "border-primary/30 bg-primary/5 text-primary",
                         )}
-                        <div className="mt-auto space-y-2">
-                          <p className="text-xs text-muted-foreground">Akses 1x — saldo terpotong: Rp {p.price_paid.toLocaleString("id-ID")}</p>
-                          <Button asChild className="w-full rounded-full">
-                            <Link to={`/exam/${p.exams?.id}`}>Mulai Tryout</Link>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                );
-              }
+                      >
+                        {exam.price === 0 ? "Gratis" : `Rp ${exam.price.toLocaleString("id-ID")}`}
+                      </Badge>
+                    </div>
 
-              const bundleId = group.parent.exams?.id ?? group.parent.id;
-              const expanded = expandedBundleIds.has(bundleId);
-              const bundleTitle = getBundleLabel(group.parent);
-              const parentExam = group.parent.exams;
+                    {/* ── Stat cards ── */}
+                    <div className={cn(
+                      "mb-5 grid gap-3",
+                      isSkd ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" : "grid-cols-2"
+                    )}>
+                      <StatCard
+                        icon={FileText}
+                        label="Jumlah Soal"
+                        value={exam.totalQuestions}
+                        unit="Soal"
+                        bg="bg-blue-50 border border-blue-100"
+                        iconColor="text-blue-500"
+                      />
+                      <StatCard
+                        icon={Timer}
+                        label="Waktu Pengerjaan"
+                        value={exam.durationMinutes}
+                        unit="Menit"
+                        bg="bg-violet-50 border border-violet-100"
+                        iconColor="text-violet-500"
+                      />
+                      {isSkd && (
+                        <>
+                          <StatCard
+                            icon={Brain}
+                            label="Soal Tes Intelegensia Umum"
+                            value={SKD_QUESTIONS.tiu}
+                            unit="Soal"
+                            bg="bg-red-50 border border-red-100"
+                            iconColor="text-red-400"
+                          />
+                          <StatCard
+                            icon={Users}
+                            label="Soal Tes Karakteristik Pribadi"
+                            value={SKD_QUESTIONS.tkp}
+                            unit="Soal"
+                            bg="bg-orange-50 border border-orange-100"
+                            iconColor="text-orange-400"
+                          />
+                          <StatCard
+                            icon={Landmark}
+                            label="Soal Tes Wawasan Kebangsaan"
+                            value={SKD_QUESTIONS.twk}
+                            unit="Soal"
+                            bg="bg-green-50 border border-green-100"
+                            iconColor="text-green-500"
+                          />
+                        </>
+                      )}
+                    </div>
 
-              return (
-                <motion.div key={bundleId} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: i * 0.04 }}>
-                  <Card className="border-primary/30">
-                    <CardContent className="p-5">
-                      <div className="flex flex-col gap-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <Package2 className="h-4 w-4 text-primary" />
-                              <h4 className="font-semibold text-foreground">{bundleTitle}</h4>
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {group.children.length} paket aktif siap dikerjakan
-                            </p>
-                          </div>
-                          <Badge className="gap-1"><Clock className="h-3 w-3" />Siap</Badge>
-                        </div>
-
-                        {parentExam?.bonus_link && (
-                          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                            <div className="flex items-start gap-2">
-                              <Gift className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-amber-900">
-                                  {parentExam.bonus_title?.trim() || "Bonus pembelian"}
-                                </p>
-                                {parentExam.bonus_description && (
-                                  <p className="mt-1 text-[11px] leading-relaxed text-amber-800">{parentExam.bonus_description}</p>
-                                )}
-                                <a
-                                  href={parentExam.bonus_link}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:underline"
-                                >
-                                  Buka bonus <ExternalLink className="h-3 w-3" />
-                                </a>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs text-muted-foreground">
-                            Pembelian paket: Rp {group.parent.price_paid.toLocaleString("id-ID")}
+                    {/* ── Bonus ── */}
+                    {exam.bonusLink && (
+                      <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-start gap-2">
+                        <Gift className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-amber-900">
+                            {exam.bonusTitle?.trim() || "Bonus pembelian"}
                           </p>
-                          <Button variant="outline" className="gap-2 rounded-full" onClick={() => toggleBundle(bundleId)}>
-                            {expanded ? "Sembunyikan isi paket" : "Lihat isi paket"}
-                            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                          </Button>
+                          {exam.bonusDescription && (
+                            <p className="mt-0.5 text-[11px] text-amber-800">{exam.bonusDescription}</p>
+                          )}
+                          <a
+                            href={exam.bonusLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:underline"
+                          >
+                            Buka bonus <ExternalLink className="h-3 w-3" />
+                          </a>
                         </div>
+                      </div>
+                    )}
 
-                        {expanded && (
-                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            {group.children.map((child) => {
-                              const childLetter = getChildLetter(child.exams?.title) || "Paket";
+                    {/* ── Action buttons ── */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      {exam.hasActivePurchase ? (
+                        <Button
+                          asChild
+                          className="rounded-full gap-2 bg-orange-500 hover:bg-orange-600 text-white shadow-sm"
+                        >
+                          <Link to={`/exam/${exam.examId}`}>
+                            Kerjakan <ChevronRight className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Button asChild variant="outline" className="rounded-full gap-2">
+                          <Link to="/beli-paket">Beli Lagi</Link>
+                        </Button>
+                      )}
+                      {attempts.length > 0 && (
+                        <Button asChild variant="ghost" size="sm" className="rounded-full gap-1.5 text-muted-foreground">
+                          <Link to={`/exam-results/${exam.examId}`}>
+                            <Eye className="h-4 w-4" /> Lihat Hasil Terakhir
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+
+                  {/* ── Riwayat Tryout ── */}
+                  {attempts.length > 0 && (
+                    <div className="border-t bg-muted/20 px-6 py-5">
+                      <h4 className="mb-3 text-sm font-semibold text-foreground">
+                        Riwayat Tryout {exam.title}
+                      </h4>
+                      <div className="overflow-x-auto rounded-xl border bg-background">
+                        <table className="w-full min-w-[540px] text-sm">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-muted-foreground w-10">No</th>
+                              <th className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Percobaan</th>
+                              {isSkd && (
+                                <>
+                                  <th className="px-4 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide text-purple-600">Tes Intelegensia Umum</th>
+                                  <th className="px-4 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide text-orange-500">Tes Karakteristik Pribadi</th>
+                                  <th className="px-4 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide text-blue-600">Tes Wawasan Kebangsaan</th>
+                                </>
+                              )}
+                              <th className="px-4 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Status</th>
+                              <th className="px-4 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Total</th>
+                              <th className="px-4 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {attempts.map((attempt, idx) => {
+                              const passed = isSkd
+                                ? isSKDPassed({ twk: attempt.twkScore, tiu: attempt.tiuScore, tkp: attempt.tkpScore })
+                                : attempt.totalScore >= (exam.passingScore ?? 0);
                               return (
-                                <div
-                                  key={child.id}
-                                  className="rounded-2xl border border-border bg-background p-4 shadow-sm transition-colors hover:bg-accent/30"
+                                <tr
+                                  key={attempt.id}
+                                  className="border-b last:border-0 hover:bg-muted/30 transition-colors"
                                 >
-                                  <div className="mb-3 flex items-start justify-between gap-2">
-                                    <div>
-                                      <p className="text-sm font-semibold text-foreground">Paket {childLetter}</p>
-                                      <p className="mt-1 text-[11px] text-muted-foreground">
-                                        {child.exams ? `${Math.round(child.exams.duration / 60)} menit · ${child.exams.total_questions} soal` : ""}
-                                      </p>
-                                    </div>
-                                    <Badge variant="secondary" className="text-[10px]">Siap</Badge>
-                                  </div>
-                                  <Button asChild className="w-full rounded-full">
-                                    <Link to={`/exam/${child.exams?.id}`}>Kerjakan Paket {childLetter}</Link>
-                                  </Button>
-                                </div>
+                                  <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
+                                  <td className="px-4 py-3 font-medium">Percobaan {idx + 1}</td>
+                                  {isSkd && (
+                                    <>
+                                      <td className="px-4 py-3 text-center">
+                                        <span className="font-semibold text-purple-600">{attempt.tiuScore}</span>
+                                      </td>
+                                      <td className="px-4 py-3 text-center">
+                                        <span className="font-semibold text-orange-500">{attempt.tkpScore}</span>
+                                      </td>
+                                      <td className="px-4 py-3 text-center">
+                                        <span className="font-semibold text-blue-600">{attempt.twkScore}</span>
+                                      </td>
+                                    </>
+                                  )}
+                                  <td className="px-4 py-3 text-center">
+                                    <span
+                                      className={cn(
+                                        "inline-block rounded-full px-3 py-0.5 text-xs font-bold",
+                                        passed
+                                          ? "bg-green-100 text-green-700"
+                                          : "bg-red-100 text-red-700",
+                                      )}
+                                    >
+                                      {passed ? "LULUS" : "TIDAK LULUS"}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-center font-bold text-foreground">
+                                    {attempt.totalScore}
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    <Button asChild variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-primary/10">
+                                      <Link to={`/exam-results/${attempt.examId}`} title="Lihat hasil">
+                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                      </Link>
+                                    </Button>
+                                  </td>
+                                </tr>
                               );
                             })}
-                          </div>
-                        )}
+                          </tbody>
+                        </table>
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <section className="mt-10">
-        <h2 className="mb-3 text-base font-semibold text-foreground">Riwayat Pembelian</h2>
-        {historyRows.length === 0 ? (
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">Belum ada transaksi.</CardContent></Card>
-        ) : (
-          <Card><CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead className="bg-secondary text-left text-foreground">
-                  <tr>
-                    <th className="px-4 py-3">Paket</th>
-                    <th className="px-4 py-3">Tanggal Beli</th>
-                    <th className="px-4 py-3 text-right">Harga</th>
-                    <th className="px-4 py-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {historyRows.map((p) => {
-                    const bundleTitle = getBundleLabel(p);
-                    return (
-                      <tr key={p.id} className="hover:bg-secondary/50">
-                        <td className="px-4 py-3 font-medium text-foreground">
-                          <span className="inline-flex items-center gap-2">
-                            {p.used && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
-                            {bundleTitle || p.exams?.title || "-"}
-                          </span>
-                          {p.exams?.bonus_link && (
-                            <div className="mt-1">
-                              <a
-                                href={p.exams.bonus_link}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:underline"
-                              >
-                                <Gift className="h-3 w-3" />
-                                {p.exams.bonus_title?.trim() || "Buka bonus"}
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">{new Date(p.purchased_at).toLocaleString("id-ID")}</td>
-                        <td className="px-4 py-3 text-right">Rp {p.price_paid.toLocaleString("id-ID")}</td>
-                        <td className="px-4 py-3">
-                          {p.used ? <Badge variant="secondary">Selesai</Badge> : <Badge>Aktif</Badge>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent></Card>
-        )}
-      </section>
+                    </div>
+                  )}
+                </Card>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
     </AppLayout>
   );
 };
