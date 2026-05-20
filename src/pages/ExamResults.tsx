@@ -40,7 +40,8 @@ interface Question {
   options: string[];
   subtest?: string;
   explanation?: string;
-  correct_answer?: string;
+  correct_answer?: string | null;
+  option_points?: Record<string, number> | null;
   image_url?: string | null;
   svg_content?: string | null;
 }
@@ -296,6 +297,15 @@ const ExamResults = () => {
   const [loading, setLoading] = useState(true);
   const confettiFired = useRef(false);
 
+  const correctCount = useMemo(
+    () => questions.filter((q) => q.subtest !== "tkp" && q.correct_answer && userAnswers[q.id] === q.correct_answer).length,
+    [questions, userAnswers]
+  );
+  const wrongCount = useMemo(
+    () => questions.filter((q) => q.subtest !== "tkp" && q.correct_answer && userAnswers[q.id] && userAnswers[q.id] !== q.correct_answer).length,
+    [questions, userAnswers]
+  );
+
   useEffect(() => {
     (async () => {
       try {
@@ -320,8 +330,8 @@ const ExamResults = () => {
           .eq("id", examId!)
           .maybeSingle();
 
-        // Always load questions (needed for correct/wrong count + pembahasan)
-        const { data: questionsData } = await supabase.rpc("get_exam_questions", { _exam_id: examId! });
+        // Load full question data including correct_answer and option_points for review
+        const { data: questionsData } = await (supabase as any).rpc("get_exam_review", { _exam_id: examId! });
         if (questionsData) setQuestions(questionsData);
 
         const savedAnswers = localStorage.getItem(`exam-answers-${examId}`);
@@ -452,16 +462,6 @@ const ExamResults = () => {
   const isPassed = isSkd
     ? isSKDPassed({ twk: result.twk_score, tiu: result.tiu_score, tkp: result.tkp_score })
     : result.total_score >= (result.passing_score || 0);
-
-  // Correct / wrong counts (from localStorage answers + questions)
-  const correctCount = useMemo(
-    () => questions.filter((q) => q.correct_answer && userAnswers[q.id] === q.correct_answer).length,
-    [questions, userAnswers]
-  );
-  const wrongCount = useMemo(
-    () => questions.filter((q) => q.correct_answer && userAnswers[q.id] && userAnswers[q.id] !== q.correct_answer).length,
-    [questions, userAnswers]
-  );
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -727,13 +727,24 @@ const ExamResults = () => {
                         className="w-full px-6 py-4 flex items-start justify-between hover:bg-accent transition-colors text-left"
                       >
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
                             <p className="font-semibold">Soal {idx + 1}</p>
-                            {userAnswer
-                              ? userAnswer === question.correct_answer
-                                ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Benar</span>
-                                : <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Salah</span>
-                              : <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Tidak dijawab</span>}
+                            {question.subtest && (
+                              <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full uppercase font-semibold">
+                                {question.subtest}
+                              </span>
+                            )}
+                            {question.subtest === "tkp"
+                              ? userAnswer
+                                ? <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                    +{question.option_points?.[userAnswer] ?? 0} poin
+                                  </span>
+                                : <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Tidak dijawab</span>
+                              : userAnswer
+                                ? userAnswer === question.correct_answer
+                                  ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Benar</span>
+                                  : <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Salah</span>
+                                : <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Tidak dijawab</span>}
                           </div>
                           <p className="text-sm text-muted-foreground">
                             {question.question_text.substring(0, 100)}{question.question_text.length > 100 ? "..." : ""}
@@ -756,66 +767,113 @@ const ExamResults = () => {
                             )}
                             <p className="text-sm leading-relaxed">{question.question_text}</p>
                           </div>
-                          <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x border-b">
-                            <div className="px-6 py-4">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Jawaban Anda</p>
-                              {userAnswer ? (
-                                <div className={cn(
-                                  "flex items-start gap-2 rounded-lg px-3 py-2 text-sm font-medium",
-                                  userAnswer === question.correct_answer
-                                    ? "bg-green-100 text-green-800 border border-green-300"
-                                    : "bg-red-100 text-red-800 border border-red-300"
-                                )}>
-                                  {userAnswer === question.correct_answer
-                                    ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
-                                    : <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />}
-                                  <span>{userAnswer}</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-yellow-50 border border-yellow-300 text-sm text-yellow-800">
-                                  <AlertCircle className="h-4 w-4 shrink-0" />
-                                  <span>Tidak dijawab</span>
+
+                          {/* TKP: show option_points per choice */}
+                          {question.subtest === "tkp" ? (
+                            <div className="px-6 py-4 border-b">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Pilihan & Nilai TKP</p>
+                              <div className="space-y-2">
+                                {question.options.map((option, oi) => {
+                                  const isUserAnswer = userAnswer === option;
+                                  const pts = question.option_points?.[option] ?? 0;
+                                  const label = String.fromCharCode(65 + oi);
+                                  const ptColor = pts === 5 ? "text-green-700 bg-green-100 border-green-300"
+                                    : pts === 4 ? "text-blue-700 bg-blue-50 border-blue-200"
+                                    : pts === 3 ? "text-yellow-700 bg-yellow-50 border-yellow-200"
+                                    : pts === 2 ? "text-orange-700 bg-orange-50 border-orange-200"
+                                    : "text-red-700 bg-red-50 border-red-200";
+                                  return (
+                                    <div key={option} className={cn(
+                                      "flex items-start gap-3 p-3 rounded-lg border text-sm",
+                                      isUserAnswer ? "ring-2 ring-primary border-primary/40 bg-primary/5" : "border-border bg-background"
+                                    )}>
+                                      <div className={cn(
+                                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold mt-0.5",
+                                        isUserAnswer ? "bg-primary border-primary text-white" : "border-muted-foreground/30 text-muted-foreground"
+                                      )}>
+                                        {label}
+                                      </div>
+                                      <span className="flex-1">{option}</span>
+                                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-bold border shrink-0", ptColor)}>
+                                        {pts} poin
+                                      </span>
+                                      {isUserAnswer && <span className="text-xs bg-primary text-white px-2 py-0.5 rounded-full shrink-0">Pilihan Anda</span>}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {userAnswer && (
+                                <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
+                                  Anda mendapat <strong>{question.option_points?.[userAnswer] ?? 0} poin</strong> dari soal ini.
                                 </div>
                               )}
                             </div>
-                            <div className="px-6 py-4">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Jawaban Benar</p>
-                              <div className="flex items-start gap-2 rounded-lg px-3 py-2 bg-green-100 border border-green-300 text-sm font-medium text-green-800">
-                                <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
-                                <span>{question.correct_answer}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="px-6 py-4 border-b">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Semua Pilihan</p>
-                            <div className="space-y-2">
-                              {question.options.map((option, oi) => {
-                                const isUserAnswer = userAnswer === option;
-                                const isCorrect = option === question.correct_answer;
-                                const label = String.fromCharCode(65 + oi);
-                                return (
-                                  <div key={option} className={cn(
-                                    "flex items-start gap-3 p-3 rounded-lg border text-sm",
-                                    isCorrect ? "border-green-400 bg-green-50"
-                                      : isUserAnswer ? "border-red-400 bg-red-50"
-                                      : "border-border bg-background"
-                                  )}>
+                          ) : (
+                            /* TWK / TIU: correct/wrong layout */
+                            <>
+                              <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x border-b">
+                                <div className="px-6 py-4">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Jawaban Anda</p>
+                                  {userAnswer ? (
                                     <div className={cn(
-                                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold mt-0.5",
-                                      isCorrect ? "bg-green-500 border-green-500 text-white"
-                                        : isUserAnswer ? "bg-red-500 border-red-500 text-white"
-                                        : "border-muted-foreground/30 text-muted-foreground"
+                                      "flex items-start gap-2 rounded-lg px-3 py-2 text-sm font-medium",
+                                      userAnswer === question.correct_answer
+                                        ? "bg-green-100 text-green-800 border border-green-300"
+                                        : "bg-red-100 text-red-800 border border-red-300"
                                     )}>
-                                      {label}
+                                      {userAnswer === question.correct_answer
+                                        ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                                        : <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />}
+                                      <span>{userAnswer}</span>
                                     </div>
-                                    <span className="flex-1">{option}</span>
-                                    {isCorrect && <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full shrink-0">Benar</span>}
-                                    {isUserAnswer && !isCorrect && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full shrink-0">Jawaban Anda</span>}
+                                  ) : (
+                                    <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-yellow-50 border border-yellow-300 text-sm text-yellow-800">
+                                      <AlertCircle className="h-4 w-4 shrink-0" />
+                                      <span>Tidak dijawab</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="px-6 py-4">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Jawaban Benar</p>
+                                  <div className="flex items-start gap-2 rounded-lg px-3 py-2 bg-green-100 border border-green-300 text-sm font-medium text-green-800">
+                                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                                    <span>{question.correct_answer}</span>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          </div>
+                                </div>
+                              </div>
+                              <div className="px-6 py-4 border-b">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Semua Pilihan</p>
+                                <div className="space-y-2">
+                                  {question.options.map((option, oi) => {
+                                    const isUserAnswer = userAnswer === option;
+                                    const isCorrect = option === question.correct_answer;
+                                    const label = String.fromCharCode(65 + oi);
+                                    return (
+                                      <div key={option} className={cn(
+                                        "flex items-start gap-3 p-3 rounded-lg border text-sm",
+                                        isCorrect ? "border-green-400 bg-green-50"
+                                          : isUserAnswer ? "border-red-400 bg-red-50"
+                                          : "border-border bg-background"
+                                      )}>
+                                        <div className={cn(
+                                          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold mt-0.5",
+                                          isCorrect ? "bg-green-500 border-green-500 text-white"
+                                            : isUserAnswer ? "bg-red-500 border-red-500 text-white"
+                                            : "border-muted-foreground/30 text-muted-foreground"
+                                        )}>
+                                          {label}
+                                        </div>
+                                        <span className="flex-1">{option}</span>
+                                        {isCorrect && <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full shrink-0">Benar</span>}
+                                        {isUserAnswer && !isCorrect && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full shrink-0">Jawaban Anda</span>}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </>
+                          )}
+
                           {question.explanation ? (
                             <div className="px-6 py-4">
                               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Pembahasan / Alasan</p>
