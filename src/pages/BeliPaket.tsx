@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowUpRight, Layers } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { ExamCard } from "@/components/ExamCard";
@@ -124,31 +124,29 @@ const BeliPaket = () => {
       <AppLayout>
         <PageHeader title="Pilih Kategori" breadcrumbs={[{ label: "Beli Paket" }]} />
         
-        <div className="space-y-6">
-          <div className="flex flex-wrap gap-4 justify-start">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
             {dynamicCategories.map((c, i) => (
               <motion.div
                 key={c.id}
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.3, delay: i * 0.05 }}
-                className="w-full sm:w-[calc(50%-1rem)] lg:w-[calc(25%-1rem)] max-w-[280px]"
               >
                 <button
                   type="button"
                   onClick={() => setStep({ categoryId: c.id })}
                   className="group w-full text-left bg-white rounded-2xl border border-border overflow-hidden shadow-sm hover:shadow-md hover:border-primary/50 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
-                  {/* Image Container */}
-                  <div className="aspect-[16/9] w-full bg-slate-100 overflow-hidden">
+                  {/* Image — full, no crop */}
+                  <div className="w-full bg-slate-100 overflow-hidden">
                     {c.image_url ? (
                       <img
                         src={c.image_url}
                         alt={c.name}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        className="w-full h-auto transition-transform duration-500 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-primary/5 text-primary/20 font-bold text-4xl">
+                      <div className="aspect-[4/3] w-full flex items-center justify-center bg-primary/5 text-primary/20 font-bold text-4xl">
                         {c.name[0]}
                       </div>
                     )}
@@ -164,20 +162,6 @@ const BeliPaket = () => {
                 </button>
               </motion.div>
             ))}
-
-            {/* Coming Soon Placeholder */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.6 }}
-              className="w-full sm:w-[calc(50%-1rem)] lg:w-[calc(25%-1rem)] max-w-[280px] rounded-2xl border border-dashed border-border bg-muted/20 flex flex-col items-center justify-center p-8 text-center min-h-[220px]"
-            >
-              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-3">
-                <Layers className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-semibold text-muted-foreground">Kategori Lainnya</p>
-              <p className="text-[10px] text-muted-foreground mt-1">Coming Soon</p>
-            </motion.div>
-          </div>
         </div>
       </AppLayout>
     );
