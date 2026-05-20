@@ -16,9 +16,9 @@ import { ImageQuestionForm } from "@/components/admin/ImageQuestionForm";
 interface GlobalBankTableProps {
   globalBank: GlobalBankQ[];
   globalBankLoading: boolean;
-  globalBankFilter: { subtest: string; source: string; assigned: string; search: string };
-  onFilterChange: (filter: { subtest: string; source: string; assigned: string; search: string }) => void;
-  setGlobalBankFilter: React.Dispatch<React.SetStateAction<{ subtest: string; source: string; assigned: string; search: string }>>;
+  globalBankFilter: { subtest: string; source: string; assigned: string; search: string; category: string; examId: string };
+  onFilterChange: (filter: { subtest: string; source: string; assigned: string; search: string; category: string; examId: string }) => void;
+  setGlobalBankFilter: React.Dispatch<React.SetStateAction<{ subtest: string; source: string; assigned: string; search: string; category: string; examId: string }>>;
   bankPage: number;
   bankTotalCount: number;
   bankPageSize: number;
@@ -52,6 +52,7 @@ interface GlobalBankTableProps {
   aiResult: { count: number; requested: number } | null;
   aiError: string;
   TOPIC_OPTIONS: Record<string, { value: string; label: string; count?: number }[]>;
+  ALL_SUBTESTS: readonly { value: string; label: string }[];
   emptyNewQ: () => any;
   onAddQuestionToBank: () => Promise<void>;
   onGenerateViaAI: (targetExamId?: string, bankOnly?: boolean) => Promise<void>;
@@ -68,12 +69,13 @@ export type EditBankQ = GlobalBankQ & {
 
 // ── ManualBankForm (with optional image) ────────────────────────────────────
 function ManualBankForm({
-  newQ, setNewQ, newQUploadingImg, onAddQuestionToBank, onClose, emptyNewQ,
+  newQ, setNewQ, newQUploadingImg, onAddQuestionToBank, onClose, emptyNewQ, allSubtests,
 }: {
   newQ: any; setNewQ: (v: any) => void; newQUploadingImg: boolean;
   onAddQuestionToBank: () => Promise<void>;
   onClose: () => void;
   emptyNewQ: () => any;
+  allSubtests: readonly { value: string; label: string }[];
 }) {
   const imgRef = useRef<HTMLInputElement>(null);
   const [imgFile, setImgFile] = useState<File | null>(null);
@@ -107,9 +109,9 @@ function ManualBankForm({
             <Select value={newQ.subtest} onValueChange={(v: any) => setNewQ({ ...newQ, subtest: v })}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="twk">TWK</SelectItem>
-                <SelectItem value="tiu">TIU</SelectItem>
-                <SelectItem value="tkp">TKP</SelectItem>
+                {allSubtests.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -211,6 +213,7 @@ export function GlobalBankTable({
   aiResult,
   aiError,
   TOPIC_OPTIONS,
+  ALL_SUBTESTS,
   emptyNewQ,
   onAddQuestionToBank,
   onGenerateViaAI,
@@ -386,6 +389,7 @@ export function GlobalBankTable({
           onAddQuestionToBank={onAddQuestionToBank}
           onClose={() => { setBankListMode(null); setNewQ(emptyNewQ()); }}
           emptyNewQ={emptyNewQ}
+          allSubtests={ALL_SUBTESTS}
         />
       )}
 
@@ -406,9 +410,9 @@ export function GlobalBankTable({
                 }}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="twk">TWK</SelectItem>
-                    <SelectItem value="tiu">TIU</SelectItem>
-                    <SelectItem value="tkp">TKP</SelectItem>
+                    {ALL_SUBTESTS.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -478,14 +482,81 @@ export function GlobalBankTable({
           onChange={(e) => onFilterChange({ ...globalBankFilter, search: e.target.value })}
         />
         <Select value={globalBankFilter.subtest} onValueChange={(v) => onFilterChange({ ...globalBankFilter, subtest: v })}>
-          <SelectTrigger className="h-7 text-xs w-28"><SelectValue placeholder="Semua subtes" /></SelectTrigger>
+          <SelectTrigger className="h-7 text-xs w-36"><SelectValue placeholder="Semua subtes" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua subtes</SelectItem>
-            <SelectItem value="twk">TWK</SelectItem>
-            <SelectItem value="tiu">TIU</SelectItem>
-            <SelectItem value="tkp">TKP</SelectItem>
+            {ALL_SUBTESTS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
+
+        {/* Category cascade select */}
+        {(() => {
+          const categories = Array.from(new Set(exams.map((e) => e.category).filter(Boolean))).sort();
+          const selectedCat = globalBankFilter.category;
+          const subcats = Array.from(new Set(
+            exams.filter((e) => selectedCat === "all" || e.category?.toLowerCase() === selectedCat?.toLowerCase()).map((e) => e.subcategory).filter(Boolean)
+          )).sort();
+          const selectedSubcat = globalBankFilter.examId !== "all"
+            ? exams.find((e) => e.id === globalBankFilter.examId)?.subcategory ?? "all"
+            : "all";
+          // Exams filtered by category & subcategory
+          const filteredExams = exams.filter((e) => {
+            if (selectedCat !== "all" && e.category?.toLowerCase() !== selectedCat?.toLowerCase()) return false;
+            if (selectedSubcat !== "all" && e.subcategory !== selectedSubcat) return false;
+            return true;
+          });
+          return (
+            <>
+              <Select
+                value={selectedCat}
+                onValueChange={(v) => onFilterChange({ ...globalBankFilter, category: v, examId: "all" })}
+              >
+                <SelectTrigger className="h-7 text-xs w-32"><SelectValue placeholder="Semua kategori" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua kategori</SelectItem>
+                  {categories.map((cat) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {selectedCat !== "all" && subcats.length > 0 && (
+                <Select
+                  value={selectedSubcat}
+                  onValueChange={(v) => {
+                    // Reset examId when subcategory changes
+                    onFilterChange({ ...globalBankFilter, examId: "all" });
+                    // Store selected subcat in a local way — use examId="all" + filter by subcategory within category
+                    // We handle this via the examId filter; here we just filter the exam dropdown
+                    // Actually we need to track selected subcategory; use a temporary state or encode into examId
+                    // Simple approach: find first exam in that subcat and use it as a proxy
+                    // But we want subcategory-level filtering (not single exam).
+                    // We'll store the selected subcategory as a special prefix in examId: "subcat:<value>"
+                    onFilterChange({ ...globalBankFilter, examId: v === "all" ? "all" : `__subcat__${v}` });
+                  }}
+                >
+                  <SelectTrigger className="h-7 text-xs w-36"><SelectValue placeholder="Semua subkategori" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua subkategori</SelectItem>
+                    {subcats.map((sc) => <SelectItem key={sc} value={sc}>{sc}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+              {selectedCat !== "all" && (
+                <Select
+                  value={globalBankFilter.examId.startsWith("__subcat__") ? "all" : globalBankFilter.examId}
+                  onValueChange={(v) => onFilterChange({ ...globalBankFilter, examId: v })}
+                >
+                  <SelectTrigger className="h-7 text-xs w-44"><SelectValue placeholder="Semua exam" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua exam</SelectItem>
+                    {filteredExams.map((ex) => <SelectItem key={ex.id} value={ex.id}>{ex.title}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </>
+          );
+        })()}
+
         <Select value={globalBankFilter.source} onValueChange={(v) => onFilterChange({ ...globalBankFilter, source: v })}>
           <SelectTrigger className="h-7 text-xs w-28"><SelectValue placeholder="Semua sumber" /></SelectTrigger>
           <SelectContent>
@@ -502,8 +573,8 @@ export function GlobalBankTable({
             <SelectItem value="assigned">Sudah di-assign</SelectItem>
           </SelectContent>
         </Select>
-        {(globalBankFilter.subtest !== "all" || globalBankFilter.source !== "all" || globalBankFilter.assigned !== "all" || globalBankFilter.search) && (
-          <button onClick={() => onFilterChange({ subtest: "all", source: "all", assigned: "all", search: "" })} className="text-[10px] text-primary hover:underline">
+        {(globalBankFilter.subtest !== "all" || globalBankFilter.source !== "all" || globalBankFilter.assigned !== "all" || globalBankFilter.search || globalBankFilter.category !== "all" || globalBankFilter.examId !== "all") && (
+          <button onClick={() => onFilterChange({ subtest: "all", source: "all", assigned: "all", search: "", category: "all", examId: "all" })} className="text-[10px] text-primary hover:underline">
             Reset
           </button>
         )}
@@ -917,9 +988,9 @@ export function GlobalBankTable({
                   <Select value={editQ.subtest} onValueChange={(v) => setEditQ({ ...editQ, subtest: v as any })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="twk">TWK</SelectItem>
-                      <SelectItem value="tiu">TIU</SelectItem>
-                      <SelectItem value="tkp">TKP</SelectItem>
+                      {ALL_SUBTESTS.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

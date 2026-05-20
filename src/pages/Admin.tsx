@@ -31,6 +31,25 @@ import { GlobalBankTable } from "@/components/admin/GlobalBankTable";
 import { MaterialRow } from "@/components/admin/MaterialRow";
 import { ExamCategoryManager, type ExamCategory } from "@/components/admin/ExamCategoryManager";
 
+// ── Shared subtest list (all 7 subtests) ─────────────────────────────────────
+const ALL_SUBTESTS = [
+  { value: "twk", label: "TWK — Wawasan Kebangsaan" },
+  { value: "tiu", label: "TIU — Intelegensia Umum" },
+  { value: "tkp", label: "TKP — Karakteristik Pribadi" },
+  { value: "ekonomi", label: "Ekonomi Koperasi" },
+  { value: "manajemen", label: "Manajemen Koperasi" },
+  { value: "hukum", label: "Hukum Koperasi" },
+  { value: "skb", label: "SKB — Kompetensi Bidang" },
+] as const;
+
+// ── Custom subtest type ───────────────────────────────────────────────────────
+type CustomSubtest = {
+  id: string;
+  label: string;
+  category_key?: string;
+  topics: { value: string; label: string }[];
+};
+
 const BonusLinksManager = ({
   value,
   onChange,
@@ -177,7 +196,7 @@ const Admin = () => {
   const [editUploadingImg, setEditUploadingImg] = useState(false);
   const editImgRef = useRef<HTMLInputElement>(null);
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
-  const [filterSubtest, setFilterSubtest] = useState<"all" | "twk" | "tiu" | "tkp">("all");
+  const [filterSubtest, setFilterSubtest] = useState<string>("all");
   const [filterTopic, setFilterTopic] = useState("all");
   const [filterSource, setFilterSource] = useState("all");
   const [addQuestionMode, setAddQuestionMode] = useState<null | "picker" | "manual" | "ai" | "bank">(null);
@@ -205,10 +224,18 @@ const Admin = () => {
   const [extractRunning, setExtractRunning] = useState(false);
   const [materialQuestionCounts, setMaterialQuestionCounts] = useState<Record<string, number>>({});
 
+  // Custom subtests (loaded from admin_settings)
+  const [customSubtests, setCustomSubtests] = useState<CustomSubtest[]>([]);
+  // UI state for custom subtest management
+  const [newCustomSubtest, setNewCustomSubtest] = useState<{ id: string; label: string; category_key: string; topicsRaw: string }>({ id: "", label: "", category_key: "", topicsRaw: "" });
+  const [expandedCustomSubtest, setExpandedCustomSubtest] = useState<string | null>(null);
+  const [savingCustomSubtests, setSavingCustomSubtests] = useState(false);
+  const [newTopicRaw, setNewTopicRaw] = useState<Record<string, string>>({});
+
   // Global bank list (Daftar Soal view)
   const [globalBank, setGlobalBank] = useState<GlobalBankQ[]>([]);
   const [globalBankLoading, setGlobalBankLoading] = useState(false);
-  const [globalBankFilter, setGlobalBankFilter] = useState({ subtest: "all", source: "all", assigned: "all", search: "" });
+  const [globalBankFilter, setGlobalBankFilter] = useState({ subtest: "all", source: "all", assigned: "all", search: "", category: "all", examId: "all" });
   const [bankPage, setBankPage] = useState(0);
   const [bankTotalCount, setBankTotalCount] = useState(0);
   const BANK_PAGE_SIZE = 100;
@@ -387,12 +414,51 @@ const Admin = () => {
     const start = page * BANK_PAGE_SIZE;
     const end = start + BANK_PAGE_SIZE - 1;
 
+    // Resolve question IDs to filter by when category or examId filter is active
+    let restrictToIds: string[] | null = null;
+
+    if (filter.examId !== "all" && !filter.examId.startsWith("__subcat__")) {
+      // Specific exam filter
+      const { data: asgns } = await (supabase as any)
+        .from("exam_question_assignments")
+        .select("question_id")
+        .eq("exam_id", filter.examId);
+      restrictToIds = (asgns ?? []).map((a: any) => a.question_id);
+    } else if (filter.examId.startsWith("__subcat__") || filter.category !== "all") {
+      // Category or subcategory filter
+      const subcatValue = filter.examId.startsWith("__subcat__") ? filter.examId.replace("__subcat__", "") : null;
+      let examQuery = supabase.from("exams").select("id");
+      if (filter.category !== "all") examQuery = examQuery.ilike("category", filter.category);
+      if (subcatValue) examQuery = (examQuery as any).eq("subcategory", subcatValue);
+      const { data: catExams } = await examQuery;
+      const catExamIds = (catExams ?? []).map((e: any) => e.id);
+      if (catExamIds.length > 0) {
+        const { data: asgns } = await (supabase as any)
+          .from("exam_question_assignments")
+          .select("question_id")
+          .in("exam_id", catExamIds);
+        restrictToIds = Array.from(new Set((asgns ?? []).map((a: any) => a.question_id)));
+      } else {
+        restrictToIds = [];
+      }
+    }
+
+    // If restrictToIds is an empty array, return early with no results
+    if (restrictToIds !== null && restrictToIds.length === 0) {
+      setGlobalBank([]);
+      setBankPage(page);
+      setBankTotalCount(0);
+      setGlobalBankLoading(false);
+      return;
+    }
+
     let query = supabase
       .from("questions")
       .select("id, question_text, subtest, topic, source, exam_id, options, correct_answer, explanation, image_url, svg_content, option_points", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(start, end);
 
+    if (restrictToIds !== null) query = (query as any).in("id", restrictToIds);
     if (filter.subtest !== "all") query = query.eq("subtest", filter.subtest);
     if (filter.source === "ai") query = query.eq("source", "ai");
     else if (filter.source === "manual") query = (query as any).or("source.is.null,source.eq.manual");
@@ -427,7 +493,9 @@ const Admin = () => {
     if (
       newFilter.subtest !== globalBankFilter.subtest ||
       newFilter.source !== globalBankFilter.source ||
-      newFilter.search !== globalBankFilter.search
+      newFilter.search !== globalBankFilter.search ||
+      newFilter.category !== globalBankFilter.category ||
+      newFilter.examId !== globalBankFilter.examId
     ) {
       loadGlobalBank(0, newFilter);
     }
@@ -444,7 +512,7 @@ const Admin = () => {
   // Load saved keys on mount
   useEffect(() => {
     (async () => {
-      const { data: rows } = await supabase.from("admin_settings").select("key,value").in("key", ["kie_api_key", "lynk_merchant_key", "meta_pixel_id", "meta_capi_token", "wa_number", "wa_text", "community_links"]);
+      const { data: rows } = await supabase.from("admin_settings").select("key,value").in("key", ["kie_api_key", "lynk_merchant_key", "meta_pixel_id", "meta_capi_token", "wa_number", "wa_text", "community_links", "custom_subtests"]);
       (rows ?? []).forEach((r: any) => {
         if (r.key === "kie_api_key") setKieApiKey(r.value);
         if (r.key === "lynk_merchant_key") setLynkMerchantKey(r.value);
@@ -461,9 +529,27 @@ const Admin = () => {
             }
           } catch (e) { console.error(e); }
         }
+        if (r.key === "custom_subtests") {
+          try {
+            const parsed = r.value ? JSON.parse(r.value) : [];
+            if (Array.isArray(parsed)) setCustomSubtests(parsed);
+          } catch (e) { console.error("Failed to parse custom_subtests", e); }
+        }
       });
     })();
   }, []);
+
+  const saveCustomSubtests = async (updated: CustomSubtest[]) => {
+    setSavingCustomSubtests(true);
+    const { error } = await supabase.from("admin_settings").upsert(
+      { key: "custom_subtests", value: JSON.stringify(updated), updated_at: new Date().toISOString() },
+      { onConflict: "key" }
+    );
+    setSavingCustomSubtests(false);
+    if (error) { toast.error("Gagal simpan: " + error.message); return; }
+    setCustomSubtests(updated);
+    toast.success("Subtes kustom disimpan");
+  };
 
   // Restore extract chunk progress from localStorage (survives tab switches)
   useEffect(() => {
@@ -1430,6 +1516,7 @@ const Admin = () => {
                 aiResult={aiResult}
                 aiError={aiError}
                 TOPIC_OPTIONS={TOPIC_OPTIONS}
+                ALL_SUBTESTS={ALL_SUBTESTS}
                 emptyNewQ={emptyNewQ}
                 onAddQuestionToBank={addQuestionToBank}
                 onGenerateViaAI={generateViaAI}
@@ -1863,8 +1950,14 @@ const Admin = () => {
                     {(() => {
                       const examCategory = (exams.find((e) => e.id === selectedExam)?.category ?? "").toLowerCase();
                       const subtestKey = examCategory === "koperasi" ? "koperasi" : examCategory === "kedinasan" ? "kedinasan" : "default";
-                      const availableSubtests = SUBTEST_OPTIONS[subtestKey] ?? SUBTEST_OPTIONS.default;
-                      const availableTopics = TOPIC_OPTIONS[aiGen.subtest as keyof typeof TOPIC_OPTIONS] ?? TOPIC_OPTIONS.twk;
+                      const builtinSubtests = SUBTEST_OPTIONS[subtestKey] ?? SUBTEST_OPTIONS.default;
+                      // Merge custom subtests that match category or have no category_key
+                      const matchingCustom = customSubtests.filter((cs) => !cs.category_key || cs.category_key === examCategory);
+                      const availableSubtests = [
+                        ...builtinSubtests,
+                        ...matchingCustom.map((cs) => ({ value: cs.id, label: cs.label })),
+                      ];
+                      const availableTopics = TOPIC_OPTIONS[aiGen.subtest as keyof typeof TOPIC_OPTIONS] ?? customSubtests.find((cs) => cs.id === aiGen.subtest)?.topics ?? TOPIC_OPTIONS.twk;
                       return (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <div>
@@ -2074,9 +2167,12 @@ const Admin = () => {
                       <Select value={newQ.subtest} onValueChange={(v: any) => setNewQ({ ...newQ, subtest: v })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="twk">TWK — Tes Wawasan Kebangsaan</SelectItem>
-                          <SelectItem value="tiu">TIU — Tes Intelegensia Umum</SelectItem>
-                          <SelectItem value="tkp">TKP — Tes Karakteristik Pribadi (poin 1–5)</SelectItem>
+                          {ALL_SUBTESTS.map((s) => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                          {customSubtests.map((cs) => (
+                            <SelectItem key={cs.id} value={cs.id}>{cs.label}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -2192,9 +2288,12 @@ const Admin = () => {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="all">Semua subtes</SelectItem>
-                                <SelectItem value="twk">TWK</SelectItem>
-                                <SelectItem value="tiu">TIU</SelectItem>
-                                <SelectItem value="tkp">TKP</SelectItem>
+                                {ALL_SUBTESTS.map((s) => (
+                                  <SelectItem key={s.value} value={s.value}>{s.value.toUpperCase()}</SelectItem>
+                                ))}
+                                {customSubtests.map((cs) => (
+                                  <SelectItem key={cs.id} value={cs.id}>{cs.label}</SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             {uniqueTopics.length > 0 && (
@@ -3204,6 +3303,178 @@ const Admin = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Custom Subtests & Topics */}
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold flex items-center gap-2"><Settings className="h-4 w-4" /> Subtes & Topik Kustom</h2>
+                <p className="text-xs text-muted-foreground mt-1">Tambahkan subtes kustom beserta daftar topiknya. Subtes ini akan muncul di dropdown generate AI dan tambah soal manual.</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Existing custom subtests */}
+                {customSubtests.length > 0 && (
+                  <div className="divide-y divide-border rounded-lg border overflow-hidden">
+                    {customSubtests.map((cs) => (
+                      <div key={cs.id}>
+                        <div
+                          className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-accent/50"
+                          onClick={() => setExpandedCustomSubtest(expandedCustomSubtest === cs.id ? null : cs.id)}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{cs.id}</span>
+                              <span className="text-sm font-medium">{cs.label}</span>
+                              {cs.category_key && <Badge variant="secondary" className="text-[10px]">{cs.category_key}</Badge>}
+                              <Badge variant="outline" className="text-[10px]">{cs.topics.length} topik</Badge>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button
+                              size="sm" variant="ghost"
+                              className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Hapus subtes "${cs.label}"?`)) {
+                                  saveCustomSubtests(customSubtests.filter((x) => x.id !== cs.id));
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                            {expandedCustomSubtest === cs.id ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                          </div>
+                        </div>
+                        {expandedCustomSubtest === cs.id && (
+                          <div className="px-4 pb-4 pt-2 bg-muted/20 space-y-3">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Daftar Topik</p>
+                            <div className="space-y-1">
+                              {cs.topics.map((t) => (
+                                <div key={t.value} className="flex items-center justify-between rounded border px-3 py-1.5 bg-background text-xs">
+                                  <span><span className="font-mono text-muted-foreground mr-2">{t.value}</span>{t.label}</span>
+                                  <Button
+                                    size="sm" variant="ghost"
+                                    className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                                    onClick={() => {
+                                      const updated = customSubtests.map((x) =>
+                                        x.id === cs.id ? { ...x, topics: x.topics.filter((tp) => tp.value !== t.value) } : x
+                                      );
+                                      saveCustomSubtests(updated);
+                                    }}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ))}
+                              {cs.topics.length === 0 && <p className="text-xs text-muted-foreground italic">Belum ada topik.</p>}
+                            </div>
+                            {/* Add topic to existing subtest */}
+                            <div className="flex gap-2 items-end">
+                              <div className="flex-1">
+                                <Label className="text-[10px]">Tambah topik (format: value|label)</Label>
+                                <Input
+                                  className="h-7 text-xs"
+                                  placeholder="cth: bela_negara|Bela Negara"
+                                  value={newTopicRaw[cs.id] ?? ""}
+                                  onChange={(e) => setNewTopicRaw((prev) => ({ ...prev, [cs.id]: e.target.value }))}
+                                />
+                              </div>
+                              <Button
+                                size="sm" className="h-7 text-xs gap-1"
+                                onClick={() => {
+                                  const raw = (newTopicRaw[cs.id] ?? "").trim();
+                                  if (!raw) return;
+                                  const [val, ...lblParts] = raw.split("|");
+                                  const lbl = lblParts.join("|").trim();
+                                  if (!val.trim() || !lbl) { toast.error("Format: value|label"); return; }
+                                  const newTopic = { value: val.trim(), label: lbl };
+                                  const updated = customSubtests.map((x) =>
+                                    x.id === cs.id ? { ...x, topics: [...x.topics, newTopic] } : x
+                                  );
+                                  setNewTopicRaw((prev) => ({ ...prev, [cs.id]: "" }));
+                                  saveCustomSubtests(updated);
+                                }}
+                              >
+                                <Plus className="h-3 w-3" /> Tambah
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Form add new custom subtest */}
+                <div className="rounded-lg border border-dashed p-4 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground">Tambah Subtes Kustom Baru</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">ID (slug) *</Label>
+                      <Input
+                        className="h-8 text-xs"
+                        placeholder="cth: hankam"
+                        value={newCustomSubtest.id}
+                        onChange={(e) => setNewCustomSubtest((s) => ({ ...s, id: e.target.value.toLowerCase().replace(/\s+/g, "_") }))}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Nama Tampil *</Label>
+                      <Input
+                        className="h-8 text-xs"
+                        placeholder="cth: Pertahanan & Keamanan"
+                        value={newCustomSubtest.label}
+                        onChange={(e) => setNewCustomSubtest((s) => ({ ...s, label: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Kategori (opsional — dikaitkan ke kategori exam tertentu)</Label>
+                    <Select
+                      value={newCustomSubtest.category_key || "__all__"}
+                      onValueChange={(v) => setNewCustomSubtest((s) => ({ ...s, category_key: v === "__all__" ? "" : v }))}
+                    >
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Semua Kategori</SelectItem>
+                        {Array.from(new Set(exams.map((e) => e.category).filter(Boolean))).sort().map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Topik awal (satu per baris, format: value|label)</Label>
+                    <Textarea
+                      className="text-xs font-mono"
+                      rows={4}
+                      placeholder={"prinsip|Prinsip Dasar\nsejarah|Sejarah\nteori|Teori Umum"}
+                      value={newCustomSubtest.topicsRaw}
+                      onChange={(e) => setNewCustomSubtest((s) => ({ ...s, topicsRaw: e.target.value }))}
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    className="gap-1"
+                    disabled={savingCustomSubtests}
+                    onClick={() => {
+                      const { id, label, category_key, topicsRaw } = newCustomSubtest;
+                      if (!id.trim() || !label.trim()) { toast.error("ID dan Nama harus diisi"); return; }
+                      if (customSubtests.some((cs) => cs.id === id.trim())) { toast.error("ID sudah ada"); return; }
+                      const topics = topicsRaw.split("\n").map((line) => {
+                        const [val, ...lblParts] = line.trim().split("|");
+                        return val?.trim() && lblParts.length ? { value: val.trim(), label: lblParts.join("|").trim() } : null;
+                      }).filter(Boolean) as { value: string; label: string }[];
+                      const newCs: CustomSubtest = { id: id.trim(), label: label.trim(), topics, ...(category_key ? { category_key } : {}) };
+                      saveCustomSubtests([...customSubtests, newCs]);
+                      setNewCustomSubtest({ id: "", label: "", category_key: "", topicsRaw: "" });
+                    }}
+                  >
+                    {savingCustomSubtests ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                    Tambah Subtes Kustom
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
@@ -3265,9 +3536,12 @@ const Admin = () => {
                 <Select value={editQ.subtest} onValueChange={(v) => setEditQ({ ...editQ, subtest: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="twk">TWK</SelectItem>
-                    <SelectItem value="tiu">TIU</SelectItem>
-                    <SelectItem value="tkp">TKP</SelectItem>
+                    {ALL_SUBTESTS.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                    {customSubtests.map((cs) => (
+                      <SelectItem key={cs.id} value={cs.id}>{cs.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
