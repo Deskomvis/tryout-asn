@@ -101,7 +101,7 @@ const BeliPaket = () => {
       const q = search.toLowerCase();
       list = list.filter((e) => e.title.toLowerCase().includes(q));
     }
-    return list;
+    return [...list].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
   }, [exams, activeCategory, step.subcategory, search]);
 
   useEffect(() => {
