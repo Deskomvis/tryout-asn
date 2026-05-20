@@ -2478,7 +2478,7 @@ const Admin = () => {
                     <div>
                       <Label>Subkategori *</Label>
                       {(() => {
-                        const opts = Array.from(new Set(exams.filter((e) => e.category === newExam.category).map((e) => e.subcategory).filter(Boolean)));
+                        const opts = Array.from(new Set(exams.filter((e) => e.category?.toLowerCase() === newExam.category?.toLowerCase()).map((e) => e.subcategory).filter(Boolean)));
                         const inList = opts.includes(newExam.subcategory);
                         const showInput = !inList;
                         return (
@@ -3445,7 +3445,7 @@ const Admin = () => {
                 <div>
                   <Label>Subkategori *</Label>
                   {(() => {
-                    const opts = Array.from(new Set(exams.filter((e) => e.category === editExam.category).map((e) => e.subcategory).filter(Boolean)));
+                    const opts = Array.from(new Set(exams.filter((e) => e.category?.toLowerCase() === editExam.category?.toLowerCase()).map((e) => e.subcategory).filter(Boolean)));
                     const inList = opts.includes(editExam.subcategory);
                     const showInput = !inList;
                     return (
