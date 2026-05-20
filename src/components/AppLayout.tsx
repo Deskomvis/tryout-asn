@@ -18,7 +18,11 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
             </div>
             
             {/* Infinite Loop Running Text */}
-            <div className="hidden sm:block flex-1 min-w-0 max-w-[240px] md:max-w-[480px] lg:max-w-[640px] xl:max-w-[800px] overflow-hidden mx-2 py-1.5 bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-full px-3.5 select-none cursor-default transition-colors">
+            <div className="hidden sm:block relative flex-1 min-w-0 max-w-[240px] md:max-w-[480px] lg:max-w-[640px] xl:max-w-[800px] overflow-hidden mx-2 py-1.5 bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-full px-3.5 select-none cursor-default transition-colors">
+              {/* Left fade */}
+              <div className="pointer-events-none absolute left-0 top-0 h-full w-10 z-10 rounded-l-full bg-gradient-to-r from-[hsl(var(--background))] to-transparent" />
+              {/* Right fade */}
+              <div className="pointer-events-none absolute right-0 top-0 h-full w-10 z-10 rounded-r-full bg-gradient-to-l from-[hsl(var(--background))] to-transparent" />
               <div className="flex whitespace-nowrap animate-marquee">
                 <span className="text-[10px] sm:text-xs font-semibold text-primary tracking-wide pr-4">
                   Platfom Tryout CASN Terbaik No #1 Di Indonesia - Tryout CASN - Tryout PPPK - Tryout Kedinasan - Tryout BUMN - Platfom Tryout CASN Terbaik No #1 Di Indonesia - Tryout CASN - Tryout PPPK - Tryout Kedinasan - Tryout BUMN - &nbsp;
