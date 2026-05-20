@@ -86,14 +86,13 @@ export const Categories = () => {
             >
               <Link to={`/beli-paket?category=${encodeURIComponent(cat.param)}`} className="flex flex-col h-full justify-between">
                 <div>
-                  <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-100 border-b border-border">
+                  <div className="w-full overflow-hidden bg-slate-100 border-b border-border">
                     <img
                       src={cat.image}
                       alt={`Tryout ${cat.name}`}
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="w-full h-auto transition-transform duration-500 group-hover:scale-105"
                       loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-transparent" />
                   </div>
 
                   <div className="p-5 space-y-2">
