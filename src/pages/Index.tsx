@@ -4,6 +4,7 @@ import { Categories } from "@/components/landing/Categories";
 import { Features } from "@/components/landing/Features";
 import { AvailablePaket } from "@/components/landing/AvailablePaket";
 import { Testimonials } from "@/components/landing/Testimonials";
+import { PricingSection } from "@/components/landing/PricingSection";
 import { CtaBanner } from "@/components/landing/CtaBanner";
 import { Footer } from "@/components/landing/Footer";
 import { WhatsAppButton } from "@/components/landing/WhatsAppButton";
@@ -16,6 +17,7 @@ const Index = () => {
         <Hero />
         <Categories />
         <Features />
+        <PricingSection />
         <AvailablePaket />
         <Testimonials />
         <CtaBanner />
