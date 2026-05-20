@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import confetti from "canvas-confetti";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
@@ -7,10 +9,10 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertCircle, CheckCircle2, RotateCcw, ChevronDown, ChevronUp,
-  Trophy, Medal, Clock, BookOpen, Lock, ShoppingBag,
+  Trophy, Medal, Clock, BookOpen, Lock, ShoppingBag, Star, XCircle,
+  Award, Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isSKDExam, isSKDPassed, getSKDSubtestStatus, SKD_PASSING } from "@/lib/skdScoring";
@@ -28,6 +30,7 @@ interface ExamResult {
   total_questions: number;
   passing_score?: number;
   price: number;
+  category?: string | null;
   subcategory?: string | null;
 }
 
@@ -52,6 +55,233 @@ interface RankRow {
   time_spent: number;
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const buildRanking = (
+  allResults: any[],
+  profileMap: Record<string, string>,
+): RankRow[] =>
+  Object.values(
+    allResults.reduce((acc: Record<string, any>, r) => {
+      if (!acc[r.user_id] || r.total_score > acc[r.user_id].total_score)
+        acc[r.user_id] = r;
+      return acc;
+    }, {})
+  )
+    .sort((a: any, b: any) => b.total_score - a.total_score || a.time_spent - b.time_spent)
+    .map((r: any) => ({
+      user_id: r.user_id,
+      username: profileMap[r.user_id] ?? "Anonim",
+      total_score: r.total_score ?? 0,
+      twk_score: r.twk_score ?? 0,
+      tiu_score: r.tiu_score ?? 0,
+      tkp_score: r.tkp_score ?? 0,
+      time_spent: r.time_spent ?? 0,
+    }));
+
+// ── PassCertificate ───────────────────────────────────────────────────────────
+const PassCertificate = ({
+  examTitle, totalScore, twkScore, tiuScore, tkpScore, isSkd,
+}: {
+  examTitle: string; totalScore: number;
+  twkScore: number; tiuScore: number; tkpScore: number; isSkd: boolean;
+}) => (
+  <motion.div
+    initial={{ opacity: 0, scale: 0.85, y: 24 }}
+    animate={{ opacity: 1, scale: 1, y: 0 }}
+    transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+    className="relative overflow-hidden rounded-2xl border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 p-6 text-center shadow-xl md:p-10"
+  >
+    {/* Decorative rings */}
+    <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full border-[16px] border-yellow-200/50" />
+    <div className="pointer-events-none absolute -bottom-8 -left-8 h-32 w-32 rounded-full border-[12px] border-amber-200/50" />
+
+    {/* Badge */}
+    <div className="relative mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full border-4 border-yellow-400 bg-gradient-to-br from-yellow-300 to-amber-400 shadow-lg">
+      <Trophy className="h-12 w-12 text-white drop-shadow" />
+      <div className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-green-500 shadow">
+        <CheckCircle2 className="h-4 w-4 text-white" />
+      </div>
+    </div>
+
+    <p className="mb-1 text-xs font-bold uppercase tracking-widest text-amber-600">
+      Ruang CASN
+    </p>
+    <h2 className="text-3xl font-extrabold leading-tight text-amber-900 md:text-4xl">
+      Selamat, Anda Lulus!
+    </h2>
+    <p className="mx-auto mt-2 max-w-xs text-sm text-amber-700">{examTitle}</p>
+
+    {/* Score pills */}
+    <div className="mt-6 flex flex-wrap justify-center gap-3">
+      <div className="rounded-xl border border-amber-300 bg-white px-5 py-3 shadow-sm">
+        <p className="text-xs text-muted-foreground">Total Skor</p>
+        <p className="text-2xl font-extrabold text-amber-700">{totalScore}</p>
+      </div>
+      {isSkd && (
+        <>
+          <div className="rounded-xl border border-blue-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-xs text-muted-foreground">TWK</p>
+            <p className="text-xl font-bold text-blue-600">{twkScore}</p>
+          </div>
+          <div className="rounded-xl border border-purple-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-xs text-muted-foreground">TIU</p>
+            <p className="text-xl font-bold text-purple-600">{tiuScore}</p>
+          </div>
+          <div className="rounded-xl border border-orange-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-xs text-muted-foreground">TKP</p>
+            <p className="text-xl font-bold text-orange-500">{tkpScore}</p>
+          </div>
+        </>
+      )}
+    </div>
+
+    {/* Stars decoration */}
+    <div className="mt-4 flex justify-center gap-1">
+      {[...Array(5)].map((_, i) => (
+        <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+      ))}
+    </div>
+  </motion.div>
+);
+
+// ── FailBadge ─────────────────────────────────────────────────────────────────
+const FailBadge = ({
+  totalScore, isSkd, skdSubtestStatus, twkScore, tiuScore, tkpScore,
+}: {
+  totalScore: number; isSkd: boolean;
+  skdSubtestStatus: { twk: boolean; tiu: boolean; tkp: boolean };
+  twkScore: number; tiuScore: number; tkpScore: number;
+}) => (
+  <motion.div
+    initial={{ opacity: 0, y: 16 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.4 }}
+    className="rounded-2xl border-2 border-red-300 bg-gradient-to-br from-red-50 to-rose-50 p-6 text-center shadow-md md:p-8"
+  >
+    <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full border-4 border-red-300 bg-red-100">
+      <XCircle className="h-10 w-10 text-red-500" />
+    </div>
+    <h2 className="text-2xl font-extrabold text-red-800 md:text-3xl">Anda Tidak Lulus</h2>
+    <p className="mt-2 text-sm text-red-600">Silahkan coba ujian lagi dan tingkatkan persiapanmu!</p>
+
+    <div className="mt-5 flex flex-wrap justify-center gap-3">
+      <div className="rounded-xl border border-red-200 bg-white px-5 py-3 shadow-sm">
+        <p className="text-xs text-muted-foreground">Total Skor</p>
+        <p className="text-2xl font-extrabold text-red-600">{totalScore}</p>
+      </div>
+      {isSkd && (
+        <>
+          {(["twk", "tiu", "tkp"] as const).map((key) => (
+            <div key={key} className={cn(
+              "rounded-xl border bg-white px-4 py-3 shadow-sm",
+              skdSubtestStatus[key] ? "border-green-200" : "border-red-200"
+            )}>
+              <p className="text-xs text-muted-foreground uppercase">{key}</p>
+              <p className={cn("text-xl font-bold", skdSubtestStatus[key] ? "text-green-600" : "text-red-500")}>
+                {key === "twk" ? twkScore : key === "tiu" ? tiuScore : tkpScore}
+              </p>
+              <p className={cn("text-[10px] font-semibold", skdSubtestStatus[key] ? "text-green-600" : "text-red-500")}>
+                {skdSubtestStatus[key] ? "✓ Lulus" : `min ${SKD_PASSING[key]}`}
+              </p>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  </motion.div>
+);
+
+// ── RankingTable ──────────────────────────────────────────────────────────────
+const RankingTable = ({
+  rankings, myUserId, isSkd, label,
+}: {
+  rankings: RankRow[]; myUserId?: string; isSkd: boolean; label: string;
+}) => {
+  const myRank = rankings.findIndex((r) => r.user_id === myUserId);
+
+  if (rankings.length === 0)
+    return <p className="py-6 text-center text-sm text-muted-foreground">Belum ada data rangking {label}.</p>;
+
+  const medalColor = (rank: number) => {
+    if (rank === 1) return "text-yellow-500";
+    if (rank === 2) return "text-gray-400";
+    if (rank === 3) return "text-amber-600";
+    return "text-muted-foreground";
+  };
+
+  return (
+    <div className="space-y-2">
+      {myRank >= 0 && (
+        <p className="text-sm font-medium text-primary">Posisi Anda di {label}: #{myRank + 1}</p>
+      )}
+      <div className="overflow-x-auto rounded-xl border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/40">
+              <th className="px-4 py-3 text-left font-semibold w-10">#</th>
+              <th className="px-4 py-3 text-left font-semibold">Peserta</th>
+              <th className="px-4 py-3 text-right font-semibold">Total</th>
+              <th className="px-4 py-3 text-right font-semibold text-blue-600">TWK</th>
+              <th className="px-4 py-3 text-right font-semibold text-purple-600">TIU</th>
+              <th className="px-4 py-3 text-right font-semibold text-orange-500">TKP</th>
+              {isSkd && <th className="px-4 py-3 text-center font-semibold">Status</th>}
+              <th className="px-4 py-3 text-right font-semibold text-muted-foreground">
+                <Clock className="h-3.5 w-3.5 inline" />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rankings.map((row, i) => {
+              const rank = i + 1;
+              const isMe = row.user_id === myUserId;
+              const rowPassed = isSkd
+                ? isSKDPassed({ twk: row.twk_score, tiu: row.tiu_score, tkp: row.tkp_score })
+                : true;
+              return (
+                <tr
+                  key={`${row.user_id}-${i}`}
+                  className={cn(
+                    "border-b last:border-0 transition-colors",
+                    isMe ? "bg-primary/5 font-semibold" : "hover:bg-muted/30"
+                  )}
+                >
+                  <td className="px-4 py-3">
+                    {rank <= 3
+                      ? <Medal className={cn("h-4 w-4", medalColor(rank))} />
+                      : <span className="text-muted-foreground">{rank}</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {row.username}
+                    {isMe && <span className="ml-2 text-xs text-primary">(Anda)</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right font-bold">{row.total_score}</td>
+                  <td className="px-4 py-3 text-right text-blue-600">{row.twk_score}</td>
+                  <td className="px-4 py-3 text-right text-purple-600">{row.tiu_score}</td>
+                  <td className="px-4 py-3 text-right text-orange-500">{row.tkp_score}</td>
+                  {isSkd && (
+                    <td className="px-4 py-3 text-center">
+                      <span className={cn(
+                        "text-xs px-2 py-0.5 rounded-full font-semibold",
+                        rowPassed ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                      )}>
+                        {rowPassed ? "LULUS" : "TDK LULUS"}
+                      </span>
+                    </td>
+                  )}
+                  <td className="px-4 py-3 text-right text-muted-foreground text-xs">
+                    {Math.floor(row.time_spent / 60)}m
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// ── Main component ────────────────────────────────────────────────────────────
 const ExamResults = () => {
   const { examId } = useParams();
   const navigate = useNavigate();
@@ -60,9 +290,11 @@ const ExamResults = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
-  const [rankings, setRankings] = useState<RankRow[]>([]);
-  const [myRank, setMyRank] = useState<number | null>(null);
+  const [examRankings, setExamRankings] = useState<RankRow[]>([]);
+  const [catRankings, setCatRankings] = useState<RankRow[]>([]);
+  const [subCatRankings, setSubCatRankings] = useState<RankRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const confettiFired = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -84,24 +316,20 @@ const ExamResults = () => {
 
         const { data: exam } = await supabase
           .from("exams")
-          .select("title, passing_score, price, subcategory")
+          .select("title, passing_score, price, category, subcategory")
           .eq("id", examId!)
           .maybeSingle();
 
-        const isFree = (exam?.price ?? 0) === 0;
-
-        // Only load questions for paid exams
-        if (!isFree) {
-          const { data: questionsData } = await supabase.rpc("get_exam_questions", { _exam_id: examId! });
-          if (questionsData) setQuestions(questionsData);
-        }
+        // Always load questions (needed for correct/wrong count + pembahasan)
+        const { data: questionsData } = await supabase.rpc("get_exam_questions", { _exam_id: examId! });
+        if (questionsData) setQuestions(questionsData);
 
         const savedAnswers = localStorage.getItem(`exam-answers-${examId}`);
         if (savedAnswers) {
           try { setUserAnswers(JSON.parse(savedAnswers)); } catch { /* skip */ }
         }
 
-        setResult({
+        const examResult: ExamResult = {
           exam_id: data.exam_id,
           exam_title: exam?.title || "Ujian",
           total_score: data.total_score || 0,
@@ -114,51 +342,75 @@ const ExamResults = () => {
           total_questions: data.total_questions || 0,
           passing_score: exam?.passing_score || 0,
           price: exam?.price ?? 0,
+          category: (exam as any)?.category ?? null,
           subcategory: (exam as any)?.subcategory ?? null,
-        });
+        };
+        setResult(examResult);
 
-        // Only fetch leaderboard for paid exams
-        if (!isFree) {
-          const { data: allResults } = await supabase
-            .from("exam_results")
-            .select("user_id, total_score, twk_score, tiu_score, tkp_score, time_spent")
-            .eq("exam_id", examId!)
-            .order("total_score", { ascending: false });
+        // ── Exam-level ranking ──────────────────────────────────────────────
+        const { data: examResultsRaw } = await supabase
+          .from("exam_results")
+          .select("user_id, total_score, twk_score, tiu_score, tkp_score, time_spent")
+          .eq("exam_id", examId!)
+          .order("total_score", { ascending: false });
 
-          if (allResults && allResults.length > 0) {
-            const userIds = [...new Set(allResults.map((r: any) => r.user_id))];
-            const { data: profiles } = await supabase
-              .from("profiles")
-              .select("id, username")
-              .in("id", userIds);
+        // Collect all user IDs across all scopes
+        const allUserIds = new Set<string>((examResultsRaw ?? []).map((r: any) => r.user_id));
 
-            const profileMap: Record<string, string> = {};
-            (profiles ?? []).forEach((p: any) => { profileMap[p.id] = p.username || "Anonim"; });
-
-            const bestPerUser: Record<string, any> = {};
-            for (const r of allResults as any[]) {
-              if (!bestPerUser[r.user_id] || r.total_score > bestPerUser[r.user_id].total_score) {
-                bestPerUser[r.user_id] = r;
-              }
-            }
-
-            const ranked: RankRow[] = Object.values(bestPerUser)
-              .sort((a: any, b: any) => b.total_score - a.total_score || a.time_spent - b.time_spent)
-              .map((r: any) => ({
-                user_id: r.user_id,
-                username: profileMap[r.user_id] || "Anonim",
-                total_score: r.total_score || 0,
-                twk_score: r.twk_score || 0,
-                tiu_score: r.tiu_score || 0,
-                tkp_score: r.tkp_score || 0,
-                time_spent: r.time_spent || 0,
-              }));
-
-            setRankings(ranked);
-            const idx = ranked.findIndex((r) => r.user_id === user?.id);
-            setMyRank(idx >= 0 ? idx + 1 : null);
+        // ── Category-level ranking ──────────────────────────────────────────
+        let catResultsRaw: any[] = [];
+        if (examResult.category) {
+          const { data: catExams } = await (supabase as any)
+            .from("exams")
+            .select("id")
+            .eq("category", examResult.category)
+            .is("parent_exam_id", null);
+          const catIds = (catExams ?? []).map((e: any) => e.id);
+          if (catIds.length > 0) {
+            const { data: catRaw } = await supabase
+              .from("exam_results")
+              .select("user_id, total_score, twk_score, tiu_score, tkp_score, time_spent")
+              .in("exam_id", catIds)
+              .order("total_score", { ascending: false });
+            catResultsRaw = catRaw ?? [];
+            (catResultsRaw).forEach((r: any) => allUserIds.add(r.user_id));
           }
         }
+
+        // ── Subcategory-level ranking ───────────────────────────────────────
+        let subCatResultsRaw: any[] = [];
+        if (examResult.subcategory) {
+          const { data: subExams } = await (supabase as any)
+            .from("exams")
+            .select("id")
+            .eq("subcategory", examResult.subcategory)
+            .is("parent_exam_id", null);
+          const subIds = (subExams ?? []).map((e: any) => e.id);
+          if (subIds.length > 0) {
+            const { data: subRaw } = await supabase
+              .from("exam_results")
+              .select("user_id, total_score, twk_score, tiu_score, tkp_score, time_spent")
+              .in("exam_id", subIds)
+              .order("total_score", { ascending: false });
+            subCatResultsRaw = subRaw ?? [];
+            (subCatResultsRaw).forEach((r: any) => allUserIds.add(r.user_id));
+          }
+        }
+
+        // ── Fetch all profiles at once ──────────────────────────────────────
+        const userIdsArr = [...allUserIds];
+        const profileMap: Record<string, string> = {};
+        if (userIdsArr.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, username")
+            .in("id", userIdsArr);
+          (profiles ?? []).forEach((p: any) => { profileMap[p.id] = p.username || "Anonim"; });
+        }
+
+        setExamRankings(buildRanking(examResultsRaw ?? [], profileMap));
+        setCatRankings(buildRanking(catResultsRaw, profileMap));
+        setSubCatRankings(buildRanking(subCatResultsRaw, profileMap));
       } catch (err) {
         console.error(err);
         toast.error("Terjadi kesalahan");
@@ -168,6 +420,21 @@ const ExamResults = () => {
       }
     })();
   }, [examId, navigate, user?.id]);
+
+  // Confetti — fire once when passed
+  useEffect(() => {
+    if (!result || confettiFired.current) return;
+    const isSkd = isSKDExam(result.subcategory);
+    const passed = isSkd
+      ? isSKDPassed({ twk: result.twk_score, tiu: result.tiu_score, tkp: result.tkp_score })
+      : result.total_score >= (result.passing_score || 0);
+    if (!passed) return;
+    confettiFired.current = true;
+    const fire = (opts: confetti.Options) => confetti({ ...opts, disableForReducedMotion: true });
+    fire({ particleCount: 80, spread: 70, origin: { y: 0.55 }, colors: ["#22c55e", "#fbbf24", "#3b82f6", "#a855f7", "#f97316"] });
+    setTimeout(() => fire({ particleCount: 50, spread: 100, origin: { x: 0.1, y: 0.5 } }), 350);
+    setTimeout(() => fire({ particleCount: 50, spread: 100, origin: { x: 0.9, y: 0.5 } }), 500);
+  }, [result]);
 
   if (loading || !result) {
     return (
@@ -186,6 +453,16 @@ const ExamResults = () => {
     ? isSKDPassed({ twk: result.twk_score, tiu: result.tiu_score, tkp: result.tkp_score })
     : result.total_score >= (result.passing_score || 0);
 
+  // Correct / wrong counts (from localStorage answers + questions)
+  const correctCount = useMemo(
+    () => questions.filter((q) => q.correct_answer && userAnswers[q.id] === q.correct_answer).length,
+    [questions, userAnswers]
+  );
+  const wrongCount = useMemo(
+    () => questions.filter((q) => q.correct_answer && userAnswers[q.id] && userAnswers[q.id] !== q.correct_answer).length,
+    [questions, userAnswers]
+  );
+
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -194,33 +471,22 @@ const ExamResults = () => {
     return `${m} menit ${s} detik`;
   };
 
-  const medalColor = (rank: number) => {
-    if (rank === 1) return "text-yellow-500";
-    if (rank === 2) return "text-gray-400";
-    if (rank === 3) return "text-amber-600";
-    return "text-muted-foreground";
-  };
+  const catLabel = result.category?.toUpperCase() ?? "Kategori";
+  const subCatLabel = result.subcategory ?? "Sub-Kategori";
 
-  // CTA card for free exam upgrade prompt
-  const UpgradeCTA = ({ context }: { context: "ranking" | "pembahasan" }) => (
+  const UpgradeCTA = () => (
     <div className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-8 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
         <Lock className="h-7 w-7 text-amber-600" />
       </div>
       <div>
-        <p className="font-semibold text-foreground">
-          {context === "ranking" ? "Rangking tidak tersedia untuk paket gratis" : "Pembahasan dikunci untuk paket gratis"}
-        </p>
+        <p className="font-semibold text-foreground">Pembahasan dikunci untuk paket gratis</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          {context === "ranking"
-            ? "Upgrade ke paket berbayar untuk melihat posisi kamu di antara peserta lain."
-            : "Upgrade ke paket berbayar untuk melihat jawaban benar dan penjelasan lengkap setiap soal."}
+          Upgrade ke paket berbayar untuk melihat jawaban benar dan penjelasan lengkap setiap soal.
         </p>
       </div>
       <Button asChild className="gap-2 rounded-full">
-        <Link to="/beli-paket">
-          <ShoppingBag className="h-4 w-4" /> Lihat Paket Berbayar
-        </Link>
+        <Link to="/beli-paket"><ShoppingBag className="h-4 w-4" /> Lihat Paket Berbayar</Link>
       </Button>
     </div>
   );
@@ -233,18 +499,6 @@ const ExamResults = () => {
           <p className="mt-1 text-muted-foreground">Hasil Ujian</p>
         </div>
 
-        {/* Free exam info banner */}
-        {isFree && (
-          <Alert className="mb-6 border-amber-300 bg-amber-50">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-800">
-              <span className="font-semibold">Paket Gratis — </span>
-              Skor ujian ini tidak masuk leaderboard dan pembahasan soal dikunci.
-              Beli paket berbayar untuk akses <strong>rangking peserta</strong> dan <strong>pembahasan lengkap</strong>.
-            </AlertDescription>
-          </Alert>
-        )}
-
         <Tabs defaultValue="hasil">
           <TabsList className="mb-6">
             <TabsTrigger value="hasil">Hasil</TabsTrigger>
@@ -256,26 +510,27 @@ const ExamResults = () => {
 
           {/* ─── TAB HASIL ─── */}
           <TabsContent value="hasil" className="space-y-6">
-            {/* Pass/Fail Alert */}
-            <Alert
-              className={`border-2 ${isPassed ? "border-green-500 bg-green-50" : "border-red-500 bg-red-50"}`}
-            >
-              {isPassed
-                ? <CheckCircle2 className="h-5 w-5 text-green-600" />
-                : <AlertCircle className="h-5 w-5 text-red-600" />}
-              <AlertDescription className={isPassed ? "text-green-800" : "text-red-800"}>
-                <span className="font-semibold">
-                  {isPassed ? `Selamat! Anda Lulus dengan skor ${result.total_score}` : `Maaf, Anda Tidak Lulus. Skor: ${result.total_score}`}
-                </span>
-                {isSkd && !isPassed && (
-                  <div className="mt-1 text-sm space-y-0.5">
-                    {!skdSubtestStatus.twk && <div>• TWK: {result.twk_score} (minimal {SKD_PASSING.twk})</div>}
-                    {!skdSubtestStatus.tiu && <div>• TIU: {result.tiu_score} (minimal {SKD_PASSING.tiu})</div>}
-                    {!skdSubtestStatus.tkp && <div>• TKP: {result.tkp_score} (minimal {SKD_PASSING.tkp})</div>}
-                  </div>
-                )}
-              </AlertDescription>
-            </Alert>
+
+            {/* Pass / Fail hero */}
+            {isPassed ? (
+              <PassCertificate
+                examTitle={result.exam_title}
+                totalScore={result.total_score}
+                twkScore={result.twk_score}
+                tiuScore={result.tiu_score}
+                tkpScore={result.tkp_score}
+                isSkd={isSkd}
+              />
+            ) : (
+              <FailBadge
+                totalScore={result.total_score}
+                isSkd={isSkd}
+                skdSubtestStatus={skdSubtestStatus}
+                twkScore={result.twk_score}
+                tiuScore={result.tiu_score}
+                tkpScore={result.tkp_score}
+              />
+            )}
 
             {/* Score Cards */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -283,11 +538,12 @@ const ExamResults = () => {
                 <CardContent className="pt-6 text-center">
                   <div className="text-4xl font-bold text-primary">{result.total_score}</div>
                   <p className="mt-2 text-sm text-muted-foreground">Total Skor</p>
-                  {isSkd && (
-                    <span className={cn("mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-semibold", isPassed ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
-                      {isPassed ? "LULUS" : "TIDAK LULUS"}
-                    </span>
-                  )}
+                  <span className={cn(
+                    "mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-semibold",
+                    isPassed ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                  )}>
+                    {isPassed ? "LULUS" : "TIDAK LULUS"}
+                  </span>
                 </CardContent>
               </Card>
               <Card className={isSkd ? (skdSubtestStatus.twk ? "ring-1 ring-green-400" : "ring-1 ring-red-400") : ""}>
@@ -335,7 +591,7 @@ const ExamResults = () => {
                   <BookOpen className="h-4 w-4" /> Data Tryout
                 </h2>
               </CardHeader>
-              <CardContent className="grid gap-6 sm:grid-cols-3">
+              <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100">
                     <Clock className="h-5 w-5 text-blue-600" />
@@ -350,106 +606,91 @@ const ExamResults = () => {
                     <CheckCircle2 className="h-5 w-5 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Soal Terjawab</p>
+                    <p className="text-sm text-muted-foreground">Jawaban Benar</p>
                     <p className="mt-0.5 text-lg font-semibold">
-                      {result.answered_count} <span className="text-sm font-normal text-muted-foreground">dari {result.total_questions} soal</span>
+                      {correctCount} <span className="text-sm font-normal text-muted-foreground">soal</span>
                     </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
-                    <AlertCircle className="h-5 w-5 text-red-500" />
+                    <XCircle className="h-5 w-5 text-red-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Soal Tidak Terjawab</p>
+                    <p className="text-sm text-muted-foreground">Jawaban Salah</p>
                     <p className="mt-0.5 text-lg font-semibold">
-                      {result.unanswered_count} <span className="text-sm font-normal text-muted-foreground">dari {result.total_questions} soal</span>
+                      {wrongCount} <span className="text-sm font-normal text-muted-foreground">soal</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-yellow-100">
+                    <AlertCircle className="h-5 w-5 text-yellow-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Tidak Dijawab</p>
+                    <p className="mt-0.5 text-lg font-semibold">
+                      {result.unanswered_count} <span className="text-sm font-normal text-muted-foreground">dari {result.total_questions}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100">
+                    <Target className="h-5 w-5 text-violet-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Terjawab</p>
+                    <p className="mt-0.5 text-lg font-semibold">
+                      {result.answered_count} <span className="text-sm font-normal text-muted-foreground">dari {result.total_questions}</span>
                     </p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Ranking — locked for free */}
-            {isFree ? (
-              <UpgradeCTA context="ranking" />
-            ) : rankings.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <h2 className="font-semibold flex items-center gap-2">
-                      <Trophy className="h-4 w-4 text-yellow-500" /> Rangking Peserta
-                    </h2>
-                    {myRank !== null && (
-                      <span className="text-sm font-medium text-primary">Posisi Anda: #{myRank}</span>
+            {/* Ranking — 3 scopes */}
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-yellow-500" /> Rangking Peserta
+                </h2>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="exam">
+                  <TabsList className="mb-4 flex-wrap h-auto gap-1">
+                    <TabsTrigger value="exam" className="gap-1.5">
+                      <Award className="h-3.5 w-3.5" /> Ujian Ini
+                    </TabsTrigger>
+                    {result.subcategory && (
+                      <TabsTrigger value="subcat" className="gap-1.5">
+                        <Medal className="h-3.5 w-3.5" /> {subCatLabel}
+                      </TabsTrigger>
                     )}
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b bg-muted/40">
-                          <th className="px-4 py-3 text-left font-semibold w-10">#</th>
-                          <th className="px-4 py-3 text-left font-semibold">Peserta</th>
-                          <th className="px-4 py-3 text-right font-semibold">Total</th>
-                          <th className="px-4 py-3 text-right font-semibold text-blue-600">TWK</th>
-                          <th className="px-4 py-3 text-right font-semibold text-purple-600">TIU</th>
-                          <th className="px-4 py-3 text-right font-semibold text-orange-500">TKP</th>
-                          {isSkd && <th className="px-4 py-3 text-center font-semibold">Status</th>}
-                          <th className="px-4 py-3 text-right font-semibold text-muted-foreground">
-                            <Clock className="h-3.5 w-3.5 inline" />
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rankings.map((row, i) => {
-                          const rank = i + 1;
-                          const isMe = row.user_id === user?.id;
-                          const rowPassed = isSkd ? isSKDPassed({ twk: row.twk_score, tiu: row.tiu_score, tkp: row.tkp_score }) : true;
-                          return (
-                            <tr
-                              key={row.user_id}
-                              className={cn(
-                                "border-b last:border-0 transition-colors",
-                                isMe ? "bg-primary/5 font-semibold" : "hover:bg-muted/30"
-                              )}
-                            >
-                              <td className="px-4 py-3">
-                                {rank <= 3
-                                  ? <Medal className={cn("h-4 w-4", medalColor(rank))} />
-                                  : <span className="text-muted-foreground">{rank}</span>}
-                              </td>
-                              <td className="px-4 py-3">
-                                {row.username}
-                                {isMe && <span className="ml-2 text-xs text-primary">(Anda)</span>}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold">{row.total_score}</td>
-                              <td className="px-4 py-3 text-right text-blue-600">{row.twk_score}</td>
-                              <td className="px-4 py-3 text-right text-purple-600">{row.tiu_score}</td>
-                              <td className="px-4 py-3 text-right text-orange-500">{row.tkp_score}</td>
-                              {isSkd && (
-                                <td className="px-4 py-3 text-center">
-                                  <span className={cn("text-xs px-2 py-0.5 rounded-full font-semibold", rowPassed ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
-                                    {rowPassed ? "LULUS" : "TDK LULUS"}
-                                  </span>
-                                </td>
-                              )}
-                              <td className="px-4 py-3 text-right text-muted-foreground text-xs">
-                                {Math.floor(row.time_spent / 60)}m
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                    {result.category && (
+                      <TabsTrigger value="cat" className="gap-1.5">
+                        <Trophy className="h-3.5 w-3.5" /> {catLabel}
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
+                  <TabsContent value="exam">
+                    <RankingTable rankings={examRankings} myUserId={user?.id} isSkd={isSkd} label="ujian ini" />
+                  </TabsContent>
+                  {result.subcategory && (
+                    <TabsContent value="subcat">
+                      <RankingTable rankings={subCatRankings} myUserId={user?.id} isSkd={isSkd} label={subCatLabel} />
+                    </TabsContent>
+                  )}
+                  {result.category && (
+                    <TabsContent value="cat">
+                      <RankingTable rankings={catRankings} myUserId={user?.id} isSkd={isSkd} label={catLabel} />
+                    </TabsContent>
+                  )}
+                </Tabs>
+              </CardContent>
+            </Card>
 
-            {/* Action */}
-            <div className="flex gap-3 pb-8">
+            {/* Actions */}
+            <div className="flex flex-wrap gap-3 pb-8">
               <Button size="lg" onClick={() => navigate("/paket-saya")} className="gap-2">
                 <RotateCcw className="h-4 w-4" /> Kerjakan Ulang
               </Button>
@@ -466,9 +707,7 @@ const ExamResults = () => {
           {/* ─── TAB PEMBAHASAN ─── */}
           <TabsContent value="pembahasan">
             {isFree ? (
-              <div className="py-4 pb-8">
-                <UpgradeCTA context="pembahasan" />
-              </div>
+              <div className="py-4 pb-8"><UpgradeCTA /></div>
             ) : (
               <div className="space-y-3 pb-8">
                 {questions.length === 0 && (
@@ -477,7 +716,6 @@ const ExamResults = () => {
                 {questions.map((question, idx) => {
                   const isExpanded = expandedQuestions.has(question.id);
                   const userAnswer = userAnswers[question.id];
-
                   return (
                     <Card key={question.id} className="overflow-hidden">
                       <button
@@ -498,8 +736,7 @@ const ExamResults = () => {
                               : <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Tidak dijawab</span>}
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            {question.question_text.substring(0, 100)}
-                            {question.question_text.length > 100 ? "..." : ""}
+                            {question.question_text.substring(0, 100)}{question.question_text.length > 100 ? "..." : ""}
                           </p>
                         </div>
                         {isExpanded
@@ -509,7 +746,6 @@ const ExamResults = () => {
 
                       {isExpanded && (
                         <div className="border-t bg-muted/20">
-                          {/* Full question */}
                           <div className="px-6 py-4 space-y-3 border-b">
                             {question.svg_content && (
                               <div className="overflow-x-auto rounded-lg border bg-white p-2"
@@ -520,8 +756,6 @@ const ExamResults = () => {
                             )}
                             <p className="text-sm leading-relaxed">{question.question_text}</p>
                           </div>
-
-                          {/* Jawaban ringkasan */}
                           <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x border-b">
                             <div className="px-6 py-4">
                               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Jawaban Anda</p>
@@ -552,47 +786,36 @@ const ExamResults = () => {
                               </div>
                             </div>
                           </div>
-
-                          {/* Semua pilihan */}
                           <div className="px-6 py-4 border-b">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Semua Pilihan</p>
                             <div className="space-y-2">
-                              {question.options.map((option, idx) => {
+                              {question.options.map((option, oi) => {
                                 const isUserAnswer = userAnswer === option;
                                 const isCorrect = option === question.correct_answer;
-                                const label = String.fromCharCode(65 + idx);
+                                const label = String.fromCharCode(65 + oi);
                                 return (
-                                  <div
-                                    key={option}
-                                    className={cn(
-                                      "flex items-start gap-3 p-3 rounded-lg border text-sm",
-                                      isCorrect
-                                        ? "border-green-400 bg-green-50"
-                                        : isUserAnswer
-                                        ? "border-red-400 bg-red-50"
-                                        : "border-border bg-background"
-                                    )}
-                                  >
+                                  <div key={option} className={cn(
+                                    "flex items-start gap-3 p-3 rounded-lg border text-sm",
+                                    isCorrect ? "border-green-400 bg-green-50"
+                                      : isUserAnswer ? "border-red-400 bg-red-50"
+                                      : "border-border bg-background"
+                                  )}>
                                     <div className={cn(
-                                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold transition-colors mt-0.5",
-                                      isCorrect ? "bg-green-500 border-green-500 text-white" : isUserAnswer ? "bg-red-500 border-red-500 text-white" : "border-muted-foreground/30 text-muted-foreground"
+                                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold mt-0.5",
+                                      isCorrect ? "bg-green-500 border-green-500 text-white"
+                                        : isUserAnswer ? "bg-red-500 border-red-500 text-white"
+                                        : "border-muted-foreground/30 text-muted-foreground"
                                     )}>
                                       {label}
                                     </div>
                                     <span className="flex-1">{option}</span>
-                                    {isCorrect && (
-                                      <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full shrink-0">Benar</span>
-                                    )}
-                                    {isUserAnswer && !isCorrect && (
-                                      <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full shrink-0">Jawaban Anda</span>
-                                    )}
+                                    {isCorrect && <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full shrink-0">Benar</span>}
+                                    {isUserAnswer && !isCorrect && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full shrink-0">Jawaban Anda</span>}
                                   </div>
                                 );
                               })}
                             </div>
                           </div>
-
-                          {/* Pembahasan */}
                           {question.explanation ? (
                             <div className="px-6 py-4">
                               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Pembahasan / Alasan</p>
