@@ -1,7 +1,8 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home, LayoutGrid, FolderOpen, LogOut,
-  Database, Package, BarChart2, Receipt, Users, Settings, UserCircle, MessageCircle, Send, Gift
+  Database, Package, BarChart2, Receipt, Users, Settings, UserCircle, MessageCircle, Send, Gift,
+  Sparkles, Dumbbell, CalendarDays
 } from "lucide-react";
 import logo from "@/assets/logo-ruangcasn.png";
 import favicon from "@/assets/faveicon-ruangcasn.png";
@@ -23,9 +24,12 @@ import { supabase } from "@/integrations/supabase/client";
 
 const items = [
   { title: "Home", url: "/dashboard", icon: Home },
-  { title: "Beli Paket Tryout", url: "/beli-paket", icon: LayoutGrid },
+  { title: "Tryout Gratis", url: "/tryout-gratis", icon: Sparkles },
+  { title: "Beli Paket Try out Premium", url: "/beli-paket", icon: LayoutGrid },
   { title: "Paket Saya", url: "/paket-saya", icon: FolderOpen },
+  { title: "Drilling Soal", url: "/drilling-soal", icon: Dumbbell },
   { title: "Bonus Saya", url: "/bonus-saya", icon: Gift },
+  { title: "Tryout Akbar", url: "/try-out-akbar", icon: CalendarDays },
 ];
 
 const adminItems = [
@@ -34,6 +38,7 @@ const adminItems = [
   { title: "Skor User", tab: "scores", icon: BarChart2 },
   { title: "History Transaksi", tab: "topups", icon: Receipt },
   { title: "Semua User", tab: "balances", icon: Users },
+  { title: "Tryout Akbar", tab: "akbar", icon: CalendarDays },
   { title: "Pengaturan", tab: "settings", icon: Settings },
 ];
 

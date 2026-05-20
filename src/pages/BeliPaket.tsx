@@ -99,7 +99,7 @@ const BeliPaket = () => {
 
   const subcategories = useMemo(() => {
     if (!step.categoryId || !activeCategory) return [];
-    const list = exams.filter((e) => matchCategory(e.category));
+    const list = exams.filter((e) => matchCategory(e.category) && (e.price ?? 0) > 0);
     const set = new Set<string>();
     list.forEach((e) => { if (e.subcategory) set.add(e.subcategory); });
     return Array.from(set).sort();
@@ -107,7 +107,7 @@ const BeliPaket = () => {
 
   const filteredExams = useMemo(() => {
     if (!step.categoryId || !activeCategory) return [];
-    let list = exams.filter((e) => matchCategory(e.category));
+    let list = exams.filter((e) => matchCategory(e.category) && (e.price ?? 0) > 0);
     if (step.subcategory) list = list.filter((e) => e.subcategory === step.subcategory);
     if (search.trim()) {
       const q = search.toLowerCase();

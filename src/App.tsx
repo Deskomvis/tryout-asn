@@ -14,7 +14,9 @@ import Exam from "./pages/Exam.tsx";
 import Leaderboard from "./pages/Leaderboard.tsx";
 import Admin from "./pages/Admin.tsx";
 import BeliPaket from "./pages/BeliPaket.tsx";
-
+import TryoutGratis from "./pages/TryoutGratis.tsx";
+import DrilingSoal from "./pages/DrilingSoal.tsx";
+import TryOutAkbar from "./pages/TryOutAkbar.tsx";
 import PaketSaya from "./pages/PaketSaya.tsx";
 import BonusSaya from "./pages/BonusSaya.tsx";
 import AkunSaya from "./pages/AkunSaya.tsx";
@@ -36,7 +38,9 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/beli-paket" element={<ProtectedRoute><BeliPaket /></ProtectedRoute>} />
-            
+            <Route path="/tryout-gratis" element={<ProtectedRoute><TryoutGratis /></ProtectedRoute>} />
+            <Route path="/drilling-soal" element={<ProtectedRoute><DrilingSoal /></ProtectedRoute>} />
+            <Route path="/try-out-akbar" element={<ProtectedRoute><TryOutAkbar /></ProtectedRoute>} />
             <Route path="/paket-saya" element={<ProtectedRoute><PaketSaya /></ProtectedRoute>} />
             <Route path="/bonus-saya" element={<ProtectedRoute><BonusSaya /></ProtectedRoute>} />
             <Route path="/akun-saya" element={<ProtectedRoute><AkunSaya /></ProtectedRoute>} />

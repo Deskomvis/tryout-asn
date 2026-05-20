@@ -14,7 +14,7 @@ import {
   Trash2, Check, X, Plus, Sparkles, Loader2,
   Pencil, Image, Upload, Key, Eye, EyeOff, ChevronLeft, ChevronDown, ChevronUp,
   RotateCcw, Copy,
-  BookOpen, FileText, Package, MessageCircle, Save, Settings,
+  BookOpen, FileText, Package, MessageCircle, Save, Settings, CalendarDays, ExternalLink,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -325,6 +325,89 @@ const Admin = () => {
   const [savingCommunity, setSavingCommunity] = useState(false);
   const [dynamicCategories, setDynamicCategories] = useState<ExamCategory[]>([]);
 
+  // ── Tryout Akbar ──────────────────────────────────────────────────────────
+  type AkbarEvent = {
+    id: string; title: string; description: string | null;
+    max_quota: number; price: number; cta_link: string | null;
+    registration_start: string | null; registration_end: string | null;
+    exam_start: string | null; exam_end: string | null; exam_id: string | null;
+    status: string; created_at: string;
+  };
+  type AkbarReg = {
+    id: string; event_id: string; user_id: string;
+    registered_at: string; payment_status: string;
+    profiles?: { username: string | null; email: string | null } | null;
+  };
+  const emptyAkbar = () => ({
+    title: "", description: "", max_quota: 10000, price: 20000,
+    cta_link: "", registration_start: "", registration_end: "",
+    exam_start: "", exam_end: "", exam_id: "", status: "draft",
+  });
+  const [akbarEvents, setAkbarEvents] = useState<AkbarEvent[]>([]);
+  const [akbarRegs, setAkbarRegs] = useState<Record<string, AkbarReg[]>>({});
+  const [newAkbar, setNewAkbar] = useState(emptyAkbar());
+  const [showNewAkbarForm, setShowNewAkbarForm] = useState(false);
+  const [savingAkbar, setSavingAkbar] = useState(false);
+  const [selectedAkbarEventId, setSelectedAkbarEventId] = useState<string | null>(null);
+
+  const loadAkbar = async () => {
+    const { data: evData } = await (supabase as any).from("tryout_akbar_events").select("*").order("created_at", { ascending: false });
+    setAkbarEvents(evData ?? []);
+  };
+
+  const loadAkbarRegs = async (eventId: string) => {
+    const { data } = await (supabase as any)
+      .from("tryout_akbar_registrations")
+      .select("id,event_id,user_id,registered_at,payment_status,profiles(username,email)")
+      .eq("event_id", eventId)
+      .order("registered_at", { ascending: false });
+    setAkbarRegs((prev) => ({ ...prev, [eventId]: data ?? [] }));
+  };
+
+  const saveAkbarEvent = async () => {
+    setSavingAkbar(true);
+    const payload = {
+      title: newAkbar.title,
+      description: newAkbar.description || null,
+      max_quota: newAkbar.max_quota,
+      price: newAkbar.price,
+      cta_link: newAkbar.cta_link || null,
+      registration_start: newAkbar.registration_start || null,
+      registration_end: newAkbar.registration_end || null,
+      exam_start: newAkbar.exam_start || null,
+      exam_end: newAkbar.exam_end || null,
+      exam_id: newAkbar.exam_id || null,
+      status: newAkbar.status,
+    };
+    const { error } = await (supabase as any).from("tryout_akbar_events").insert([payload]);
+    setSavingAkbar(false);
+    if (error) { toast.error("Gagal simpan event: " + error.message); return; }
+    toast.success("Event Tryout Akbar berhasil dibuat.");
+    setNewAkbar(emptyAkbar());
+    setShowNewAkbarForm(false);
+    loadAkbar();
+  };
+
+  const confirmAkbarReg = async (regId: string, eventId: string) => {
+    const { error } = await (supabase as any)
+      .from("tryout_akbar_registrations")
+      .update({ payment_status: "confirmed" })
+      .eq("id", regId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Pendaftaran dikonfirmasi.");
+    loadAkbarRegs(eventId);
+  };
+
+  const rejectAkbarReg = async (regId: string, eventId: string) => {
+    const { error } = await (supabase as any)
+      .from("tryout_akbar_registrations")
+      .delete()
+      .eq("id", regId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Pendaftaran dihapus.");
+    loadAkbarRegs(eventId);
+  };
+
   const fetchDynamicCats = async () => {
     const { data } = await supabase.from("admin_settings").select("value").eq("key", "exam_categories").maybeSingle();
     if (data?.value) {
@@ -506,6 +589,9 @@ const Admin = () => {
   useEffect(() => {
     if (activeTab === "bank" && bankView === "list") {
       loadGlobalBank();
+    }
+    if (activeTab === "akbar") {
+      loadAkbar();
     }
   }, [activeTab, bankView]);
 
@@ -1471,6 +1557,7 @@ const Admin = () => {
            activeTab === "topups" ? "History Transaksi" :
            activeTab === "balances" ? "Semua User" :
            activeTab === "settings" ? "Pengaturan" :
+           activeTab === "akbar" ? "Tryout Akbar" :
            "Admin Dashboard"}
         </h1>
 
@@ -3475,6 +3562,187 @@ const Admin = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ── TRYOUT AKBAR ── */}
+          <TabsContent value="akbar" className="space-y-6">
+            {/* Create event */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <h2 className="flex items-center gap-2 font-semibold"><CalendarDays className="h-4 w-4" /> Event Tryout Akbar</h2>
+                  <Button size="sm" className="gap-1.5 rounded-full" onClick={() => setShowNewAkbarForm((v) => !v)}>
+                    <Plus className="h-3.5 w-3.5" /> Buat Event Baru
+                  </Button>
+                </div>
+              </CardHeader>
+              {showNewAkbarForm && (
+                <CardContent className="space-y-4 border-t pt-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <Label>Judul Event</Label>
+                      <Input value={newAkbar.title} onChange={(e) => setNewAkbar((p) => ({ ...p, title: e.target.value }))} placeholder="Simulasi Nasional SKD CPNS 2026" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Deskripsi</Label>
+                      <Textarea value={newAkbar.description} onChange={(e) => setNewAkbar((p) => ({ ...p, description: e.target.value }))} placeholder="Deskripsi singkat event..." rows={2} />
+                    </div>
+                    <div>
+                      <Label>Kuota Maksimal</Label>
+                      <Input type="number" value={newAkbar.max_quota} onChange={(e) => setNewAkbar((p) => ({ ...p, max_quota: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                      <Label>Biaya Pendaftaran (Rp)</Label>
+                      <Input type="number" value={newAkbar.price} onChange={(e) => setNewAkbar((p) => ({ ...p, price: Number(e.target.value) }))} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Link Pembayaran (Lynk.id)</Label>
+                      <Input value={newAkbar.cta_link} onChange={(e) => setNewAkbar((p) => ({ ...p, cta_link: e.target.value }))} placeholder="https://lynk.id/..." />
+                    </div>
+                    <div>
+                      <Label>Mulai Pendaftaran</Label>
+                      <Input type="datetime-local" value={newAkbar.registration_start} onChange={(e) => setNewAkbar((p) => ({ ...p, registration_start: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Tutup Pendaftaran</Label>
+                      <Input type="datetime-local" value={newAkbar.registration_end} onChange={(e) => setNewAkbar((p) => ({ ...p, registration_end: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Mulai Simulasi</Label>
+                      <Input type="datetime-local" value={newAkbar.exam_start} onChange={(e) => setNewAkbar((p) => ({ ...p, exam_start: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Selesai Simulasi</Label>
+                      <Input type="datetime-local" value={newAkbar.exam_end} onChange={(e) => setNewAkbar((p) => ({ ...p, exam_end: e.target.value }))} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Paket Tryout (Exam ID)</Label>
+                      <Select value={newAkbar.exam_id} onValueChange={(v) => setNewAkbar((p) => ({ ...p, exam_id: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Pilih paket untuk simulasi..." /></SelectTrigger>
+                        <SelectContent>
+                          {exams.map((e) => (
+                            <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Status</Label>
+                      <Select value={newAkbar.status} onValueChange={(v) => setNewAkbar((p) => ({ ...p, status: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="draft">Draft</SelectItem>
+                          <SelectItem value="upcoming">Segera Hadir</SelectItem>
+                          <SelectItem value="registration_open">Pendaftaran Dibuka</SelectItem>
+                          <SelectItem value="registration_closed">Pendaftaran Ditutup</SelectItem>
+                          <SelectItem value="ongoing">Simulasi Berlangsung</SelectItem>
+                          <SelectItem value="completed">Selesai</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={saveAkbarEvent} disabled={savingAkbar || !newAkbar.title} className="gap-1.5 rounded-full">
+                      {savingAkbar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Simpan Event
+                    </Button>
+                    <Button variant="ghost" onClick={() => setShowNewAkbarForm(false)}>Batal</Button>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            {/* List events */}
+            {akbarEvents.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Belum ada event. Buat event baru di atas.</p>
+            ) : (
+              <div className="space-y-4">
+                {akbarEvents.map((ev) => (
+                  <Card key={ev.id}>
+                    <CardContent className="p-5 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-semibold">{ev.title}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Rp {ev.price.toLocaleString("id-ID")} · Kuota: {ev.max_quota.toLocaleString("id-ID")} · Status: <span className="font-medium">{ev.status}</span>
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          {ev.cta_link && (
+                            <Button asChild variant="outline" size="sm" className="gap-1.5 rounded-full text-xs">
+                              <a href={ev.cta_link} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-3 w-3" /> Lynk.id</a>
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline" size="sm"
+                            className="rounded-full text-xs"
+                            onClick={() => {
+                              setSelectedAkbarEventId(ev.id === selectedAkbarEventId ? null : ev.id);
+                              if (ev.id !== selectedAkbarEventId) loadAkbarRegs(ev.id);
+                            }}
+                          >
+                            {selectedAkbarEventId === ev.id ? "Tutup" : "Lihat Peserta"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {selectedAkbarEventId === ev.id && (
+                        <div className="border-t pt-3 space-y-2">
+                          <p className="text-xs font-semibold uppercase text-muted-foreground">Peserta Terdaftar</p>
+                          {!(akbarRegs[ev.id]?.length) ? (
+                            <p className="text-sm text-muted-foreground">Belum ada peserta.</p>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b text-xs text-muted-foreground">
+                                    <th className="pb-1.5 text-left font-medium">User</th>
+                                    <th className="pb-1.5 text-left font-medium">Waktu Daftar</th>
+                                    <th className="pb-1.5 text-left font-medium">Status</th>
+                                    <th className="pb-1.5 text-right font-medium">Aksi</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {akbarRegs[ev.id].map((reg) => (
+                                    <tr key={reg.id} className="border-b last:border-0">
+                                      <td className="py-2 pr-4">
+                                        <p className="font-medium">{(reg as any).profiles?.username ?? "—"}</p>
+                                        <p className="text-xs text-muted-foreground">{(reg as any).profiles?.email ?? reg.user_id}</p>
+                                      </td>
+                                      <td className="py-2 pr-4 text-xs text-muted-foreground">
+                                        {new Date(reg.registered_at).toLocaleString("id-ID")}
+                                      </td>
+                                      <td className="py-2 pr-4">
+                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                                          reg.payment_status === "confirmed"
+                                            ? "bg-green-100 text-green-800"
+                                            : "bg-yellow-100 text-yellow-800"
+                                        }`}>
+                                          {reg.payment_status === "confirmed" ? "Dikonfirmasi" : "Menunggu"}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 text-right">
+                                        {reg.payment_status !== "confirmed" && (
+                                          <Button size="sm" variant="outline" className="h-7 rounded-full text-xs gap-1 mr-1" onClick={() => confirmAkbarReg(reg.id, ev.id)}>
+                                            <Check className="h-3 w-3" /> Konfirmasi
+                                          </Button>
+                                        )}
+                                        <Button size="sm" variant="ghost" className="h-7 rounded-full text-xs text-destructive hover:text-destructive" onClick={() => rejectAkbarReg(reg.id, ev.id)}>
+                                          <X className="h-3 w-3" />
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
