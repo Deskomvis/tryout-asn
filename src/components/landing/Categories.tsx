@@ -8,6 +8,7 @@ import tniPolriImg from "@/assets/TNI POLRI.png";
 import pppkImg from "@/assets/PPPK.png";
 import kedinasanImg from "@/assets/KEDINASAN.png";
 import bumnImg from "@/assets/BUMN.png";
+import koperasiImg from "@/assets/Koperasi Merah Putih.png";
 
 const categories = [
   {
@@ -59,6 +60,16 @@ const categories = [
     hoverBorder: "hover:border-indigo-500/50 hover:shadow-indigo-500/5",
     btnColor: "bg-indigo-600 hover:bg-indigo-700",
     param: "BUMN"
+  },
+  {
+    name: "Kopdes Merah Putih",
+    image: koperasiImg,
+    description: "Persiapan seleksi Manajer Koperasi Desa Merah Putih: ekonomi, manajemen, dan hukum koperasi.",
+    tag: "Baru",
+    tagColor: "bg-red-50 text-red-600 border-red-100",
+    hoverBorder: "hover:border-red-500/50 hover:shadow-red-500/5",
+    btnColor: "bg-red-600 hover:bg-red-700",
+    param: "koperasi"
   }
 ];
 
@@ -81,7 +92,7 @@ export const Categories = () => {
           </p>
         </div>
 
-        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
           {categories.map((cat, i) => (
             <motion.div
               key={cat.name}
