@@ -25,7 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 const items = [
   { title: "Home", url: "/dashboard", icon: Home },
   { title: "Tryout Gratis", url: "/tryout-gratis", icon: Sparkles },
-  { title: "Beli Paket Try out Premium", url: "/beli-paket", icon: LayoutGrid },
+  { title: "Beli Tryout Premium", url: "/beli-paket", icon: LayoutGrid },
   { title: "Paket Saya", url: "/paket-saya", icon: FolderOpen },
   { title: "Drilling Soal", url: "/drilling-soal", icon: Dumbbell },
   { title: "Bonus Saya", url: "/bonus-saya", icon: Gift },
@@ -96,8 +96,8 @@ export const AppSidebar = () => {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={item.title}>
                     <NavLink to={item.url} end={item.url === "/dashboard"} className={itemClass}>
-                      <item.icon className="h-5 w-5" aria-hidden="true" />
-                      <span>{item.title}</span>
+                      <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                      <span className="min-w-0 truncate">{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
