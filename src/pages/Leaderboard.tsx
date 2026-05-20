@@ -35,7 +35,7 @@ const Leaderboard = () => {
   }, []);
 
   // Derived lists
-  const categories = useMemo(() => Array.from(new Set(exams.map((e) => e.category).filter(Boolean))).sort(), [exams]);
+  const categories = useMemo(() => Array.from(new Set(exams.map((e) => e.category?.toLowerCase()).filter(Boolean))).sort(), [exams]);
 
   const subcategories = useMemo(() =>
     Array.from(new Set(
