@@ -53,7 +53,14 @@ const BeliPaket = () => {
       const { data } = await supabase.from("admin_settings").select("value").eq("key", "exam_categories").maybeSingle();
       if (data?.value) {
         try {
-          setDynamicCategories(JSON.parse(data.value));
+          const ORDER = ['cpns', 'pppk', 'tni-polri', 'kedinasan', 'bumn', 'koperasi'];
+          const parsed: ExamCategory[] = JSON.parse(data.value);
+          parsed.sort((a, b) => {
+            const ai = ORDER.indexOf(a.id.toLowerCase());
+            const bi = ORDER.indexOf(b.id.toLowerCase());
+            return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+          });
+          setDynamicCategories(parsed);
         } catch (e) {
           console.error("Failed to parse categories", e);
         }
