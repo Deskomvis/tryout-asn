@@ -131,7 +131,7 @@ const BeliPaket = () => {
       <AppLayout>
         <PageHeader title="Pilih Kategori" breadcrumbs={[{ label: "Beli Paket" }]} />
         
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {dynamicCategories.map((c, i) => (
               <motion.div
                 key={c.id}
