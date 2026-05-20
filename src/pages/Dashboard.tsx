@@ -1,26 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Package, Trophy, ArrowUpRight, ShoppingBag, History, CheckCircle2 } from "lucide-react";
+import { Package, Trophy, ArrowUpRight, ShoppingBag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent } from "@/components/ui/card";
 import { BannerSlider } from "@/components/BannerSlider";
-import { cn } from "@/lib/utils";
-
-type HistoryRow = {
-  id: string;
-  exam_id: string;
-  total_score: number;
-  twk_score: number;
-  tiu_score: number;
-  tkp_score: number;
-  time_spent: number;
-  created_at: string;
-  exams: { title: string } | null;
-  rank?: number;
-};
 
 const stats = [
   {
@@ -51,8 +36,6 @@ const Dashboard = () => {
   const { user } = useAuth();
   const [paketCount, setPaketCount] = useState(0);
   const [leaderCount, setLeaderCount] = useState(0);
-  const [history, setHistory] = useState<HistoryRow[]>([]);
-
   useEffect(() => {
     if (!user) return;
     supabase
@@ -69,47 +52,6 @@ const Dashboard = () => {
       .then(({ count }) => setLeaderCount(count ?? 0));
   }, []);
 
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const { data: histData } = await supabase
-        .from("exam_results")
-        .select("id, exam_id, total_score, twk_score, tiu_score, tkp_score, time_spent, created_at, exams(title)")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      const rows: HistoryRow[] = (histData as any) ?? [];
-      if (rows.length === 0) { setHistory([]); return; }
-
-      const examIds = [...new Set(rows.map((r) => r.exam_id))];
-
-      const { data: myBest } = await supabase
-        .from("user_scores")
-        .select("exam_id, score")
-        .eq("user_id", user.id)
-        .in("exam_id", examIds);
-
-      const myBestMap: Record<string, number> = {};
-      (myBest ?? []).forEach((r: any) => { myBestMap[r.exam_id] = r.score; });
-
-      const rankMap: Record<string, number | null> = {};
-      await Promise.all(
-        examIds.map(async (eid) => {
-          const myScore = myBestMap[eid];
-          if (myScore == null) { rankMap[eid] = null; return; }
-          const { count } = await supabase
-            .from("user_scores")
-            .select("*", { count: "exact", head: true })
-            .eq("exam_id", eid)
-            .gt("score", myScore);
-          rankMap[eid] = (count ?? 0) + 1;
-        })
-      );
-
-      setHistory(rows.map((r) => ({ ...r, rank: rankMap[r.exam_id] ?? undefined })));
-    })();
-  }, [user]);
 
   const values: Record<string, number | null> = {
     "Paket Saya": paketCount,
@@ -165,63 +107,6 @@ const Dashboard = () => {
         })}
       </div>
 
-      <section className="mt-10">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
-            <History className="h-4 w-4 text-primary" /> History Tryout
-          </h3>
-          <Link to="/paket-saya" className="flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-            Lihat semua <ArrowUpRight className="h-4 w-4" />
-          </Link>
-        </div>
-        <Card>
-          <CardContent className="p-0">
-            {history.length === 0 ? (
-              <p className="p-6 text-sm text-muted-foreground">Belum ada riwayat tryout selesai.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/40">
-                      <th className="px-2 sm:px-4 py-2.5 sm:py-3 text-left font-semibold text-xs sm:text-sm">Ujian</th>
-                      <th className="px-2 sm:px-4 py-2.5 sm:py-3 text-right font-semibold text-xs sm:text-sm">Total</th>
-                      <th className="px-2 sm:px-4 py-2.5 sm:py-3 text-right font-semibold text-blue-600 text-xs sm:text-sm">TWK</th>
-                      <th className="px-2 sm:px-4 py-2.5 sm:py-3 text-right font-semibold text-purple-600 text-xs sm:text-sm">TIU</th>
-                      <th className="px-2 sm:px-4 py-2.5 sm:py-3 text-right font-semibold text-orange-500 text-xs sm:text-sm">TKP</th>
-                      <th className="px-2 sm:px-4 py-2.5 sm:py-3 text-right font-semibold text-xs sm:text-sm">Rangking</th>
-                      <th className="px-2 sm:px-4 py-2.5 sm:py-3 text-right font-semibold text-muted-foreground text-xs sm:text-sm">Tanggal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((r) => (
-                      <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm">
-                          <div className="flex items-center gap-1 sm:gap-2">
-                            <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 text-primary" />
-                            <span className="font-medium truncate max-w-[100px] sm:max-w-none">{r.exams?.title ?? "-"}</span>
-                          </div>
-                        </td>
-                        <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-right font-bold text-primary text-xs sm:text-sm">{r.total_score}</td>
-                        <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-right text-blue-600 text-xs sm:text-sm">{r.twk_score}</td>
-                        <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-right text-purple-600 text-xs sm:text-sm">{r.tiu_score}</td>
-                        <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-right text-orange-500 text-xs sm:text-sm">{r.tkp_score}</td>
-                        <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-right text-xs sm:text-sm">
-                          {r.rank != null
-                            ? <span className={cn("font-semibold", r.rank <= 3 && "text-amber-600")}>#{r.rank}</span>
-                            : <span className="text-muted-foreground text-xs">—</span>}
-                        </td>
-                        <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-right text-[10px] sm:text-xs text-muted-foreground">
-                          {new Date(r.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "2-digit" })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
     </AppLayout>
   );
 };
