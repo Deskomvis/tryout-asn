@@ -83,10 +83,27 @@ const DrilingSoal = () => {
         : [selectedExamId];
 
     (async () => {
+      // Questions are linked to exams via junction table (exam_id on questions is NULL)
+      const { data: assignments } = await supabase
+        .from("exam_question_assignments" as any)
+        .select("question_id")
+        .in("exam_id", examIds);
+
+      const questionIds = (assignments ?? []).map((a: any) => a.question_id);
+      if (questionIds.length === 0) {
+        setQuestions([]);
+        setShuffled([]);
+        setIdx(0);
+        setChosen(null);
+        setShowFeedback(false);
+        setLoadingQ(false);
+        return;
+      }
+
       let query = (supabase as any)
         .from("questions")
         .select("id,question_text,options,correct_answer,subtest,explanation")
-        .in("exam_id", examIds);
+        .in("id", questionIds);
       if (selectedSubtest !== "all") query = query.eq("subtest", selectedSubtest);
 
       const { data } = await query;
