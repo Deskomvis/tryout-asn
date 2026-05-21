@@ -279,8 +279,8 @@ const SubtestDonutChart = ({
 const ScoreCard = ({ label, value, bg, valueColor }: {
   label: string; value: number; bg: string; valueColor: string;
 }) => (
-  <div className={cn("flex flex-col items-center justify-center gap-2 rounded-2xl p-5 text-center", bg)}>
-    <p className="text-xs font-medium text-muted-foreground">{label}</p>
+  <div className={cn("flex flex-col items-center justify-center gap-2 rounded-2xl p-5 text-center min-h-[96px]", bg)}>
+    <p className="text-xs font-medium text-muted-foreground leading-snug">{label}</p>
     <p className={cn("text-4xl font-extrabold leading-none", valueColor)}>{value}</p>
   </div>
 );
@@ -290,13 +290,13 @@ const ScoreCard = ({ label, value, bg, valueColor }: {
 const TryoutStat = ({ icon: Icon, label, value, iconBg, iconColor }: {
   icon: React.ElementType; label: string; value: string; iconBg: string; iconColor: string;
 }) => (
-  <div className="flex items-center gap-3">
+  <div className="flex items-center gap-3.5">
     <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", iconBg)}>
-      <Icon className={cn("h-5 w-5", iconColor)} />
+      <Icon className={cn("h-4.5 w-4.5", iconColor)} />
     </div>
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-semibold text-foreground">{value}</p>
+    <div className="min-w-0">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="font-bold text-foreground leading-tight mt-0.5">{value}</p>
     </div>
   </div>
 );
@@ -499,10 +499,10 @@ const ExamResults = () => {
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-5xl space-y-0">
+      <div className="mx-auto max-w-5xl space-y-6">
 
         {/* ── Page header ──────────────────────────────────────────────────── */}
-        <div className="mb-5 flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold">Skor Hasil Perolehan</h1>
           <Badge variant="outline" className="text-xs">{result.exam_title}</Badge>
         </div>
@@ -512,7 +512,7 @@ const ExamResults = () => {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           className={cn(
-            "mb-5 w-full rounded-xl py-4 text-center text-base font-bold tracking-wide text-white shadow-sm",
+            "w-full rounded-xl py-4 text-center text-base font-bold tracking-wide text-white shadow-sm",
             isPassed ? "bg-green-500" : "bg-red-500"
           )}
         >
@@ -520,7 +520,7 @@ const ExamResults = () => {
         </motion.div>
 
         {/* ── Score Cards ───────────────────────────────────────────────────── */}
-        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
             <ScoreCard label="Total Skor" value={result.total_score} bg="bg-orange-50 border border-orange-100" valueColor={isPassed ? "text-green-600" : "text-red-600"} />
           </motion.div>
@@ -549,7 +549,7 @@ const ExamResults = () => {
 
         {/* ── SKD sub-test passing info ─────────────────────────────────────── */}
         {isSkd && (
-          <div className="mb-5 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {(["twk", "tiu", "tkp"] as const).map((key) => (
               <span key={key} className={cn(
                 "text-xs font-semibold px-3 py-1 rounded-full border",
@@ -562,7 +562,7 @@ const ExamResults = () => {
         )}
 
         {/* ── Action buttons ────────────────────────────────────────────────── */}
-        <div className="mb-6 flex flex-wrap justify-center gap-3">
+        <div className="flex flex-wrap justify-center gap-3">
           <Button
             onClick={() => navigate("/paket-saya")}
             className="gap-2 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-sm"
@@ -580,7 +580,7 @@ const ExamResults = () => {
 
         {/* ── Tabs ─────────────────────────────────────────────────────────── */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6 w-full justify-start overflow-x-auto">
+          <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="hasil" className="gap-1.5"><BookOpen className="h-3.5 w-3.5" />Hasil</TabsTrigger>
             <TabsTrigger value="rangking" className="gap-1.5"><Trophy className="h-3.5 w-3.5" />Rangking</TabsTrigger>
             <TabsTrigger value="pembahasan" className="gap-1.5">
@@ -590,13 +590,13 @@ const ExamResults = () => {
           </TabsList>
 
           {/* ─── TAB: HASIL ──────────────────────────────────────────────────── */}
-          <TabsContent value="hasil" className="space-y-6 pb-10">
+          <TabsContent value="hasil" className="mt-5 space-y-5 pb-10">
 
             {/* Data Tryout */}
             <Card>
               <CardContent className="px-6 py-5">
-                <h2 className="mb-4 text-sm font-bold text-foreground">Data Tryout</h2>
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                <h2 className="mb-5 text-sm font-bold uppercase tracking-wide text-muted-foreground">Data Tryout</h2>
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                   <TryoutStat icon={Clock} label="Waktu Pengerjaan" value={formatTime(result.time_spent)} iconBg="bg-blue-100" iconColor="text-blue-600" />
                   <TryoutStat icon={BookOpen} label="Soal Terjawab" value={`${result.answered_count} Soal`} iconBg="bg-green-100" iconColor="text-green-600" />
                   <TryoutStat icon={XCircle} label="Soal Tidak Terjawab" value={`${result.unanswered_count} Soal`} iconBg="bg-yellow-100" iconColor="text-yellow-600" />
@@ -605,28 +605,30 @@ const ExamResults = () => {
               </CardContent>
             </Card>
 
-            {/* Charts */}
+            {/* Charts — TKP full-width, then TIU+TWK side by side */}
             {isSkd && questions.length > 0 && (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-4">
                 <TKPBarChart questions={questions} userAnswers={userAnswers} />
-                <SubtestDonutChart
-                  title="Jumlah Jawaban Setiap Skor Tes Intelegensia Umum"
-                  subtitle="Sistem Penilaian: Benar/Salah (0 atau 5)"
-                  benar={tiuStats.benar}
-                  salah={tiuStats.salah}
-                />
-                <SubtestDonutChart
-                  title="Jumlah Jawaban Setiap Skor Tes Wawasan Kebangsaan"
-                  subtitle="Sistem Penilaian: Benar/Salah (0 atau 5)"
-                  benar={twkStats.benar}
-                  salah={twkStats.salah}
-                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <SubtestDonutChart
+                    title="Jumlah Jawaban Setiap Skor Tes Intelegensia Umum"
+                    subtitle="Sistem Penilaian: Benar/Salah (0 atau 5)"
+                    benar={tiuStats.benar}
+                    salah={tiuStats.salah}
+                  />
+                  <SubtestDonutChart
+                    title="Jumlah Jawaban Setiap Skor Tes Wawasan Kebangsaan"
+                    subtitle="Sistem Penilaian: Benar/Salah (0 atau 5)"
+                    benar={twkStats.benar}
+                    salah={twkStats.salah}
+                  />
+                </div>
               </div>
             )}
           </TabsContent>
 
           {/* ─── TAB: RANGKING ───────────────────────────────────────────────── */}
-          <TabsContent value="rangking" className="pb-10">
+          <TabsContent value="rangking" className="mt-5 pb-10">
             <Card>
               <CardContent className="p-6">
                 <Tabs defaultValue="exam">
@@ -648,7 +650,7 @@ const ExamResults = () => {
           </TabsContent>
 
           {/* ─── TAB: PEMBAHASAN ─────────────────────────────────────────────── */}
-          <TabsContent value="pembahasan" className="pb-10">
+          <TabsContent value="pembahasan" className="mt-5 pb-10">
             {isFree ? (
               <div className="py-4"><UpgradeCTA /></div>
             ) : (
