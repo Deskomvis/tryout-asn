@@ -247,7 +247,10 @@ const Exam = () => {
                           <button
                             key={opt}
                             type="button"
-                            onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: opt }))}
+                            onClick={() => {
+                              setAnswers((prev) => ({ ...prev, [q.id]: opt }));
+                              if (current < questions.length - 1) setCurrent((c) => c + 1);
+                            }}
                             className={cn(
                               "flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors",
                               selected
