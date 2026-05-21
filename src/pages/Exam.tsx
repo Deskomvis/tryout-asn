@@ -229,12 +229,14 @@ const Exam = () => {
                   </CardHeader>
                   <CardContent>
                     {q.svg_content && (
-                      <div className="mb-4 overflow-x-auto rounded-lg border bg-white p-3"
-                        dangerouslySetInnerHTML={{ __html: q.svg_content }} />
+                      <div
+                        className="mb-4 overflow-x-auto rounded-lg border bg-white p-3 [&_svg]:h-auto [&_svg]:max-w-full"
+                        dangerouslySetInnerHTML={{ __html: q.svg_content }}
+                      />
                     )}
                     {q.image_url && !q.svg_content && (
                       <div className="mb-4">
-                        <img src={q.image_url} alt="Gambar soal" className="max-h-56 w-full rounded-lg border object-contain" />
+                        <img src={q.image_url} alt="Gambar soal" className="w-full rounded-lg border object-contain" />
                       </div>
                     )}
                     <div className="space-y-2">

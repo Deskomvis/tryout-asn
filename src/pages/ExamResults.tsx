@@ -697,8 +697,15 @@ const ExamResults = () => {
                       {isExpanded && (
                         <div className="border-t bg-muted/20">
                           <div className="px-6 py-4 space-y-3 border-b">
-                            {question.svg_content && <div className="overflow-x-auto rounded-lg border bg-white p-2" dangerouslySetInnerHTML={{ __html: question.svg_content }} />}
-                            {question.image_url && !question.svg_content && <img src={question.image_url} alt="Gambar soal" className="max-h-48 rounded border object-contain w-full" />}
+                            {question.svg_content && (
+                              <div
+                                className="overflow-x-auto rounded-lg border bg-white p-2 [&_svg]:h-auto [&_svg]:max-w-full"
+                                dangerouslySetInnerHTML={{ __html: question.svg_content }}
+                              />
+                            )}
+                            {question.image_url && !question.svg_content && (
+                              <img src={question.image_url} alt="Gambar soal" className="w-full rounded border object-contain" />
+                            )}
                             <p className="text-sm leading-relaxed">{question.question_text}</p>
                           </div>
 
