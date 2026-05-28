@@ -193,5 +193,5 @@ export const emptyNewQ = () => ({
   pa: 5, pb: 4, pc: 3, pd: 2, pe: 1, explanation: "", image_url: "", topic: "",
 });
 
-export const VALID_TABS = ["bank", "exams", "scores", "topups", "balances", "settings", "akbar"] as const;
+export const VALID_TABS = ["bank", "exams", "scores", "topups", "balances", "settings", "akbar", "webhooks"] as const;
 export const BANK_VIEWS = ["list", "materi", "exam"] as const;

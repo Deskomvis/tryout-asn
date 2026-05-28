@@ -1573,6 +1573,7 @@ const Admin = () => {
            activeTab === "balances" ? "Semua User" :
            activeTab === "settings" ? "Pengaturan" :
            activeTab === "akbar" ? "Tryout Akbar" :
+           activeTab === "webhooks" ? "Webhook & Akses" :
            "Admin Dashboard"}
         </h1>
 
