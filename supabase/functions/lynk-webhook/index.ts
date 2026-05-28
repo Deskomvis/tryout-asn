@@ -152,12 +152,24 @@ Deno.serve(async (req) => {
 
   // Verify Lynk signature if merchant key is configured (skip in test mode)
   if (merchantKey && !isTestMode) {
-    const receivedSig = req.headers.get("x-lynk-signature") ?? "";
-    const expectedSig = await hmacSha256Hex(merchantKey, rawBody);
-    const normalizedSig = receivedSig.startsWith("sha256=") ? receivedSig.slice(7) : receivedSig;
-    if (normalizedSig !== expectedSig) {
+    // Try multiple header names Lynk might use
+    const sigHeaders = ["x-lynk-signature", "lynk-signature", "x-signature", "signature"];
+    let receivedSig = "";
+    let sigHeaderUsed = "";
+    for (const h of sigHeaders) {
+      const v = req.headers.get(h);
+      if (v && v.trim()) { receivedSig = v.trim(); sigHeaderUsed = h; break; }
+    }
+
+    const expectedSig = (await hmacSha256Hex(merchantKey, rawBody)).toLowerCase();
+    const normalizedSig = (receivedSig.startsWith("sha256=") ? receivedSig.slice(7) : receivedSig).toLowerCase();
+
+    if (!receivedSig || normalizedSig !== expectedSig) {
+      // Capture every header for offline analysis — admin-only via RLS
+      const allHeaders: Record<string, string> = {};
+      req.headers.forEach((v, k) => { allHeaders[k] = v; });
       return log("invalid_signature", 401, { error: "Invalid signature — request not from Lynk" }, {
-        error: `received=${receivedSig.slice(0, 16)}... expected_len=${expectedSig.length}`,
+        error: `header_used=${sigHeaderUsed || "<none>"} received=${receivedSig || "<empty>"} expected=${expectedSig} all_headers=${JSON.stringify(allHeaders)}`,
       });
     }
   }
