@@ -132,6 +132,7 @@ Deno.serve(async (req) => {
         amount: extra.amount ?? null,
         error: extra.error ?? null,
         raw_payload: payload ?? { _raw_body: rawBody },
+        raw_body: rawBody,
       });
     } catch (e) {
       console.error("Failed to write webhook log:", e);
