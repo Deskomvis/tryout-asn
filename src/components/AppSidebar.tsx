@@ -2,7 +2,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home, LayoutGrid, FolderOpen, LogOut,
   Database, Package, BarChart2, Receipt, Users, Settings, UserCircle, MessageCircle, Send, Gift,
-  Sparkles, Dumbbell, CalendarDays
+  Sparkles, Dumbbell, CalendarDays, Webhook
 } from "lucide-react";
 import logo from "@/assets/logo-ruangcasn.png";
 import favicon from "@/assets/faveicon-ruangcasn.png";
@@ -39,6 +39,7 @@ const adminItems = [
   { title: "History Transaksi", tab: "topups", icon: Receipt },
   { title: "Semua User", tab: "balances", icon: Users },
   { title: "Tryout Akbar", tab: "akbar", icon: CalendarDays },
+  { title: "Webhook & Akses", tab: "webhooks", icon: Webhook },
   { title: "Pengaturan", tab: "settings", icon: Settings },
 ];
 

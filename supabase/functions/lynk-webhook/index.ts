@@ -104,6 +104,40 @@ Deno.serve(async (req) => {
 
   // Read raw body for signature verification
   const rawBody = await req.text();
+  let payload: any = null;
+  try { payload = JSON.parse(rawBody); } catch { /* ignore — logged below */ }
+
+  // Helper to write a log row and return the response. Always called once per request.
+  const log = async (
+    status: string,
+    httpStatus: number,
+    body: Record<string, unknown>,
+    extra: {
+      lynk_uuid?: string | null;
+      buyer_email?: string | null;
+      user_id?: string | null;
+      exam_id?: string | null;
+      amount?: number | null;
+      error?: string | null;
+    } = {}
+  ) => {
+    try {
+      await db.from("lynk_webhook_logs").insert({
+        status,
+        http_status: httpStatus,
+        lynk_uuid: extra.lynk_uuid ?? null,
+        buyer_email: extra.buyer_email ?? null,
+        user_id: extra.user_id ?? null,
+        exam_id: extra.exam_id ?? null,
+        amount: extra.amount ?? null,
+        error: extra.error ?? null,
+        raw_payload: payload ?? { _raw_body: rawBody },
+      });
+    } catch (e) {
+      console.error("Failed to write webhook log:", e);
+    }
+    return json({ ...body, status }, httpStatus);
+  };
 
   // Load merchant key from admin_settings
   const { data: mkRow } = await db
@@ -120,33 +154,40 @@ Deno.serve(async (req) => {
   if (merchantKey && !isTestMode) {
     const receivedSig = req.headers.get("x-lynk-signature") ?? "";
     const expectedSig = await hmacSha256Hex(merchantKey, rawBody);
-    // Lynk may send "sha256=<hex>" or just "<hex>"
     const normalizedSig = receivedSig.startsWith("sha256=") ? receivedSig.slice(7) : receivedSig;
     if (normalizedSig !== expectedSig) {
-      return json({ error: "Invalid signature — request not from Lynk" }, 401);
+      return log("invalid_signature", 401, { error: "Invalid signature — request not from Lynk" }, {
+        error: `received=${receivedSig.slice(0, 16)}... expected_len=${expectedSig.length}`,
+      });
     }
   }
 
-  let payload: any;
-  try {
-    payload = JSON.parse(rawBody);
-  } catch {
-    return json({ error: "Invalid JSON" }, 400);
+  if (!payload) {
+    return log("invalid_payload", 400, { error: "Invalid JSON body" }, {
+      error: "JSON.parse failed on body",
+    });
   }
 
   const eventName = payload?.event;
   const actionStatus = payload?.data?.message_action;
   if (eventName && eventName !== "payment.received") {
-    return json({ ignored: true, reason: `Unhandled event: ${eventName}` });
+    return log("ignored_event", 200, { ignored: true, reason: `Unhandled event: ${eventName}` });
   }
   if (actionStatus && actionStatus !== "SUCCESS") {
-    return json({ ignored: true, reason: `Payment action not successful: ${actionStatus}` });
+    return log("ignored_action", 200, { ignored: true, reason: `Payment action not successful: ${actionStatus}` });
   }
 
-  // Extract Lynk product UUID — Lynk sends items[0].uuid
+  // Extract Lynk product UUID
   const lynkUuid = extractLynkUuid(payload);
+  const buyerEmail = extractBuyerEmail(payload);
+  const amount = extractPaymentAmount(payload);
+
   if (!lynkUuid) {
-    return json({ error: "No product UUID found in payload", received: payload }, 400);
+    return log("invalid_payload", 400, { error: "No product UUID found in payload" }, {
+      buyer_email: buyerEmail,
+      amount,
+      error: "extractLynkUuid returned null",
+    });
   }
 
   // Find matching package config
@@ -157,36 +198,77 @@ Deno.serve(async (req) => {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (pkgErr) return json({ error: pkgErr.message }, 500);
-  if (!pkg) return json({ error: `No active package found for UUID: ${lynkUuid}` }, 404);
-  if (!pkg.exam_id) return json({ error: "Package has no exam linked" }, 422);
-
-  // Extract buyer email from Lynk payload
-  const buyerEmail = extractBuyerEmail(payload);
-  if (!buyerEmail) {
-    return json({ error: "No buyer email in payload", received: payload }, 400);
+  if (pkgErr) {
+    return log("error", 500, { error: pkgErr.message }, { lynk_uuid: lynkUuid, buyer_email: buyerEmail, amount, error: pkgErr.message });
+  }
+  if (!pkg) {
+    return log("unknown_uuid", 404, { error: `No active package found for UUID: ${lynkUuid}` }, {
+      lynk_uuid: lynkUuid,
+      buyer_email: buyerEmail,
+      amount,
+      error: "lynk_packages lookup returned no rows",
+    });
+  }
+  if (!pkg.exam_id) {
+    return log("error", 422, { error: "Package has no exam linked" }, {
+      lynk_uuid: lynkUuid,
+      buyer_email: buyerEmail,
+      amount,
+      error: "pkg.exam_id is null",
+    });
   }
 
-  // Find user by email from profiles instead of auth.admin.listUsers().
-  // listUsers() is paginated and can silently miss valid users when the account count grows.
+  if (!buyerEmail) {
+    return log("invalid_payload", 400, { error: "No buyer email in payload" }, {
+      lynk_uuid: lynkUuid,
+      exam_id: pkg.exam_id,
+      amount,
+      error: "extractBuyerEmail returned null",
+    });
+  }
+
+  // Find user by email from profiles (case-insensitive)
   const { data: profile, error: profileErr } = await db
     .from("profiles")
     .select("id,email,username")
     .ilike("email", buyerEmail)
     .maybeSingle();
 
-  if (profileErr) return json({ error: profileErr.message }, 500);
+  if (profileErr) {
+    return log("error", 500, { error: profileErr.message }, {
+      lynk_uuid: lynkUuid,
+      buyer_email: buyerEmail,
+      exam_id: pkg.exam_id,
+      amount,
+      error: profileErr.message,
+    });
+  }
   if (!profile?.id) {
-    return json({
+    return log("user_not_found", 404, {
       error: `User with email ${buyerEmail} not found. They must register first at the platform.`,
-    }, 404);
+    }, {
+      lynk_uuid: lynkUuid,
+      buyer_email: buyerEmail,
+      exam_id: pkg.exam_id,
+      amount,
+      error: "profile lookup by email returned no rows",
+    });
   }
 
   const { data: childExams, error: childErr } = await db
     .from("exams")
     .select("id")
     .eq("parent_exam_id", pkg.exam_id);
-  if (childErr) return json({ error: childErr.message }, 500);
+  if (childErr) {
+    return log("error", 500, { error: childErr.message }, {
+      lynk_uuid: lynkUuid,
+      buyer_email: buyerEmail,
+      user_id: profile.id,
+      exam_id: pkg.exam_id,
+      amount,
+      error: childErr.message,
+    });
+  }
 
   const examIdsToGrant = [pkg.exam_id, ...(childExams ?? []).map((exam) => exam.id)];
   const grantedExamIds: string[] = [];
@@ -207,13 +289,23 @@ Deno.serve(async (req) => {
 
     const { error: purchaseErr } = await db
       .from("exam_purchases")
-      .insert({ user_id: profile.id, exam_id: examId, price_paid: extractPaymentAmount(payload) });
+      .insert({ user_id: profile.id, exam_id: examId, price_paid: amount });
 
-    if (purchaseErr) return json({ error: purchaseErr.message, exam_id: examId }, 500);
+    if (purchaseErr) {
+      return log("error", 500, { error: purchaseErr.message, exam_id: examId }, {
+        lynk_uuid: lynkUuid,
+        buyer_email: buyerEmail,
+        user_id: profile.id,
+        exam_id: examId,
+        amount,
+        error: purchaseErr.message,
+      });
+    }
     grantedExamIds.push(examId);
   }
 
-  return json({
+  const finalStatus = grantedExamIds.length > 0 ? "success" : "already_granted";
+  return log(finalStatus, 200, {
     success: true,
     already_granted: grantedExamIds.length === 0,
     message: grantedExamIds.length > 0
@@ -223,5 +315,11 @@ Deno.serve(async (req) => {
     user_id: profile.id,
     granted_exam_ids: grantedExamIds,
     already_granted_exam_ids: alreadyGrantedExamIds,
+  }, {
+    lynk_uuid: lynkUuid,
+    buyer_email: buyerEmail,
+    user_id: profile.id,
+    exam_id: pkg.exam_id,
+    amount,
   });
 });

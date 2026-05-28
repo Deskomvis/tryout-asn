@@ -30,6 +30,7 @@ import { AdminTabBar } from "@/components/admin/AdminTabBar";
 import { GlobalBankTable } from "@/components/admin/GlobalBankTable";
 import { MaterialRow } from "@/components/admin/MaterialRow";
 import { ExamCategoryManager, type ExamCategory } from "@/components/admin/ExamCategoryManager";
+import { WebhookLogsPanel } from "@/components/admin/WebhookLogsPanel";
 
 // ── Shared subtest list (all 7 subtests) ─────────────────────────────────────
 const ALL_SUBTESTS = [
@@ -3794,6 +3795,10 @@ const Admin = () => {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="webhooks" className="space-y-4">
+            <WebhookLogsPanel />
           </TabsContent>
         </Tabs>
       </div>
